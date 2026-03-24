@@ -126,8 +126,9 @@ export function generateCurvaS(project: Project): { day: string; planejado: numb
     return d.getTime();
   })));
 
-  const totalDays = Math.ceil((projectEnd.getTime() - projectStart.getTime()) / 86400000) + 1;
-  const totalWeight = tasks.reduce((s, t) => s + t.duration, 0);
+  const totalDays = Math.max(1, Math.ceil((projectEnd.getTime() - projectStart.getTime()) / 86400000) + 1);
+  const totalWeight = validTasks.reduce((s, t) => s + t.duration, 0);
+  if (totalWeight === 0) return [];
 
   // Distribute weight per day
   const plannedPerDay = new Array(totalDays).fill(0);
