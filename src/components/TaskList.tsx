@@ -39,6 +39,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const [expandedRup, setExpandedRup] = useState<string | null>(null);
   const [simulating, setSimulating] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => {
