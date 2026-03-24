@@ -40,6 +40,42 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const [simulating, setSimulating] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [editingPhase, setEditingPhase] = useState<string | null>(null);
+  const [phaseNameDraft, setPhaseNameDraft] = useState('');
+
+  const PHASE_COLORS = [
+    'hsl(var(--primary))', 'hsl(var(--info))', 'hsl(var(--warning))',
+    'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(210, 60%, 50%)',
+    'hsl(280, 50%, 55%)', 'hsl(160, 50%, 45%)',
+  ];
+
+  const addPhase = () => {
+    const newId = `phase-${Date.now()}`;
+    const colorIdx = project.phases.length % PHASE_COLORS.length;
+    onProjectChange({
+      ...project,
+      phases: [...project.phases, { id: newId, name: 'Novo Capítulo', color: PHASE_COLORS[colorIdx], tasks: [] }],
+    });
+    setExpandedPhases(prev => new Set([...prev, newId]));
+    setEditingPhase(newId);
+    setPhaseNameDraft('Novo Capítulo');
+  };
+
+  const renamePhase = (phaseId: string) => {
+    if (!phaseNameDraft.trim()) return;
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p => p.id === phaseId ? { ...p, name: phaseNameDraft.trim() } : p),
+    });
+    setEditingPhase(null);
+  };
+
+  const deletePhase = (phaseId: string) => {
+    onProjectChange({
+      ...project,
+      phases: project.phases.filter(p => p.id !== phaseId),
+    });
+  };
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => {
