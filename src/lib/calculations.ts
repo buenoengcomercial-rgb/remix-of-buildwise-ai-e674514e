@@ -58,14 +58,16 @@ export function calculateCPM(project: Project): Project {
   // Forward pass
   const visited = new Set<string>();
   function forwardPass(id: string): number {
-    const task = taskMap.get(id)!;
+    const task = taskMap.get(id);
+    if (!task) return 0;
     if (visited.has(id)) return task.ef!;
     visited.add(id);
 
-    if (task.dependencies.length === 0) {
+    const validDeps = task.dependencies.filter(depId => taskMap.has(depId));
+    if (validDeps.length === 0) {
       task.es = 0;
     } else {
-      task.es = Math.max(...task.dependencies.map(depId => forwardPass(depId)));
+      task.es = Math.max(...validDeps.map(depId => forwardPass(depId)));
     }
     task.ef = task.es + task.duration;
     taskMap.set(id, task);
