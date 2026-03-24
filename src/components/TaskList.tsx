@@ -297,7 +297,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 >
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
-                  <span className="text-sm font-bold text-foreground">{phase.name}</span>
+                  {editingPhase === phase.id ? (
+                    <input
+                      autoFocus
+                      value={phaseNameDraft}
+                      onChange={e => setPhaseNameDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
+                      onClick={e => e.stopPropagation()}
+                      className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-foreground">{phase.name}</span>
+                  )}
                   {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive" />}
                   <span className="text-xs text-muted-foreground ml-1">({phase.tasks.length} tarefas)</span>
                   <div className="ml-auto flex items-center gap-3">
@@ -307,6 +318,30 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                     <span className="text-xs font-bold text-muted-foreground w-8 text-right">{phaseProgress}%</span>
                   </div>
                 </button>
+
+                {/* Phase actions */}
+                <div className="flex items-center gap-1 mr-2">
+                  {editingPhase === phase.id ? (
+                    <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
+                      className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                      title="Renomear capítulo"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deletePhase(phase.id)}
+                    className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Excluir capítulo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <button
                   onClick={() => addTask(phase.id)}
                   className="mr-4 flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors"
