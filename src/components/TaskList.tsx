@@ -1,6 +1,6 @@
 import { Project, Task, LaborComposition } from '@/types/project';
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
@@ -40,6 +40,42 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const [simulating, setSimulating] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [editingPhase, setEditingPhase] = useState<string | null>(null);
+  const [phaseNameDraft, setPhaseNameDraft] = useState('');
+
+  const PHASE_COLORS = [
+    'hsl(var(--primary))', 'hsl(var(--info))', 'hsl(var(--warning))',
+    'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(210, 60%, 50%)',
+    'hsl(280, 50%, 55%)', 'hsl(160, 50%, 45%)',
+  ];
+
+  const addPhase = () => {
+    const newId = `phase-${Date.now()}`;
+    const colorIdx = project.phases.length % PHASE_COLORS.length;
+    onProjectChange({
+      ...project,
+      phases: [...project.phases, { id: newId, name: 'Novo Capítulo', color: PHASE_COLORS[colorIdx], tasks: [] }],
+    });
+    setExpandedPhases(prev => new Set([...prev, newId]));
+    setEditingPhase(newId);
+    setPhaseNameDraft('Novo Capítulo');
+  };
+
+  const renamePhase = (phaseId: string) => {
+    if (!phaseNameDraft.trim()) return;
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p => p.id === phaseId ? { ...p, name: phaseNameDraft.trim() } : p),
+    });
+    setEditingPhase(null);
+  };
+
+  const deletePhase = (phaseId: string) => {
+    onProjectChange({
+      ...project,
+      phases: project.phases.filter(p => p.id !== phaseId),
+    });
+  };
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => {
@@ -217,12 +253,20 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           <h2 className="text-2xl font-bold text-foreground">Estrutura Analítica (EAP)</h2>
           <p className="text-sm text-muted-foreground mt-1">Tarefas com cálculo RUP e composição de mão de obra</p>
         </div>
-        <button
-          onClick={() => setImportOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          <Upload className="w-4 h-4" /> Importar PDF/Excel
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Upload className="w-4 h-4" /> Importar PDF/Excel
+          </button>
+          <button
+            onClick={addPhase}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border bg-card text-foreground font-medium text-sm hover:bg-muted/50 transition-colors shadow-sm"
+          >
+            <FolderPlus className="w-4 h-4" /> Novo Capítulo
+          </button>
+        </div>
       </div>
 
       <ImportTasksDialog
@@ -253,7 +297,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 >
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
-                  <span className="text-sm font-bold text-foreground">{phase.name}</span>
+                  {editingPhase === phase.id ? (
+                    <input
+                      autoFocus
+                      value={phaseNameDraft}
+                      onChange={e => setPhaseNameDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
+                      onClick={e => e.stopPropagation()}
+                      className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-foreground">{phase.name}</span>
+                  )}
                   {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive" />}
                   <span className="text-xs text-muted-foreground ml-1">({phase.tasks.length} tarefas)</span>
                   <div className="ml-auto flex items-center gap-3">
@@ -263,6 +318,30 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                     <span className="text-xs font-bold text-muted-foreground w-8 text-right">{phaseProgress}%</span>
                   </div>
                 </button>
+
+                {/* Phase actions */}
+                <div className="flex items-center gap-1 mr-2">
+                  {editingPhase === phase.id ? (
+                    <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
+                      className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                      title="Renomear capítulo"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deletePhase(phase.id)}
+                    className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Excluir capítulo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <button
                   onClick={() => addTask(phase.id)}
                   className="mr-4 flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors"
