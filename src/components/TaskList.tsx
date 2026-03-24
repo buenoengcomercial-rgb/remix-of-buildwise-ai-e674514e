@@ -1,6 +1,6 @@
 import { Project, Task, LaborComposition } from '@/types/project';
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
