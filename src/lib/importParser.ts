@@ -43,8 +43,10 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
   const rootChapters: ParsedChapter[] = [];
   const flatCompositions: ParsedComposition[] = [];
 
-  // Map from code → chapter node for code-based hierarchy lookup
+  // Code → chapter for hierarchy lookup
   const codeToChapter = new Map<string, ParsedChapter>();
+  // Stack-based tracking: last active chapter/composition by sequential order
+  let lastChapter: ParsedChapter | null = null;
   let lastComposition: ParsedComposition | null = null;
 
   // Skip header row if detected
@@ -73,17 +75,17 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const desc = colC || colB || colA;
     if (!desc && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
 
-    // Skip rows with empty code (except labor lines which attach to previous composition)
+    // Skip rows with empty code AND no useful data
     if (!colA && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
 
-    // ── Normalize column B for type detection ──
+    // ── Normalize column B for type detection (PRIORITY) ──
     const tipoNorm = colB.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     const isTypeCap = tipoNorm === 'capitulo' || tipoNorm === 'cap' || tipoNorm === 'subcapitulo';
     const isTypeComp = tipoNorm === 'composicao' || tipoNorm === 'comp' || tipoNorm === 'servico' || tipoNorm === 'atividade';
     const isTypeLabor = tipoNorm === 'mao de obra' || tipoNorm === 'mdo' || tipoNorm === 'recurso' || tipoNorm === 'insumo mao de obra';
     const hasTypeHint = isTypeCap || isTypeComp || isTypeLabor;
 
-    // ── Classification: Column B has PRIORITY, columns D-H are fallback ──
+    // ── Classification: Column B PRIORITY, columns D-H as fallback ──
     const classifiedAsChapter = hasTypeHint ? isTypeCap : (!hasD && !hasE && !hasF && !hasG && !hasH && !!desc);
     const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
     const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
@@ -102,6 +104,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         compositions: [],
       };
 
+      // Use code hierarchy (column A) to find parent
       const parentCode = getParentCode(colA);
       const parent = parentCode ? codeToChapter.get(parentCode) : null;
 
@@ -111,8 +114,10 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         rootChapters.push(chapter);
       }
 
+      // Register by unique code — NEVER merge by name
       codeToChapter.set(colA, chapter);
-      lastComposition = null;
+      lastChapter = chapter;
+      lastComposition = null; // reset composition context on new chapter
       continue;
     }
 
@@ -127,9 +132,12 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      const parentChapter = findParentChapter(colA, codeToChapter);
+      // Try code-based parent first, then fall back to last active chapter
+      const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
+      } else {
+        warnings.push(`Linha ${i + 1}: composição "${comp.name}" sem capítulo associado`);
       }
       flatCompositions.push(comp);
       lastComposition = comp;
@@ -147,6 +155,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         workerCount: 1,
       };
 
+      // Always attach to the last composition seen (sequential order)
       if (lastComposition) {
         lastComposition.labor.push(labor);
       } else {
@@ -173,7 +182,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      const parentChapter = findParentChapter(colA, codeToChapter);
+      const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
       }
