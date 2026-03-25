@@ -372,7 +372,9 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
   let colorIdx = 0;
 
   function processChapter(chapter: ParsedChapter, parentName?: string) {
+    // Use code to ensure uniqueness — never merge by name
     const phaseName = parentName ? `${parentName} > ${chapter.name}` : chapter.name;
+    const phaseId = `phase-${chapter.code || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     if (chapter.compositions.length > 0) {
       const tasks: Task[] = chapter.compositions.map(comp => {
@@ -392,7 +394,6 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
           }
           duration = Math.max(1, Math.ceil(maxH / 8));
         }
-        // If labor has pre-calculated days, use the max
         const maxDays = Math.max(0, ...comp.labor.map(l => l.days));
         if (maxDays > 0) duration = Math.ceil(maxDays);
 
@@ -402,7 +403,7 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
         const task: Task = {
           id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name: comp.name,
-          phase: phaseName,
+          phase: `[${chapter.code}] ${chapter.name}`,
           startDate: taskStart.toISOString().split('T')[0],
           duration,
           dependencies: [],
@@ -421,8 +422,8 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
       });
 
       phases.push({
-        id: `phase-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: chapter.name,
+        id: phaseId,
+        name: `[${chapter.code}] ${chapter.name}`,
         color: COLORS[colorIdx % COLORS.length],
         tasks,
       });
@@ -430,7 +431,7 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
     }
 
     for (const child of chapter.children) {
-      processChapter(child, chapter.name);
+      processChapter(child, phaseName);
     }
   }
 
