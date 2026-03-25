@@ -43,8 +43,8 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
   const rootChapters: ParsedChapter[] = [];
   const flatCompositions: ParsedComposition[] = [];
 
-  // Stack for hierarchy: [chapter at depth 0, subchapter at depth 1, ...]
-  const chapterStack: ParsedChapter[] = [];
+  // Map from code → chapter node for code-based hierarchy lookup
+  const codeToChapter = new Map<string, ParsedChapter>();
   let lastComposition: ParsedComposition | null = null;
 
   // Skip header row if detected
@@ -73,9 +73,18 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const desc = colC || colB || colA;
     if (!desc && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
 
+    // Skip rows with empty code (except labor lines which attach to previous composition)
+    if (!colA && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
+
     // ── RULE 1: Chapter/Subchapter ──
     // D, E, F, G, H all empty → it's a grouping header
+    // Hierarchy is defined EXCLUSIVELY by column A code structure
     if (!hasD && !hasE && !hasF && !hasG && !hasH && desc) {
+      if (!colA) {
+        warnings.push(`Linha ${i + 1}: capítulo sem código na coluna A, ignorado`);
+        continue;
+      }
+
       const chapter: ParsedChapter = {
         code: colA,
         name: (colC || colB || colA).trim(),
@@ -83,19 +92,19 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         compositions: [],
       };
 
-      // Determine depth from code structure (e.g., "1" = depth 0, "1.1" = depth 1, "1.1.1" = depth 2)
-      const depth = getCodeDepth(colA);
+      // NEVER group by name — each code creates a unique node
+      // Find parent by looking up the parent code from column A
+      const parentCode = getParentCode(colA);
+      const parent = parentCode ? codeToChapter.get(parentCode) : null;
 
-      // Pop stack to appropriate level
-      while (chapterStack.length > depth) chapterStack.pop();
-
-      if (chapterStack.length > 0) {
-        chapterStack[chapterStack.length - 1].children.push(chapter);
+      if (parent) {
+        parent.children.push(chapter);
       } else {
         rootChapters.push(chapter);
       }
 
-      chapterStack.push(chapter);
+      // Register this chapter by its unique code
+      codeToChapter.set(colA, chapter);
       lastComposition = null;
       continue;
     }
@@ -112,9 +121,10 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      // Add to current chapter
-      if (chapterStack.length > 0) {
-        chapterStack[chapterStack.length - 1].compositions.push(comp);
+      // Find parent chapter by code hierarchy
+      const parentChapter = findParentChapter(colA, codeToChapter);
+      if (parentChapter) {
+        parentChapter.compositions.push(comp);
       }
       flatCompositions.push(comp);
       lastComposition = comp;
@@ -141,8 +151,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
       continue;
     }
 
-    // ── Fallback: try to detect based on content ──
-    // If has description + unit + quantity + RUP data → treat as composition with inline labor
+    // ── Fallback: composition with inline labor ──
     if (desc && hasD && hasE && (hasF || hasG || hasH)) {
       const comp: ParsedComposition = {
         code: colA,
@@ -160,8 +169,9 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      if (chapterStack.length > 0) {
-        chapterStack[chapterStack.length - 1].compositions.push(comp);
+      const parentChapter = findParentChapter(colA, codeToChapter);
+      if (parentChapter) {
+        parentChapter.compositions.push(comp);
       }
       flatCompositions.push(comp);
       lastComposition = comp;
@@ -362,7 +372,9 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
   let colorIdx = 0;
 
   function processChapter(chapter: ParsedChapter, parentName?: string) {
+    // Use code to ensure uniqueness — never merge by name
     const phaseName = parentName ? `${parentName} > ${chapter.name}` : chapter.name;
+    const phaseId = `phase-${chapter.code || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     if (chapter.compositions.length > 0) {
       const tasks: Task[] = chapter.compositions.map(comp => {
@@ -382,7 +394,6 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
           }
           duration = Math.max(1, Math.ceil(maxH / 8));
         }
-        // If labor has pre-calculated days, use the max
         const maxDays = Math.max(0, ...comp.labor.map(l => l.days));
         if (maxDays > 0) duration = Math.ceil(maxDays);
 
@@ -392,7 +403,7 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
         const task: Task = {
           id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name: comp.name,
-          phase: phaseName,
+          phase: `[${chapter.code}] ${chapter.name}`,
           startDate: taskStart.toISOString().split('T')[0],
           duration,
           dependencies: [],
@@ -411,8 +422,8 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
       });
 
       phases.push({
-        id: `phase-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: chapter.name,
+        id: phaseId,
+        name: `[${chapter.code}] ${chapter.name}`,
         color: COLORS[colorIdx % COLORS.length],
         tasks,
       });
@@ -420,7 +431,7 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
     }
 
     for (const child of chapter.children) {
-      processChapter(child, chapter.name);
+      processChapter(child, phaseName);
     }
   }
 
@@ -557,6 +568,27 @@ function getCodeDepth(code: string): number {
   const clean = code.replace(/\s/g, '');
   const parts = clean.split(/[.\-\/]/);
   return Math.max(0, parts.length - 1);
+}
+
+// Get parent code by removing the last segment (e.g., "1.1.1" → "1.1", "1.1" → "1")
+function getParentCode(code: string): string | null {
+  if (!code) return null;
+  const clean = code.replace(/\s/g, '');
+  const lastDot = clean.lastIndexOf('.');
+  if (lastDot <= 0) return null;
+  return clean.substring(0, lastDot);
+}
+
+// Find the closest parent chapter by walking up the code hierarchy
+function findParentChapter(code: string, codeMap: Map<string, ParsedChapter>): ParsedChapter | null {
+  if (!code) return null;
+  let parentCode = getParentCode(code);
+  while (parentCode) {
+    const parent = codeMap.get(parentCode);
+    if (parent) return parent;
+    parentCode = getParentCode(parentCode);
+  }
+  return null;
 }
 
 function cellStr(val: any): string {
