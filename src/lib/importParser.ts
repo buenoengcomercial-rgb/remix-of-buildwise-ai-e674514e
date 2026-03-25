@@ -76,10 +76,20 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     // Skip rows with empty code (except labor lines which attach to previous composition)
     if (!colA && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
 
-    // ── RULE 1: Chapter/Subchapter ──
-    // D, E, F, G, H all empty → it's a grouping header
-    // Hierarchy is defined EXCLUSIVELY by column A code structure
-    if (!hasD && !hasE && !hasF && !hasG && !hasH && desc) {
+    // ── Normalize column B for type detection ──
+    const tipoNorm = colB.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const isTypeCap = tipoNorm === 'capitulo' || tipoNorm === 'cap' || tipoNorm === 'subcapitulo';
+    const isTypeComp = tipoNorm === 'composicao' || tipoNorm === 'comp' || tipoNorm === 'servico' || tipoNorm === 'atividade';
+    const isTypeLabor = tipoNorm === 'mao de obra' || tipoNorm === 'mdo' || tipoNorm === 'recurso' || tipoNorm === 'insumo mao de obra';
+    const hasTypeHint = isTypeCap || isTypeComp || isTypeLabor;
+
+    // ── Classification: Column B has PRIORITY, columns D-H are fallback ──
+    const classifiedAsChapter = hasTypeHint ? isTypeCap : (!hasD && !hasE && !hasF && !hasG && !hasH && !!desc);
+    const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
+    const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
+
+    // ── CHAPTER / SUBCHAPTER ──
+    if (classifiedAsChapter) {
       if (!colA) {
         warnings.push(`Linha ${i + 1}: capítulo sem código na coluna A, ignorado`);
         continue;
@@ -92,8 +102,6 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         compositions: [],
       };
 
-      // NEVER group by name — each code creates a unique node
-      // Find parent by looking up the parent code from column A
       const parentCode = getParentCode(colA);
       const parent = parentCode ? codeToChapter.get(parentCode) : null;
 
@@ -103,25 +111,22 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         rootChapters.push(chapter);
       }
 
-      // Register this chapter by its unique code
       codeToChapter.set(colA, chapter);
       lastComposition = null;
       continue;
     }
 
-    // ── RULE 2: Composition (Service) ──
-    // D and E have data, F/G/H empty → it's a task/service
-    if (hasD && hasE && !hasF && !hasG && !hasH) {
+    // ── COMPOSITION (SERVICE) ──
+    if (classifiedAsComposition) {
       const comp: ParsedComposition = {
         code: colA,
         name: (colC || colB || '').trim(),
-        unit: colD,
-        quantity: colE,
+        unit: colD || 'un',
+        quantity: colE || 1,
         labor: [],
         needsReview: false,
       };
 
-      // Find parent chapter by code hierarchy
       const parentChapter = findParentChapter(colA, codeToChapter);
       if (parentChapter) {
         parentChapter.compositions.push(comp);
@@ -131,9 +136,8 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
       continue;
     }
 
-    // ── RULE 3: Analytical Composition (Labor) ──
-    // D has data, E empty, F/G/H have data → labor line
-    if (hasD && !hasE && (hasF || hasG || hasH)) {
+    // ── LABOR (ANALYTICAL COMPOSITION) ──
+    if (classifiedAsLabor) {
       const labor: ParsedLabor = {
         role: (colC || colB || colD).trim(),
         unit: colD,
@@ -151,7 +155,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
       continue;
     }
 
-    // ── Fallback: composition with inline labor ──
+    // ── Fallback: composition with inline labor (D,E + F/G/H all present) ──
     if (desc && hasD && hasE && (hasF || hasG || hasH)) {
       const comp: ParsedComposition = {
         code: colA,
