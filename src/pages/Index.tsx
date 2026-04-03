@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { AppView, Project } from '@/types/project';
 import { sampleProject } from '@/data/sampleProject';
 import AppSidebar from '@/components/AppSidebar';
@@ -9,9 +9,19 @@ import Purchases from '@/components/Purchases';
 import { Menu, X } from 'lucide-react';
 import { applyRupToProject, calculateCPM } from '@/lib/calculations';
 
+const STORAGE_KEY = 'obra-project-data';
+
+function loadProject(): Project {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return sampleProject;
+}
+
 export default function Index() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
-  const [rawProject, setRawProject] = useState<Project>(sampleProject);
+  const [rawProject, setRawProject] = useState<Project>(loadProject);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Compute RUP durations + CPM on every project change
