@@ -20,9 +20,25 @@ function diffDays(a: Date, b: Date) {
   return Math.ceil((b.getTime() - a.getTime()) / 86400000);
 }
 
-function formatDate(d: string) {
+function formatDateFull(d: string) {
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatDateShort(d: string) {
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
+
+function getEndDate(startDate: string, duration: number): string {
+  const d = new Date(startDate);
+  d.setDate(d.getDate() + duration);
+  return d.toISOString();
+}
+
+const MONTH_NAMES_PT: Record<number, string> = {
+  0: 'Janeiro', 1: 'Fevereiro', 2: 'Março', 3: 'Abril',
+  4: 'Maio', 5: 'Junho', 6: 'Julho', 7: 'Agosto',
+  8: 'Setembro', 9: 'Outubro', 10: 'Novembro', 11: 'Dezembro',
+};
 
 export default function GanttChart({ project }: GanttChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('weeks');
@@ -48,6 +64,45 @@ export default function GanttChart({ project }: GanttChartProps) {
     });
   };
 
+  // Week-level dates (day numbers)
+  const weekDates = useMemo(() => {
+    const dates: { day: number; month: number; year: number; offset: number; width: number }[] = [];
+    if (viewMode === 'weeks') {
+      for (let i = 0; i < totalDays; i += 7) {
+        const d = addDays(projectStart, i);
+        dates.push({ day: d.getDate(), month: d.getMonth(), year: d.getFullYear(), offset: i * dayWidth, width: 7 * dayWidth });
+      }
+    }
+    return dates;
+  }, [viewMode, totalDays, dayWidth]);
+
+  // Month groups for top header row (weeks view)
+  const monthGroups = useMemo(() => {
+    if (viewMode !== 'weeks' || weekDates.length === 0) return [];
+    const groups: { label: string; offset: number; width: number }[] = [];
+    let currentKey = `${weekDates[0].year}-${weekDates[0].month}`;
+    let currentOffset = weekDates[0].offset;
+    let currentWidth = weekDates[0].width;
+    let currentMonth = weekDates[0].month;
+    let currentYear = weekDates[0].year;
+
+    for (let i = 1; i < weekDates.length; i++) {
+      const key = `${weekDates[i].year}-${weekDates[i].month}`;
+      if (key === currentKey) {
+        currentWidth += weekDates[i].width;
+      } else {
+        groups.push({ label: `${MONTH_NAMES_PT[currentMonth]} ${currentYear}`, offset: currentOffset, width: currentWidth });
+        currentKey = key;
+        currentOffset = weekDates[i].offset;
+        currentWidth = weekDates[i].width;
+        currentMonth = weekDates[i].month;
+        currentYear = weekDates[i].year;
+      }
+    }
+    groups.push({ label: `${MONTH_NAMES_PT[currentMonth]} ${currentYear}`, offset: currentOffset, width: currentWidth });
+    return groups;
+  }, [weekDates, viewMode]);
+
   const headerDates = useMemo(() => {
     const dates: { label: string; offset: number; width: number }[] = [];
     if (viewMode === 'days') {
@@ -58,11 +113,7 @@ export default function GanttChart({ project }: GanttChartProps) {
     } else if (viewMode === 'weeks') {
       for (let i = 0; i < totalDays; i += 7) {
         const d = addDays(projectStart, i);
-        dates.push({
-          label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-          offset: i * dayWidth,
-          width: 7 * dayWidth,
-        });
+        dates.push({ label: d.getDate().toString().padStart(2, '0'), offset: i * dayWidth, width: 7 * dayWidth });
       }
     } else {
       let current = new Date(projectStart);
@@ -87,6 +138,9 @@ export default function GanttChart({ project }: GanttChartProps) {
     return { left: start * dayWidth, width, isDelayed };
   };
 
+  const headerHeight = viewMode === 'weeks' ? 'h-16' : 'h-10';
+  const headerHeightPx = viewMode === 'weeks' ? 64 : 40;
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -95,7 +149,6 @@ export default function GanttChart({ project }: GanttChartProps) {
           <p className="text-sm text-muted-foreground mt-1">Gráfico de Gantt com Caminho Crítico (CPM)</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Critical path toggle */}
           <button
             onClick={() => setShowCriticalOnly(!showCriticalOnly)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
@@ -133,12 +186,13 @@ export default function GanttChart({ project }: GanttChartProps) {
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="flex">
-          {/* Task list */}
-          <div className="w-80 min-w-[320px] border-r border-border flex-shrink-0">
-            <div className="h-10 border-b border-border bg-secondary/50 grid grid-cols-12 items-center px-4">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-5">Tarefa</span>
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-2 text-center">Dur.</span>
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-2 text-center">Folga</span>
+          {/* Task list — removed Folga, added Início and Fim */}
+          <div className="w-[420px] min-w-[420px] border-r border-border flex-shrink-0">
+            <div className={`${headerHeight} border-b border-border bg-secondary/50 grid grid-cols-12 items-center px-4`}>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-4">Tarefa</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-1 text-center">Dur.</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-2 text-center">Início</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-2 text-center">Fim</span>
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider col-span-3 text-center">Gargalo</span>
             </div>
             {project.phases.map(phase => (
@@ -156,21 +210,21 @@ export default function GanttChart({ project }: GanttChartProps) {
                     .filter(t => !showCriticalOnly || t.isCritical)
                     .map(task => (
                     <div key={task.id} className={`grid grid-cols-12 items-center gap-1 px-4 py-2 border-b border-border hover:bg-muted/30 transition-colors ${task.isCritical ? 'bg-destructive/5' : ''}`}>
-                      <div className="col-span-5 min-w-0">
+                      <div className="col-span-4 min-w-0">
                         <div className="flex items-center gap-1.5">
                           {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
                           <p className="text-[11px] font-medium text-foreground truncate">{task.name}</p>
                         </div>
                         <p className="text-[9px] text-muted-foreground">{task.responsible}</p>
                       </div>
-                      <div className="col-span-2 text-center">
+                      <div className="col-span-1 text-center">
                         <span className="text-[10px] font-bold text-foreground">{task.duration}d</span>
-                        {task.totalHours && <p className="text-[9px] text-muted-foreground">{Math.round(task.totalHours)}h</p>}
                       </div>
                       <div className="col-span-2 text-center">
-                        <span className={`text-[10px] font-bold ${task.float === 0 ? 'text-destructive' : 'text-success'}`}>
-                          {task.float ?? '-'}d
-                        </span>
+                        <span className="text-[10px] text-foreground">{formatDateFull(task.startDate)}</span>
+                      </div>
+                      <div className="col-span-2 text-center">
+                        <span className="text-[10px] text-foreground">{formatDateFull(getEndDate(task.startDate, task.duration))}</span>
                       </div>
                       <div className="col-span-3 text-center">
                         {task.bottleneckRole ? (
@@ -188,17 +242,43 @@ export default function GanttChart({ project }: GanttChartProps) {
           {/* Gantt bars */}
           <div className="flex-1 overflow-x-auto scrollbar-thin">
             <div style={{ width: chartWidth, minWidth: '100%' }}>
-              <div className="h-10 border-b border-border bg-secondary/50 relative">
-                {headerDates.map((d, i) => (
-                  <div
-                    key={i}
-                    className="absolute h-full flex items-center justify-center text-[10px] text-muted-foreground font-medium border-r border-border"
-                    style={{ left: d.offset, width: d.width }}
-                  >
-                    {d.label}
-                  </div>
-                ))}
-              </div>
+              {/* Header — two rows for weeks, single row otherwise */}
+              {viewMode === 'weeks' ? (
+                <div className="h-16 border-b border-border bg-secondary/50 relative">
+                  {/* Top row: month names */}
+                  {monthGroups.map((g, i) => (
+                    <div
+                      key={i}
+                      className="absolute top-0 h-8 flex items-center justify-center text-[10px] text-foreground font-semibold border-r border-b border-border"
+                      style={{ left: g.offset, width: g.width }}
+                    >
+                      {g.label}
+                    </div>
+                  ))}
+                  {/* Bottom row: day numbers */}
+                  {headerDates.map((d, i) => (
+                    <div
+                      key={i}
+                      className="absolute top-8 h-8 flex items-center justify-center text-[10px] text-muted-foreground font-medium border-r border-border"
+                      style={{ left: d.offset, width: d.width }}
+                    >
+                      {d.label}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-10 border-b border-border bg-secondary/50 relative">
+                  {headerDates.map((d, i) => (
+                    <div
+                      key={i}
+                      className="absolute h-full flex items-center justify-center text-[10px] text-muted-foreground font-medium border-r border-border"
+                      style={{ left: d.offset, width: d.width }}
+                    >
+                      {d.label}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="relative">
                 {todayOffset >= 0 && todayOffset <= totalDays && (
@@ -242,7 +322,7 @@ export default function GanttChart({ project }: GanttChartProps) {
                               <div className="h-full rounded-full opacity-40" style={{ width: `${task.percentComplete}%`, background: 'white' }} />
                               <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-foreground text-background text-[10px] px-2.5 py-1.5 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 space-y-0.5">
                                 <div className="font-semibold">{task.name} — {task.percentComplete}%</div>
-                                <div>{formatDate(task.startDate)} • {task.duration}d {task.totalHours ? `(${Math.round(task.totalHours)}h)` : ''}</div>
+                                <div>{formatDateShort(task.startDate)} • {task.duration}d {task.totalHours ? `(${Math.round(task.totalHours)}h)` : ''}</div>
                                 {task.isCritical && <div className="text-red-300">⚠ Caminho Crítico • Folga: {task.float}d</div>}
                                 {task.bottleneckRole && <div>Gargalo: {task.bottleneckRole}</div>}
                               </div>
