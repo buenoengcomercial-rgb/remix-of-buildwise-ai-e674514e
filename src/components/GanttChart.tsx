@@ -12,6 +12,7 @@ import ConfiguracaoObra, { ObraConfig, loadObraConfig } from './ConfiguracaoObra
 import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
 import { addDays, diffDays, formatDateFull, getEndDate, MONTH_NAMES_PT, dateToISO } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis } from '@/lib/feriados';
+import { calculateRupDuration } from '@/lib/calculations';
 
 interface GanttChartProps {
   project: Project;
@@ -434,8 +435,44 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return result.dias === 0;
   }, [obraConfig]);
 
-  const sidebarCols = '24px 1fr 36px 68px 68px 50px 50px';
-  const sidebarWidth = 420;
+  const sidebarCols = '24px 1fr 28px 20px 68px 68px 50px 50px';
+  const sidebarWidth = 460;
+
+  // Toggle duration mode and recalculate if switching to RUP
+  const toggleDurationMode = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const currentMode = task.durationMode || 'manual';
+    const newMode = currentMode === 'manual' ? 'rup' : 'manual';
+    const updates: Partial<Task> = { durationMode: newMode };
+    if (newMode === 'rup' && task.laborCompositions?.length && task.quantity) {
+      const { duration, totalHours, bottleneckRole } = calculateRupDuration(task);
+      updates.duration = duration;
+      updates.totalHours = totalHours;
+      updates.bottleneckRole = bottleneckRole;
+      updates.calculatedDuration = duration;
+    }
+    updateTask(taskId, updates);
+  };
+
+  const handleManualDurationChange = (taskId: string, value: string) => {
+    const num = parseInt(value);
+    if (isNaN(num) || num < 1) return;
+    updateTask(taskId, { duration: num, durationMode: 'manual' });
+    setTimeout(() => propagateDependencies(taskId), 0);
+  };
+
+  // Get chapter bar info for milestones
+  const getChapterBarInfo = (phase: typeof project.phases[0]) => {
+    if (phase.tasks.length === 0) return null;
+    const starts = phase.tasks.map(t => new Date(t.startDate).getTime());
+    const ends = phase.tasks.map(t => addDays(new Date(t.startDate), t.duration).getTime());
+    const minStart = new Date(Math.min(...starts));
+    const maxEnd = new Date(Math.max(...ends));
+    const left = diffDays(projectStart, minStart) * dayWidth;
+    const right = diffDays(projectStart, maxEnd) * dayWidth;
+    return { left, right, width: right - left };
+  };
 
   // Get day column background color
   const getDayBg = (dayIndex: number): string | undefined => {
@@ -522,6 +559,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">#</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Tarefa</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dur</span>
+                <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Início</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Fim</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dep</span>
@@ -614,7 +652,46 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 <p className="text-[11px] font-medium text-foreground line-clamp-2 break-words leading-tight">{task.name}</p>
                               </div>
                               <div className="text-center">
-                                <span className="text-[10px] font-bold text-foreground">{task.duration}d</span>
+                                {(task.durationMode || 'manual') === 'manual' ? (
+                                  <input
+                                    className="w-full text-[10px] font-bold bg-transparent text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary rounded"
+                                    defaultValue={task.duration}
+                                    key={`dur-${task.id}-${task.duration}`}
+                                    type="number"
+                                    min={1}
+                                    onBlur={(e) => handleManualDurationChange(task.id, e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                    title="Duração manual (dias)"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] font-bold text-primary" title={`Calculado por RUP: ${task.bottleneckRole || '—'}`}>
+                                    {task.duration}d
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-center">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => toggleDurationMode(task.id)}
+                                      className={`text-[8px] font-bold rounded px-0.5 py-0 transition-colors ${
+                                        (task.durationMode || 'manual') === 'rup'
+                                          ? 'bg-primary/20 text-primary'
+                                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                                      }`}
+                                      title={(task.durationMode || 'manual') === 'rup' ? 'Modo RUP (clique para manual)' : 'Modo Manual (clique para RUP)'}
+                                    >
+                                      {(task.durationMode || 'manual') === 'rup' ? 'R' : 'M'}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      {(task.durationMode || 'manual') === 'rup'
+                                        ? 'Duração via RUP — clique para editar manualmente'
+                                        : 'Duração manual — clique para calcular via RUP'}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                               <Popover>
                                 <PopoverTrigger asChild>
@@ -789,8 +866,71 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
                   {project.phases.map(phase => (
                     <div key={phase.id}>
-                      {/* Phase header row — account for expanded chapter dates */}
-                      <div className="border-b border-border bg-muted/30" style={{ height: ROW_HEIGHT + 20 }} />
+                      {/* Phase header row with milestone markers */}
+                      <div className="border-b border-border bg-muted/30 relative" style={{ height: ROW_HEIGHT + 20 }}>
+                        {(() => {
+                          const chapterBar = getChapterBarInfo(phase);
+                          if (!chapterBar) return null;
+                          const diamondSize = 10;
+                          const midY = (ROW_HEIGHT + 20) / 2;
+                          return (
+                            <>
+                              {/* Chapter span line */}
+                              <div
+                                className="absolute"
+                                style={{
+                                  left: chapterBar.left,
+                                  width: chapterBar.width,
+                                  top: midY - 1,
+                                  height: 2,
+                                  background: phase.color || 'hsl(var(--primary))',
+                                  opacity: 0.5,
+                                  zIndex: 5,
+                                }}
+                              />
+                              {/* Start milestone diamond */}
+                              <div
+                                className="absolute z-10"
+                                style={{
+                                  left: chapterBar.left - diamondSize / 2,
+                                  top: midY - diamondSize / 2,
+                                  width: diamondSize,
+                                  height: diamondSize,
+                                  background: phase.color || 'hsl(var(--primary))',
+                                  transform: 'rotate(45deg)',
+                                  borderRadius: 2,
+                                }}
+                                title={`Início: ${getPhaseRange(phase).start ? formatDateFull(getPhaseRange(phase).start) : '—'}`}
+                              />
+                              {/* End milestone diamond */}
+                              <div
+                                className="absolute z-10"
+                                style={{
+                                  left: chapterBar.right - diamondSize / 2,
+                                  top: midY - diamondSize / 2,
+                                  width: diamondSize,
+                                  height: diamondSize,
+                                  background: phase.color || 'hsl(var(--primary))',
+                                  transform: 'rotate(45deg)',
+                                  borderRadius: 2,
+                                }}
+                                title={`Fim: ${getPhaseRange(phase).end ? formatDateFull(getPhaseRange(phase).end) : '—'}`}
+                              />
+                              {/* Chapter name label */}
+                              <div
+                                className="absolute text-[9px] font-bold z-10 whitespace-nowrap"
+                                style={{
+                                  left: chapterBar.left + diamondSize + 4,
+                                  top: midY - 14,
+                                  color: phase.color || 'hsl(var(--primary))',
+                                }}
+                              >
+                                {phase.name}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
                       {!collapsedPhases.has(phase.id) &&
                         phase.tasks
                           .filter(t => !showCriticalOnly || t.isCritical)

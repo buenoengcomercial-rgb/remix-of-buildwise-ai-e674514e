@@ -28,6 +28,7 @@ export interface Task {
   isExpanded?: boolean;
   level: number;
   observations?: string;
+  durationMode?: 'manual' | 'rup'; // how duration is determined
   // RUP fields
   quantity?: number;
   unit?: string;
