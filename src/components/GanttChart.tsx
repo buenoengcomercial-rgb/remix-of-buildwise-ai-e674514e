@@ -657,22 +657,25 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 <p className="text-[11px] font-medium text-foreground line-clamp-2 break-words leading-tight">{task.name}</p>
                               </div>
                               <div className="text-center">
-                                {(task.durationMode || 'manual') === 'manual' ? (
-                                  <input
-                                    className="w-full text-[10px] font-bold bg-transparent text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary rounded"
-                                    defaultValue={task.duration}
-                                    key={`dur-${task.id}-${task.duration}`}
-                                    type="number"
-                                    min={1}
-                                    onBlur={(e) => handleManualDurationChange(task.id, e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                                    title="Duração manual (dias)"
-                                  />
-                                ) : (
-                                  <span className="text-[10px] font-bold text-primary" title={`Calculado por RUP: ${task.bottleneckRole || '—'}`}>
-                                    {task.duration}d
-                                  </span>
-                                )}
+                                <input
+                                  className={`w-full text-[10px] font-bold bg-transparent text-center focus:outline-none focus:ring-1 focus:ring-primary rounded ${
+                                    (task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground'
+                                  }`}
+                                  defaultValue={task.duration}
+                                  key={`dur-${task.id}-${task.duration}`}
+                                  type="number"
+                                  min={1}
+                                  onBlur={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (isNaN(val) || val < 1) return;
+                                    // If value differs from RUP calculation, switch to manual
+                                    handleManualDurationChange(task.id, e.target.value);
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                  title={(task.durationMode || 'manual') === 'rup'
+                                    ? `RUP: ${task.bottleneckRole || '—'} — edite para desvincular`
+                                    : 'Duração manual (dias)'}
+                                />
                               </div>
                               <div className="text-center">
                                 <Tooltip>
