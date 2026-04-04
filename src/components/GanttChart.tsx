@@ -244,13 +244,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     if (!task) return;
 
     if (field === 'start') {
-      const oldEnd = addDays(new Date(task.startDate), task.duration);
-      const newDuration = Math.max(1, diffDays(date, oldEnd));
-      updateTask(taskId, { startDate: dateToISO(date), duration: newDuration });
+      if ((task.durationMode || 'manual') === 'manual') {
+        // Manual mode: keep duration, shift end date
+        updateTask(taskId, { startDate: dateToISO(date) });
+      } else {
+        const oldEnd = addDays(new Date(task.startDate), task.duration);
+        const newDuration = Math.max(1, diffDays(date, oldEnd));
+        updateTask(taskId, { startDate: dateToISO(date), duration: newDuration });
+      }
     } else {
       const start = new Date(task.startDate);
       const newDuration = Math.max(1, diffDays(start, date));
-      updateTask(taskId, { duration: newDuration });
+      updateTask(taskId, { duration: newDuration, durationMode: 'manual' });
     }
     setTimeout(() => propagateDependencies(taskId), 0);
   };
