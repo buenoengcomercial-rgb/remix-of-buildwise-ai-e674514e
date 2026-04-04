@@ -19,8 +19,8 @@ export const DAY_WIDTH: Record<ViewMode, number> = { days: 28, weeks: 7, months:
 export const ROW_HEIGHT = 32;
 
 export const DEP_COLORS: Record<DependencyType, string> = {
-  TI: 'hsl(230, 65%, 52%)',
-  II: 'hsl(152, 60%, 42%)',
-  TT: 'hsl(38, 92%, 50%)',
-  IT: 'hsl(0, 72%, 51%)',
+  TI: '#378ADD',
+  II: '#1D9E75',
+  TT: '#BA7517',
+  IT: '#A32D2D',
 };
