@@ -55,7 +55,7 @@ export default function DependencyArrows({ flatTasks, projectStart, dayWidth, he
           break;
       }
 
-      const color = DEP_COLORS[dep.type];
+      const color = DEP_COLORS[dep.type] || '#378ADD';
       const midX = (x1 + x2) / 2;
 
       arrows.push(

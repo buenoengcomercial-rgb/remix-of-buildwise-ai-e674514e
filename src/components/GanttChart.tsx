@@ -1,9 +1,10 @@
-import { Project, Task, ViewMode, DependencyType } from '@/types/project';
+import { Project, Task, ViewMode, DependencyType, TaskDependency } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import DependencyArrows from './gantt/DependencyArrows';
 import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
@@ -45,7 +46,27 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     });
   };
 
-  // Build flat task list for row indexing
+  // Build sequential numbering for ALL tasks (not phases), regardless of collapse/filter
+  const taskNumbering = useMemo(() => {
+    const map = new Map<string, number>();
+    let num = 0;
+    project.phases.forEach(phase => {
+      phase.tasks.forEach(task => {
+        num++;
+        map.set(task.id, num);
+      });
+    });
+    return map;
+  }, [project]);
+
+  // Reverse map: number -> taskId
+  const numberToTaskId = useMemo(() => {
+    const map = new Map<number, string>();
+    taskNumbering.forEach((num, id) => map.set(num, id));
+    return map;
+  }, [taskNumbering]);
+
+  // Build flat task list for row indexing (visual)
   const flatTasks = useMemo(() => {
     const result: FlatTask[] = [];
     let rowIdx = 0;
@@ -153,6 +174,37 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     onProjectChange(newProject);
   }, [project, onProjectChange]);
 
+  // Dependency validation: check if task violates its dependencies
+  const getViolations = useCallback((task: Task): string[] => {
+    const violations: string[] = [];
+    const details = task.dependencyDetails || [];
+    details.forEach(dep => {
+      const predTask = tasks.find(t => t.id === dep.taskId);
+      if (!predTask) return;
+      const predNum = taskNumbering.get(dep.taskId);
+      const predStart = new Date(predTask.startDate);
+      const predEnd = addDays(predStart, predTask.duration);
+      const taskStart = new Date(task.startDate);
+      const taskEnd = addDays(taskStart, task.duration);
+
+      switch (dep.type) {
+        case 'TI':
+          if (taskStart < predEnd) violations.push(`Conflito de dependência com tarefa #${predNum} (TI)`);
+          break;
+        case 'II':
+          if (taskStart < predStart) violations.push(`Conflito de dependência com tarefa #${predNum} (II)`);
+          break;
+        case 'TT':
+          if (taskEnd < predEnd) violations.push(`Conflito de dependência com tarefa #${predNum} (TT)`);
+          break;
+        case 'IT':
+          if (taskEnd < predStart) violations.push(`Conflito de dependência com tarefa #${predNum} (IT)`);
+          break;
+      }
+    });
+    return violations;
+  }, [tasks, taskNumbering]);
+
   // Date change handler
   const handleDateChange = (taskId: string, field: 'start' | 'end', date: Date | undefined) => {
     if (!date) return;
@@ -168,7 +220,74 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       const newDuration = Math.max(1, diffDays(start, date));
       updateTask(taskId, { duration: newDuration });
     }
+    // After date change, propagate to dependent tasks
+    setTimeout(() => propagateDependencies(taskId), 0);
   };
+
+  // Propagate dependency constraints to successor tasks
+  const propagateDependencies = useCallback((changedTaskId: string) => {
+    if (!onProjectChange) return;
+    const allTasks = getAllTasks(project);
+    const taskMap = new Map(allTasks.map(t => [t.id, t]));
+
+    // Find tasks that depend on changedTaskId
+    const updates: Record<string, Partial<Task>> = {};
+
+    allTasks.forEach(t => {
+      const details = t.dependencyDetails || [];
+      details.forEach(dep => {
+        if (dep.taskId !== changedTaskId) return;
+        const pred = taskMap.get(dep.taskId);
+        if (!pred) return;
+
+        const predStart = new Date(pred.startDate);
+        const predEnd = addDays(predStart, pred.duration);
+        const taskStart = new Date(t.startDate);
+        const taskEnd = addDays(taskStart, t.duration);
+
+        switch (dep.type) {
+          case 'TI':
+            if (taskStart < predEnd) {
+              updates[t.id] = { startDate: dateToISO(predEnd), duration: t.duration };
+            }
+            break;
+          case 'II':
+            if (taskStart < predStart) {
+              updates[t.id] = { startDate: dateToISO(predStart), duration: t.duration };
+            }
+            break;
+          case 'TT': {
+            const requiredStart = addDays(predEnd, -t.duration);
+            if (taskEnd < predEnd) {
+              updates[t.id] = { startDate: dateToISO(requiredStart), duration: t.duration };
+            }
+            break;
+          }
+          case 'IT': {
+            const requiredEnd = predStart;
+            const requiredStartIT = addDays(requiredEnd, -t.duration);
+            if (taskEnd < predStart) {
+              updates[t.id] = { startDate: dateToISO(requiredStartIT), duration: t.duration };
+            }
+            break;
+          }
+        }
+      });
+    });
+
+    if (Object.keys(updates).length > 0) {
+      const newProject = {
+        ...project,
+        phases: project.phases.map(phase => ({
+          ...phase,
+          tasks: phase.tasks.map(t =>
+            updates[t.id] ? { ...t, ...updates[t.id] } : t
+          ),
+        })),
+      };
+      onProjectChange(newProject);
+    }
+  }, [project, onProjectChange]);
 
   // Drag handlers
   const handleMouseDown = (e: React.MouseEvent, taskId: string, barLeft: number) => {
@@ -193,6 +312,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         if (task) {
           const newStart = addDays(new Date(task.startDate), daysMoved);
           updateTask(taskId, { startDate: dateToISO(newStart) });
+          setTimeout(() => propagateDependencies(taskId), 0);
         }
       }
       setDraggingTaskId(null);
@@ -203,21 +323,62 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     document.addEventListener('mouseup', handleUp);
   };
 
-  // Dependency editing
+  // Dependency editing - now uses line numbers
   const handleDepChange = (taskId: string, value: string) => {
     if (!onProjectChange) return;
-    // Parse format: "t1:TI,t2:II" or "t1,t2" (defaults to TI)
-    const deps = value.split(',').map(s => s.trim()).filter(Boolean).map(s => {
-      const parts = s.split(':');
-      return {
-        taskId: parts[0].trim(),
-        type: (parts[1]?.trim() as DependencyType) || 'TI',
-      };
-    });
+    const nums = value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // Get existing dep details to preserve types
+    const existingDetails = task.dependencyDetails || [];
+    const existingByTaskId = new Map(existingDetails.map(d => [d.taskId, d.type]));
+
+    const deps: TaskDependency[] = nums.map(num => {
+      const depTaskId = numberToTaskId.get(num);
+      if (!depTaskId) return null;
+      // Preserve existing type if available, default TI
+      const existingType = existingByTaskId.get(depTaskId);
+      return { taskId: depTaskId, type: existingType || 'TI' };
+    }).filter(Boolean) as TaskDependency[];
+
     updateTask(taskId, {
       dependencies: deps.map(d => d.taskId),
       dependencyDetails: deps,
     });
+  };
+
+  // Dependency type change for a specific dependency index
+  const handleDepTypeChange = (taskId: string, depIndex: number, newType: DependencyType) => {
+    if (!onProjectChange) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const details = [...(task.dependencyDetails || [])];
+    if (depIndex < details.length) {
+      details[depIndex] = { ...details[depIndex], type: newType };
+      updateTask(taskId, {
+        dependencies: details.map(d => d.taskId),
+        dependencyDetails: details,
+      });
+    }
+  };
+
+  // Format dep numbers for display
+  const getDepDisplay = (task: Task): string => {
+    const details = task.dependencyDetails || [];
+    return details.map(d => {
+      const num = taskNumbering.get(d.taskId);
+      return num ? String(num) : '';
+    }).filter(Boolean).join(', ');
+  };
+
+  // Get combined type display for dropdown
+  const getDepTypes = (task: Task): { taskId: string; type: DependencyType; num: number }[] => {
+    const details = task.dependencyDetails || [];
+    return details.map(d => {
+      const num = taskNumbering.get(d.taskId) || 0;
+      return { taskId: d.taskId, type: d.type, num };
+    }).filter(d => d.num > 0);
   };
 
   const headerHeightPx = viewMode === 'weeks' ? 52 : 32;
@@ -230,6 +391,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const newEnd = addDays(newStart, task.duration);
     return { start: formatDateFull(dateToISO(newStart)), end: formatDateFull(dateToISO(newEnd)) };
   };
+
+  // sidebar grid: #(24px) name(1fr) dur(36px) start(68px) end(68px) dep(50px) type(50px)
+  const sidebarCols = '24px 1fr 36px 68px 68px 50px 50px';
+  const sidebarWidth = 420;
 
   return (
     <div className="p-4 space-y-3">
@@ -268,34 +433,36 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 text-[9px] text-muted-foreground">
+      <div className="flex items-center gap-3 text-[9px] text-muted-foreground flex-wrap">
         <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-primary opacity-85" /> Normal</div>
         <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-success opacity-85" /> Concluído</div>
         <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-destructive opacity-85" /> Atrasado</div>
         <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full" style={{ background: 'hsl(var(--gantt-critical))' }} /> Crítico</div>
         <div className="flex items-center gap-3 ml-2 border-l border-border pl-3">
           <span className="font-medium">Dep:</span>
-          <span style={{ color: 'hsl(230,65%,52%)' }}>TI</span>
-          <span style={{ color: 'hsl(152,60%,42%)' }}>II</span>
-          <span style={{ color: 'hsl(38,92%,50%)' }}>TT</span>
-          <span style={{ color: 'hsl(0,72%,51%)' }}>IT</span>
+          <span style={{ color: '#378ADD' }}>TI</span>
+          <span style={{ color: '#1D9E75' }}>II</span>
+          <span style={{ color: '#BA7517' }}>TT</span>
+          <span style={{ color: '#A32D2D' }}>IT</span>
         </div>
       </div>
 
       <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
         <div className="flex">
           {/* Sidebar table */}
-          <div className="w-[380px] min-w-[380px] border-r border-border flex-shrink-0">
+          <div style={{ width: sidebarWidth, minWidth: sidebarWidth }} className="border-r border-border flex-shrink-0">
             {/* Header */}
             <div
-              className="border-b border-border bg-secondary/50 grid items-center px-2"
-              style={{ height: headerHeightPx, gridTemplateColumns: '1fr 36px 68px 68px 60px' }}
+              className="border-b border-border bg-secondary/50 grid items-center px-1"
+              style={{ height: headerHeightPx, gridTemplateColumns: sidebarCols }}
             >
-              <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">Tarefa</span>
+              <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">#</span>
+              <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Tarefa</span>
               <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dur</span>
               <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Início</span>
               <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Fim</span>
               <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dep</span>
+              <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tipo</span>
             </div>
 
             {/* Rows */}
@@ -315,18 +482,29 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                     .filter(t => !showCriticalOnly || t.isCritical)
                     .map((task, idx) => {
                       const endDate = getEndDate(task.startDate, task.duration);
-                      const depStr = (task.dependencyDetails || task.dependencies.map(id => ({ taskId: id, type: 'TI' as DependencyType }))).map(d => `${d.taskId}:${d.type}`).join(',');
+                      const taskNum = taskNumbering.get(task.id) || 0;
+                      const violations = getViolations(task);
+                      const hasViolation = violations.length > 0;
+                      const depDisplay = getDepDisplay(task);
+                      const depTypes = getDepTypes(task);
+
                       return (
                         <div
                           key={task.id}
-                          className={`grid items-center gap-0.5 px-2 border-b border-border hover:bg-muted/30 transition-colors ${
+                          className={`grid items-center gap-0.5 px-1 border-b border-border hover:bg-muted/30 transition-colors ${
                             idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'
                           } ${task.isCritical ? 'bg-destructive/5' : ''}`}
-                          style={{ height: ROW_HEIGHT, gridTemplateColumns: '1fr 36px 68px 68px 60px' }}
+                          style={{ height: ROW_HEIGHT, gridTemplateColumns: sidebarCols }}
+                          title={hasViolation ? violations.join('\n') : undefined}
                         >
+                          {/* # */}
+                          <div className="text-center">
+                            <span className="text-[9px] font-mono text-muted-foreground">{taskNum}</span>
+                          </div>
                           {/* Name */}
-                          <div className="min-w-0 flex items-center gap-1">
+                          <div className="min-w-0 flex items-center gap-1 pl-1">
                             {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
+                            {hasViolation && <AlertTriangle className="w-3 h-3 text-destructive flex-shrink-0" />}
                             <p className="text-[11px] font-medium text-foreground line-clamp-2 break-words leading-tight">{task.name}</p>
                           </div>
                           {/* Duration */}
@@ -336,7 +514,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           {/* Start date picker */}
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button className="text-[10px] text-foreground hover:text-primary transition-colors text-center w-full">
+                              <button className="text-[9px] text-foreground hover:text-primary transition-colors text-center w-full">
                                 {formatDateFull(task.startDate)}
                               </button>
                             </PopoverTrigger>
@@ -352,7 +530,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           {/* End date picker */}
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button className="text-[10px] text-foreground hover:text-primary transition-colors text-center w-full">
+                              <button className="text-[9px] text-foreground hover:text-primary transition-colors text-center w-full">
                                 {formatDateFull(endDate)}
                               </button>
                             </PopoverTrigger>
@@ -365,15 +543,37 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               />
                             </PopoverContent>
                           </Popover>
-                          {/* Dependencies */}
+                          {/* DEP - line numbers */}
                           <div className="text-center">
                             <input
                               className="w-full text-[9px] bg-transparent border-b border-border/50 text-center text-muted-foreground focus:outline-none focus:border-primary"
-                              defaultValue={depStr}
+                              defaultValue={depDisplay}
+                              key={depDisplay} // re-render on external change
                               placeholder="—"
                               onBlur={(e) => handleDepChange(task.id, e.target.value)}
-                              title="Ex: t1:TI,t2:II"
+                              title="Nº da tarefa predecessora (ex: 3, 7)"
                             />
+                          </div>
+                          {/* TIPO - dropdown */}
+                          <div className="text-center">
+                            {depTypes.length > 0 ? (
+                              <Select
+                                value={depTypes[0].type}
+                                onValueChange={(val) => handleDepTypeChange(task.id, 0, val as DependencyType)}
+                              >
+                                <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="TI" className="text-[10px]">TI</SelectItem>
+                                  <SelectItem value="II" className="text-[10px]">II</SelectItem>
+                                  <SelectItem value="TT" className="text-[10px]">TT</SelectItem>
+                                  <SelectItem value="IT" className="text-[10px]">IT</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground">—</span>
+                            )}
                           </div>
                         </div>
                       );
@@ -459,6 +659,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           const isDragging = draggingTaskId === task.id;
                           const currentLeft = isDragging ? bar.left + dragOffset : bar.left;
                           const dragDate = getDragDate(task);
+                          const violations = getViolations(task);
+                          const hasViolation = violations.length > 0;
 
                           return (
                             <div
@@ -468,7 +670,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             >
                               {/* Bar */}
                               <div
-                                className={`absolute rounded-md cursor-grab active:cursor-grabbing group ${bar.isCritical ? 'ring-1 ring-destructive/40' : ''}`}
+                                className={`absolute rounded-md cursor-grab active:cursor-grabbing group ${
+                                  bar.isCritical ? 'ring-1 ring-destructive/40' : ''
+                                } ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''}`}
                                 style={{
                                   left: currentLeft,
                                   width: bar.width,
@@ -496,6 +700,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-foreground text-background text-[9px] px-2 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">
                                   {isDragging && dragDate
                                     ? `${dragDate.start} → ${dragDate.end}`
+                                    : hasViolation
+                                    ? violations[0]
                                     : `${task.name} — ${task.percentComplete}% • ${task.duration}d`
                                   }
                                 </div>
