@@ -318,7 +318,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       const newDuration = Math.max(1, diffDays(start, date));
       updateTask(taskId, { duration: newDuration, durationMode: 'manual' });
     }
-    setTimeout(() => propagateDependencies(taskId), 0);
+    setTimeout(() => runPropagation(taskId), 0);
   };
 
   // Chapter date change — distribute tasks proportionally
