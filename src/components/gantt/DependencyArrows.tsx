@@ -1,78 +1,81 @@
-import { FlatTask, DEP_COLORS, ROW_HEIGHT } from './types';
-import { diffDays } from './utils';
+import { Task, DependencyType } from '@/types/project';
+import { DEP_COLORS } from './types';
+import { diffDays, addDays } from './utils';
 
-interface Props {
-  flatTasks: FlatTask[];
-  projectStart: Date;
-  dayWidth: number;
-  headerHeight: number;
+interface TaskYPosition {
+  taskId: string;
+  yCenter: number;
 }
 
-export default function DependencyArrows({ flatTasks, projectStart, dayWidth, headerHeight }: Props) {
-  const taskMap = new Map(flatTasks.map(ft => [ft.task.id, ft]));
+interface Props {
+  tasks: Task[];
+  taskYPositions: Map<string, number>; // taskId -> yCenter in px
+  projectStart: Date;
+  dayWidth: number;
+  violations: Map<string, Set<string>>; // taskId -> set of violated dep taskIds
+}
+
+export default function DependencyArrows({ tasks, taskYPositions, projectStart, dayWidth, violations }: Props) {
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
 
   const arrows: JSX.Element[] = [];
 
-  flatTasks.forEach(ft => {
-    const details = ft.task.dependencyDetails || ft.task.dependencies.map(id => ({ taskId: id, type: 'TI' as const }));
+  // Collect all dependency types for marker defs
+  const usedTypes = new Set<DependencyType>();
+
+  tasks.forEach(task => {
+    const details = task.dependencyDetails || task.dependencies.map(id => ({ taskId: id, type: 'TI' as const }));
     details.forEach(dep => {
       const src = taskMap.get(dep.taskId);
       if (!src) return;
 
-      const srcStart = diffDays(projectStart, new Date(src.task.startDate));
-      const srcEnd = srcStart + src.task.duration;
-      const tgtStart = diffDays(projectStart, new Date(ft.task.startDate));
-      const tgtEnd = tgtStart + ft.task.duration;
+      const srcY = taskYPositions.get(src.id);
+      const tgtY = taskYPositions.get(task.id);
+      if (srcY === undefined || tgtY === undefined) return;
 
-      const barMidY = (row: number) => row * ROW_HEIGHT + ROW_HEIGHT / 2;
+      const srcStartDay = diffDays(projectStart, new Date(src.startDate));
+      const srcEndDay = srcStartDay + src.duration;
+      const tgtStartDay = diffDays(projectStart, new Date(task.startDate));
+      const tgtEndDay = tgtStartDay + task.duration;
 
-      let x1: number, y1: number, x2: number, y2: number;
+      let x1: number, x2: number;
 
       switch (dep.type) {
         case 'TI':
-          x1 = srcEnd * dayWidth;
-          y1 = barMidY(src.rowIndex);
-          x2 = tgtStart * dayWidth;
-          y2 = barMidY(ft.rowIndex);
+          x1 = srcEndDay * dayWidth;
+          x2 = tgtStartDay * dayWidth;
           break;
         case 'II':
-          x1 = srcStart * dayWidth;
-          y1 = barMidY(src.rowIndex);
-          x2 = tgtStart * dayWidth;
-          y2 = barMidY(ft.rowIndex);
+          x1 = srcStartDay * dayWidth;
+          x2 = tgtStartDay * dayWidth;
           break;
         case 'TT':
-          x1 = srcEnd * dayWidth;
-          y1 = barMidY(src.rowIndex);
-          x2 = tgtEnd * dayWidth;
-          y2 = barMidY(ft.rowIndex);
+          x1 = srcEndDay * dayWidth;
+          x2 = tgtEndDay * dayWidth;
           break;
         case 'IT':
-          x1 = srcStart * dayWidth;
-          y1 = barMidY(src.rowIndex);
-          x2 = tgtEnd * dayWidth;
-          y2 = barMidY(ft.rowIndex);
+          x1 = srcStartDay * dayWidth;
+          x2 = tgtEndDay * dayWidth;
           break;
       }
 
-      const color = DEP_COLORS[dep.type] || '#378ADD';
+      const isViolated = violations.get(task.id)?.has(dep.taskId) ?? false;
+      const color = isViolated ? '#DC2626' : (DEP_COLORS[dep.type] || '#378ADD');
       const midX = (x1 + x2) / 2;
+      const markerId = isViolated ? 'arrow-violation' : `arrow-${dep.type}`;
+
+      usedTypes.add(dep.type);
 
       arrows.push(
-        <g key={`${src.task.id}-${ft.task.id}-${dep.type}`}>
+        <g key={`${src.id}-${task.id}-${dep.type}`}>
           <path
-            d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+            d={`M ${x1} ${srcY} C ${midX} ${srcY}, ${midX} ${tgtY}, ${x2} ${tgtY}`}
             fill="none"
             stroke={color}
             strokeWidth={1.5}
-            strokeDasharray={dep.type === 'IT' ? '4,2' : undefined}
-            opacity={0.7}
-          />
-          {/* Arrow head */}
-          <polygon
-            points={`${x2},${y2} ${x2 - 5},${y2 - 3} ${x2 - 5},${y2 + 3}`}
-            fill={color}
-            opacity={0.7}
+            strokeDasharray={isViolated ? '6,3' : (dep.type === 'IT' ? '4,2' : undefined)}
+            opacity={isViolated ? 0.9 : 0.7}
+            markerEnd={`url(#${markerId})`}
           />
         </g>
       );
@@ -81,9 +84,36 @@ export default function DependencyArrows({ flatTasks, projectStart, dayWidth, he
 
   return (
     <svg
-      className="absolute top-0 left-0 pointer-events-none z-10"
-      style={{ width: '100%', height: '100%' }}
+      className="absolute top-0 left-0 pointer-events-none"
+      style={{ width: '100%', height: '100%', zIndex: 15, overflow: 'visible' }}
     >
+      <defs>
+        {Array.from(usedTypes).map(type => (
+          <marker
+            key={type}
+            id={`arrow-${type}`}
+            viewBox="0 0 10 10"
+            refX="10"
+            refY="5"
+            markerWidth="8"
+            markerHeight="8"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={DEP_COLORS[type]} opacity={0.8} />
+          </marker>
+        ))}
+        <marker
+          id="arrow-violation"
+          viewBox="0 0 10 10"
+          refX="10"
+          refY="5"
+          markerWidth="8"
+          markerHeight="8"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#DC2626" opacity={0.9} />
+        </marker>
+      </defs>
       {arrows}
     </svg>
   );
