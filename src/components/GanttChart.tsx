@@ -1,6 +1,6 @@
 import { Project, Task, ViewMode, DependencyType, TaskDependency } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle, Flag } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
