@@ -474,6 +474,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       return { taskId: depTaskId, type: existingByTaskId.get(depTaskId) || 'TI' };
     }).filter(Boolean) as TaskDependency[];
     updateTask(taskId, { dependencies: deps.map(d => d.taskId), dependencyDetails: deps });
+    setTimeout(() => propagateDependencies(taskId), 0);
   };
 
   const handleDepTypeChange = (taskId: string, depIndex: number, newType: DependencyType) => {
@@ -484,6 +485,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     if (depIndex < details.length) {
       details[depIndex] = { ...details[depIndex], type: newType };
       updateTask(taskId, { dependencies: details.map(d => d.taskId), dependencyDetails: details });
+      setTimeout(() => propagateDependencies(taskId, newType), 0);
     }
   };
 
