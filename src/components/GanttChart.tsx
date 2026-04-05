@@ -661,14 +661,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   className={`w-full text-[10px] font-bold bg-transparent text-center focus:outline-none focus:ring-1 focus:ring-primary rounded ${
                                     (task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground'
                                   }`}
-                                  defaultValue={task.duration}
-                                  key={`dur-${task.id}-${task.duration}`}
+                                  value={task.duration}
                                   type="number"
                                   min={1}
-                                  onBlur={(e) => {
+                                  onChange={(e) => {
                                     const val = parseInt(e.target.value);
                                     if (isNaN(val) || val < 1) return;
-                                    // If value differs from RUP calculation, switch to manual
                                     handleManualDurationChange(task.id, e.target.value);
                                   }}
                                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
