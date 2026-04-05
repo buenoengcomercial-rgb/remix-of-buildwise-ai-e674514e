@@ -364,75 +364,47 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     onProjectChange(newProject);
   };
 
-  const propagateDependencies = useCallback((changedTaskId: string, depType?: DependencyType) => {
+  // Central propagation helper that uses the engine from calculations.ts
+  const runPropagation = useCallback((taskId: string, projectToUse?: Project) => {
     if (!onProjectChange) return;
-    const allTasks = getAllTasks(project);
-    const taskMap = new Map(allTasks.map(t => [t.id, { ...t }]));
-    const visited = new Set<string>();
-    let anyChanged = false;
+    const proj = projectToUse || project;
+    const allTasks = getAllTasks(proj);
+    const result = propagateAllDependencies(allTasks, taskId);
 
-    function propagate(taskId: string, depth: number) {
-      if (depth > 50 || visited.has(taskId)) return;
-      visited.add(taskId);
-
-      // Find all tasks that depend on taskId
-      allTasks.forEach(t => {
-        const details = t.dependencyDetails || [];
-        details.forEach(dep => {
-          if (dep.taskId !== taskId) return;
-          const pred = taskMap.get(dep.taskId)!;
-          if (!pred) return;
-          const current = taskMap.get(t.id)!;
-          const predStart = new Date(pred.startDate);
-          const predEnd = addDays(predStart, pred.duration);
-          const taskStart = new Date(current.startDate);
-          const taskEnd = addDays(taskStart, current.duration);
-
-          let newStartDate: Date | null = null;
-
-          switch (dep.type) {
-            case 'TI':
-              if (taskStart < predEnd) newStartDate = predEnd;
-              break;
-            case 'II':
-              if (taskStart < predStart) newStartDate = predStart;
-              break;
-            case 'TT':
-              if (taskEnd < predEnd) {
-                newStartDate = addDays(predEnd, -current.duration);
-              }
-              break;
-            case 'IT':
-              if (taskEnd < predStart) {
-                newStartDate = addDays(predStart, -current.duration);
-              }
-              break;
-          }
-
-          if (newStartDate) {
-            const updated = { ...current, startDate: dateToISO(newStartDate) };
-            taskMap.set(t.id, updated);
-            anyChanged = true;
-            propagate(t.id, depth + 1);
-          }
-        });
-      });
-    }
-
-    propagate(changedTaskId, 0);
-
-    if (anyChanged) {
+    if (result.changed) {
       const newProject = {
-        ...project,
-        phases: project.phases.map(phase => ({
+        ...proj,
+        phases: proj.phases.map(phase => ({
           ...phase,
-          tasks: phase.tasks.map(t => taskMap.get(t.id) || t),
+          tasks: phase.tasks.map(t => {
+            const updated = result.tasks.find(rt => rt.id === t.id);
+            return updated || t;
+          }),
         })),
       };
       onProjectChange(newProject);
-      toast.info(`Datas ajustadas automaticamente por dependência${depType ? ` [${depType}]` : ''}`);
+      const types = Array.from(result.adjustedTypes).join(', ');
+      toast.info(`Datas ajustadas automaticamente por dependência [${types}]`);
     }
   }, [project, onProjectChange]);
+
+  // Compute temporary propagation for real-time drag preview
+  const computeDragPropagation = useCallback((taskId: string, newStartDate: string) => {
+    const allTasks = getAllTasks(project).map(t =>
+      t.id === taskId ? { ...t, startDate: newStartDate } : t
+    );
+    const result = propagateAllDependencies(allTasks, taskId);
+    const tempMap = new Map<string, { startDate: string }>();
+    if (result.changed) {
+      result.tasks.forEach(t => {
+        const orig = tasks.find(ot => ot.id === t.id);
+        if (orig && t.startDate !== orig.startDate && t.id !== taskId) {
+          tempMap.set(t.id, { startDate: t.startDate });
+        }
+      });
+    }
+    return tempMap;
+  }, [project, tasks]);
 
   const handleMouseDown = (e: React.MouseEvent, taskId: string, barLeft: number) => {
     e.preventDefault();
@@ -440,9 +412,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     dragStartX.current = e.clientX;
     dragStartLeft.current = barLeft;
     setDragOffset(0);
+    setDragTempTasks(new Map());
 
     const handleMove = (ev: MouseEvent) => {
-      setDragOffset(ev.clientX - dragStartX.current);
+      const dx = ev.clientX - dragStartX.current;
+      setDragOffset(dx);
+
+      // Real-time propagation preview
+      const daysMoved = Math.round(dx / dayWidth);
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        const newStart = addDays(new Date(task.startDate), daysMoved);
+        const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
+        setDragTempTasks(tempMap);
+      }
     };
     const handleUp = (ev: MouseEvent) => {
       document.removeEventListener('mousemove', handleMove);
@@ -453,12 +436,49 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         const task = tasks.find(t => t.id === taskId);
         if (task) {
           const newStart = addDays(new Date(task.startDate), daysMoved);
-          updateTask(taskId, { startDate: dateToISO(newStart) });
-          setTimeout(() => propagateDependencies(taskId), 0);
+          const newStartISO = dateToISO(newStart);
+
+          // Check precedence violation (if this task is a successor)
+          const violation = checkDependencyViolation(task, newStartISO, tasks);
+          if (violation) {
+            toast.error(`Não é possível: a tarefa depende do término da tarefa "${violation.predName}" (${violation.type})`, {
+              action: {
+                label: 'Forçar mesmo assim',
+                onClick: () => {
+                  // Remove the violating dependency and move
+                  const newDetails = (task.dependencyDetails || []).filter(d => d.taskId !== violation.predId);
+                  const newDeps = newDetails.map(d => d.taskId);
+                  const updatedProject = {
+                    ...project,
+                    phases: project.phases.map(phase => ({
+                      ...phase,
+                      tasks: phase.tasks.map(t => t.id === taskId
+                        ? { ...t, startDate: newStartISO, dependencies: newDeps, dependencyDetails: newDetails }
+                        : t),
+                    })),
+                  };
+                  onProjectChange?.(updatedProject);
+                  toast.info('Dependência removida e tarefa movida');
+                },
+              },
+            });
+          } else {
+            // Apply the move and propagate
+            const updatedProject = {
+              ...project,
+              phases: project.phases.map(phase => ({
+                ...phase,
+                tasks: phase.tasks.map(t => t.id === taskId ? { ...t, startDate: newStartISO } : t),
+              })),
+            };
+            onProjectChange?.(updatedProject);
+            setTimeout(() => runPropagation(taskId, updatedProject), 0);
+          }
         }
       }
       setDraggingTaskId(null);
       setDragOffset(0);
+      setDragTempTasks(new Map());
     };
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleUp);
@@ -476,8 +496,17 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       if (!depTaskId) return null;
       return { taskId: depTaskId, type: existingByTaskId.get(depTaskId) || 'TI' };
     }).filter(Boolean) as TaskDependency[];
-    updateTask(taskId, { dependencies: deps.map(d => d.taskId), dependencyDetails: deps });
-    setTimeout(() => propagateDependencies(taskId), 0);
+    const updatedProject = {
+      ...project,
+      phases: project.phases.map(phase => ({
+        ...phase,
+        tasks: phase.tasks.map(t => t.id === taskId
+          ? { ...t, dependencies: deps.map(d => d.taskId), dependencyDetails: deps }
+          : t),
+      })),
+    };
+    onProjectChange(updatedProject);
+    setTimeout(() => runPropagation(taskId, updatedProject), 0);
   };
 
   const handleDepTypeChange = (taskId: string, depIndex: number, newType: DependencyType) => {
@@ -487,8 +516,17 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const details = [...(task.dependencyDetails || [])];
     if (depIndex < details.length) {
       details[depIndex] = { ...details[depIndex], type: newType };
-      updateTask(taskId, { dependencies: details.map(d => d.taskId), dependencyDetails: details });
-      setTimeout(() => propagateDependencies(taskId, newType), 0);
+      const updatedProject = {
+        ...project,
+        phases: project.phases.map(phase => ({
+          ...phase,
+          tasks: phase.tasks.map(t => t.id === taskId
+            ? { ...t, dependencies: details.map(d => d.taskId), dependencyDetails: details }
+            : t),
+        })),
+      };
+      onProjectChange(updatedProject);
+      setTimeout(() => runPropagation(taskId, updatedProject), 0);
     }
   };
 
@@ -545,8 +583,17 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
   const handleManualDurationChange = (taskId: string, value: number) => {
     if (value < 1) return;
-    updateTask(taskId, { duration: value, durationMode: 'manual', isManual: true, manualDuration: value });
-    setTimeout(() => propagateDependencies(taskId), 0);
+    const updatedProject = {
+      ...project,
+      phases: project.phases.map(phase => ({
+        ...phase,
+        tasks: phase.tasks.map(t => t.id === taskId
+          ? { ...t, duration: value, durationMode: 'manual' as const, isManual: true, manualDuration: value }
+          : t),
+      })),
+    };
+    onProjectChange?.(updatedProject);
+    setTimeout(() => runPropagation(taskId, updatedProject), 0);
   };
 
   // Resize handlers
@@ -568,15 +615,24 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       const daysDelta = Math.round(dx / dayWidth);
       const task = tasks.find(t => t.id === taskId);
       if (task && daysDelta !== 0) {
+        let updates: Partial<Task>;
         if (side === 'right') {
           const newDuration = Math.max(1, task.duration + daysDelta);
-          updateTask(taskId, { duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration });
+          updates = { duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
         } else {
           const newDuration = Math.max(1, task.duration - daysDelta);
           const newStart = addDays(new Date(task.startDate), daysDelta);
-          updateTask(taskId, { startDate: dateToISO(newStart), duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration });
+          updates = { startDate: dateToISO(newStart), duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
         }
-        setTimeout(() => propagateDependencies(taskId), 0);
+        const updatedProject = {
+          ...project,
+          phases: project.phases.map(phase => ({
+            ...phase,
+            tasks: phase.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+          })),
+        };
+        onProjectChange?.(updatedProject);
+        setTimeout(() => runPropagation(taskId, updatedProject), 0);
       }
       setResizingTaskId(null);
       setResizeSide(null);
