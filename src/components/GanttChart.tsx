@@ -13,6 +13,7 @@ import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
 import { addDays, diffDays, formatDateFull, getEndDate, MONTH_NAMES_PT, dateToISO } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis } from '@/lib/feriados';
 import { calculateRupDuration } from '@/lib/calculations';
+import { toast } from 'sonner';
 
 interface GanttChartProps {
   project: Project;
@@ -131,6 +132,53 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     });
     return result;
   }, [project, collapsedPhases, showCriticalOnly]);
+
+  // Compute Y positions for dependency arrows (relative to bars area)
+  const taskYPositions = useMemo(() => {
+    const map = new Map<string, number>();
+    const PHASE_HEADER_HEIGHT = ROW_HEIGHT + 20;
+    let y = 0;
+    project.phases.forEach(phase => {
+      y += PHASE_HEADER_HEIGHT;
+      if (!collapsedPhases.has(phase.id)) {
+        phase.tasks
+          .filter(t => !showCriticalOnly || t.isCritical)
+          .forEach(task => {
+            map.set(task.id, y + ROW_HEIGHT / 2);
+            y += ROW_HEIGHT;
+          });
+      }
+    });
+    return map;
+  }, [project, collapsedPhases, showCriticalOnly]);
+
+  // Compute violation map for dependency arrows
+  const violationMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    tasks.forEach(task => {
+      const details = task.dependencyDetails || [];
+      details.forEach(dep => {
+        const pred = tasks.find(t => t.id === dep.taskId);
+        if (!pred) return;
+        const predStart = new Date(pred.startDate);
+        const predEnd = addDays(predStart, pred.duration);
+        const taskStart = new Date(task.startDate);
+        const taskEnd = addDays(taskStart, task.duration);
+        let violated = false;
+        switch (dep.type) {
+          case 'TI': violated = taskStart < predEnd; break;
+          case 'II': violated = taskStart < predStart; break;
+          case 'TT': violated = taskEnd < predEnd; break;
+          case 'IT': violated = taskEnd < predStart; break;
+        }
+        if (violated) {
+          if (!map.has(task.id)) map.set(task.id, new Set());
+          map.get(task.id)!.add(dep.taskId);
+        }
+      });
+    });
+    return map;
+  }, [tasks]);
 
   const weekDates = useMemo(() => {
     const dates: { day: number; month: number; year: number; offset: number; width: number }[] = [];
@@ -313,53 +361,73 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     onProjectChange(newProject);
   };
 
-  const propagateDependencies = useCallback((changedTaskId: string) => {
+  const propagateDependencies = useCallback((changedTaskId: string, depType?: DependencyType) => {
     if (!onProjectChange) return;
     const allTasks = getAllTasks(project);
-    const taskMap = new Map(allTasks.map(t => [t.id, t]));
-    const updates: Record<string, Partial<Task>> = {};
+    const taskMap = new Map(allTasks.map(t => [t.id, { ...t }]));
+    const visited = new Set<string>();
+    let anyChanged = false;
 
-    allTasks.forEach(t => {
-      const details = t.dependencyDetails || [];
-      details.forEach(dep => {
-        if (dep.taskId !== changedTaskId) return;
-        const pred = taskMap.get(dep.taskId);
-        if (!pred) return;
-        const predStart = new Date(pred.startDate);
-        const predEnd = addDays(predStart, pred.duration);
-        const taskStart = new Date(t.startDate);
-        const taskEnd = addDays(taskStart, t.duration);
+    function propagate(taskId: string, depth: number) {
+      if (depth > 50 || visited.has(taskId)) return;
+      visited.add(taskId);
 
-        switch (dep.type) {
-          case 'TI':
-            if (taskStart < predEnd) updates[t.id] = { startDate: dateToISO(predEnd), duration: t.duration };
-            break;
-          case 'II':
-            if (taskStart < predStart) updates[t.id] = { startDate: dateToISO(predStart), duration: t.duration };
-            break;
-          case 'TT': {
-            const reqStart = addDays(predEnd, -t.duration);
-            if (taskEnd < predEnd) updates[t.id] = { startDate: dateToISO(reqStart), duration: t.duration };
-            break;
+      // Find all tasks that depend on taskId
+      allTasks.forEach(t => {
+        const details = t.dependencyDetails || [];
+        details.forEach(dep => {
+          if (dep.taskId !== taskId) return;
+          const pred = taskMap.get(dep.taskId)!;
+          if (!pred) return;
+          const current = taskMap.get(t.id)!;
+          const predStart = new Date(pred.startDate);
+          const predEnd = addDays(predStart, pred.duration);
+          const taskStart = new Date(current.startDate);
+          const taskEnd = addDays(taskStart, current.duration);
+
+          let newStartDate: Date | null = null;
+
+          switch (dep.type) {
+            case 'TI':
+              if (taskStart < predEnd) newStartDate = predEnd;
+              break;
+            case 'II':
+              if (taskStart < predStart) newStartDate = predStart;
+              break;
+            case 'TT':
+              if (taskEnd < predEnd) {
+                newStartDate = addDays(predEnd, -current.duration);
+              }
+              break;
+            case 'IT':
+              if (taskEnd < predStart) {
+                newStartDate = addDays(predStart, -current.duration);
+              }
+              break;
           }
-          case 'IT': {
-            const reqStartIT = addDays(predStart, -t.duration);
-            if (taskEnd < predStart) updates[t.id] = { startDate: dateToISO(reqStartIT), duration: t.duration };
-            break;
+
+          if (newStartDate) {
+            const updated = { ...current, startDate: dateToISO(newStartDate) };
+            taskMap.set(t.id, updated);
+            anyChanged = true;
+            propagate(t.id, depth + 1);
           }
-        }
+        });
       });
-    });
+    }
 
-    if (Object.keys(updates).length > 0) {
+    propagate(changedTaskId, 0);
+
+    if (anyChanged) {
       const newProject = {
         ...project,
         phases: project.phases.map(phase => ({
           ...phase,
-          tasks: phase.tasks.map(t => updates[t.id] ? { ...t, ...updates[t.id] } : t),
+          tasks: phase.tasks.map(t => taskMap.get(t.id) || t),
         })),
       };
       onProjectChange(newProject);
+      toast.info(`Datas ajustadas automaticamente por dependência${depType ? ` [${depType}]` : ''}`);
     }
   }, [project, onProjectChange]);
 
@@ -406,6 +474,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       return { taskId: depTaskId, type: existingByTaskId.get(depTaskId) || 'TI' };
     }).filter(Boolean) as TaskDependency[];
     updateTask(taskId, { dependencies: deps.map(d => d.taskId), dependencyDetails: deps });
+    setTimeout(() => propagateDependencies(taskId), 0);
   };
 
   const handleDepTypeChange = (taskId: string, depIndex: number, newType: DependencyType) => {
@@ -416,6 +485,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     if (depIndex < details.length) {
       details[depIndex] = { ...details[depIndex], type: newType };
       updateTask(taskId, { dependencies: details.map(d => d.taskId), dependencyDetails: details });
+      setTimeout(() => propagateDependencies(taskId, newType), 0);
     }
   };
 
@@ -930,10 +1000,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
                   {/* Dependency arrows */}
                   <DependencyArrows
-                    flatTasks={flatTasks}
+                    tasks={tasks}
+                    taskYPositions={taskYPositions}
                     projectStart={projectStart}
                     dayWidth={dayWidth}
-                    headerHeight={headerHeightPx}
+                    violations={violationMap}
                   />
 
                   {project.phases.map(phase => (
