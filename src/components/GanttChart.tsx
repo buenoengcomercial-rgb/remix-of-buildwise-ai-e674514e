@@ -32,6 +32,16 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const dragStartLeft = useRef(0);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
+  // Resize state
+  const [resizingTaskId, setResizingTaskId] = useState<string | null>(null);
+  const [resizeSide, setResizeSide] = useState<'left' | 'right' | null>(null);
+  const [resizeDelta, setResizeDelta] = useState(0);
+  const resizeStartX = useRef(0);
+
+  // Local duration edit state
+  const [editingDurationTaskId, setEditingDurationTaskId] = useState<string | null>(null);
+  const [localDuration, setLocalDuration] = useState<string>('');
+
   const tasks = getAllTasks(project);
   const criticalCount = tasks.filter(t => t.isCritical).length;
   const projectStart = new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())));
