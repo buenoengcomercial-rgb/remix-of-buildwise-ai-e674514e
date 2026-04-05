@@ -1144,9 +1144,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             const hasViolation = violations.length > 0;
                             const noWorkDays = hasNoWorkingDays(task);
 
-                            // Compute current bar position with drag/resize
+                            // Compute current bar position with drag/resize/propagation
                             let currentLeft = bar.left;
                             let currentWidth = bar.width;
+                            const isDragPropagated = dragTempTasks.has(task.id);
                             if (isDragging) {
                               currentLeft = bar.left + dragOffset;
                             } else if (isResizing) {
@@ -1157,6 +1158,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 currentLeft = bar.left + delta;
                                 currentWidth = bar.width - delta;
                               }
+                            } else if (isDragPropagated) {
+                              // Real-time propagation: move successor bar
+                              const tempData = dragTempTasks.get(task.id)!;
+                              const tempStart = diffDays(projectStart, new Date(tempData.startDate));
+                              currentLeft = tempStart * dayWidth;
                             }
 
                             const dragDate = getDragDate(task);
