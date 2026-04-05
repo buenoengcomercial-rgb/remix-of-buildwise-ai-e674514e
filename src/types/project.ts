@@ -29,6 +29,8 @@ export interface Task {
   level: number;
   observations?: string;
   durationMode?: 'manual' | 'rup'; // how duration is determined
+  isManual?: boolean; // true when user manually set duration
+  manualDuration?: number; // user-set duration value
   // RUP fields
   quantity?: number;
   unit?: string;
