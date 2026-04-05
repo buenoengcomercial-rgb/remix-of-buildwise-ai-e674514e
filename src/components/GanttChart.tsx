@@ -1009,11 +1009,41 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           .map((task, idx) => {
                             const bar = getBarStyle(task);
                             const isDragging = draggingTaskId === task.id;
-                            const currentLeft = isDragging ? bar.left + dragOffset : bar.left;
-                            const dragDate = getDragDate(task);
+                            const isResizing = resizingTaskId === task.id;
                             const violations = getViolations(task);
                             const hasViolation = violations.length > 0;
                             const noWorkDays = hasNoWorkingDays(task);
+
+                            // Compute current bar position with drag/resize
+                            let currentLeft = bar.left;
+                            let currentWidth = bar.width;
+                            if (isDragging) {
+                              currentLeft = bar.left + dragOffset;
+                            } else if (isResizing) {
+                              if (resizeSide === 'right') {
+                                currentWidth = Math.max(dayWidth, bar.width + resizeDelta);
+                              } else if (resizeSide === 'left') {
+                                const delta = Math.min(resizeDelta, bar.width - dayWidth);
+                                currentLeft = bar.left + delta;
+                                currentWidth = bar.width - delta;
+                              }
+                            }
+
+                            const dragDate = getDragDate(task);
+
+                            // Resize tooltip info
+                            const getResizeInfo = () => {
+                              if (!isResizing) return null;
+                              const newDuration = Math.max(1, Math.round(currentWidth / dayWidth));
+                              const newStart = addDays(projectStart, Math.round(currentLeft / dayWidth));
+                              const newEnd = addDays(newStart, newDuration);
+                              return {
+                                start: formatDateFull(dateToISO(newStart)),
+                                end: formatDateFull(dateToISO(newEnd)),
+                                duration: newDuration,
+                              };
+                            };
+                            const resizeInfo = getResizeInfo();
 
                             return (
                               <div
@@ -1021,13 +1051,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 className={`border-b border-border relative ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'}`}
                                 style={{ height: ROW_HEIGHT }}
                               >
+                                {/* Bar */}
                                 <div
-                                  className={`absolute rounded-md cursor-grab active:cursor-grabbing group ${
+                                  className={`absolute rounded-md group ${
                                     bar.isCritical ? 'ring-1 ring-destructive/40' : ''
                                   } ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   style={{
                                     left: currentLeft,
-                                    width: bar.width,
+                                    width: currentWidth,
                                     top: (ROW_HEIGHT - 16) / 2,
                                     height: 16,
                                     borderRadius: 6,
@@ -1039,25 +1070,77 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       ? 'hsl(var(--gantt-critical))'
                                       : 'hsl(var(--gantt-bar))',
                                     opacity: 0.85,
-                                    transition: isDragging ? 'none' : 'left 0.2s ease',
+                                    transition: (isDragging || isResizing) ? 'none' : 'left 0.2s ease, width 0.2s ease',
                                     zIndex: 10,
+                                    cursor: 'grab',
                                   }}
-                                  onMouseDown={(e) => handleMouseDown(e, task.id, bar.left)}
+                                  onMouseDown={(e) => {
+                                    // Check if near edges for resize
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const relX = e.clientX - rect.left;
+                                    if (relX <= 8 && currentWidth > dayWidth) {
+                                      handleResizeMouseDown(e, task.id, 'left');
+                                    } else if (relX >= rect.width - 8) {
+                                      handleResizeMouseDown(e, task.id, 'right');
+                                    } else {
+                                      handleMouseDown(e, task.id, bar.left);
+                                    }
+                                  }}
+                                  onMouseMove={(e) => {
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const relX = e.clientX - rect.left;
+                                    if (relX <= 8 || relX >= rect.width - 8) {
+                                      (e.currentTarget as HTMLElement).style.cursor = 'col-resize';
+                                    } else {
+                                      (e.currentTarget as HTMLElement).style.cursor = 'grab';
+                                    }
+                                  }}
                                 >
+                                  {/* Progress fill */}
                                   <div
                                     className="h-full rounded-md opacity-30"
                                     style={{ width: `${task.percentComplete}%`, background: 'white', borderRadius: 6 }}
                                   />
-                                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-foreground text-background text-[9px] px-2 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">
-                                    {isDragging && dragDate
+
+                                  {/* Tooltip */}
+                                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-foreground text-background text-[9px] px-2 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
+                                    {isResizing && resizeInfo
+                                      ? `${resizeSide === 'left' ? 'Início' : 'Fim'}: ${resizeSide === 'left' ? resizeInfo.start : resizeInfo.end} | ${resizeInfo.duration} dias`
+                                      : isDragging && dragDate
                                       ? `${dragDate.start} → ${dragDate.end}`
                                       : hasViolation
                                       ? violations[0]
                                       : noWorkDays
                                       ? 'Tarefa sem dias úteis no período'
-                                      : `${task.name} — ${task.percentComplete}% • ${task.duration}d`
+                                      : `${task.percentComplete}% • ${task.duration}d`
                                     }
                                   </div>
+                                </div>
+
+                                {/* Label to the right of the bar */}
+                                <div
+                                  className="absolute z-10 pointer-events-none"
+                                  style={{
+                                    left: currentLeft + currentWidth + 4,
+                                    top: 0,
+                                    height: ROW_HEIGHT,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <span
+                                    className="text-muted-foreground"
+                                    style={{
+                                      fontSize: '11px',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      maxWidth: 120,
+                                      display: 'block',
+                                    }}
+                                  >
+                                    {getShortLabel(task.name)}
+                                  </span>
                                 </div>
                               </div>
                             );
