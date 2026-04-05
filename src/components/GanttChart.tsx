@@ -43,6 +43,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const [editingDurationTaskId, setEditingDurationTaskId] = useState<string | null>(null);
   const [localDuration, setLocalDuration] = useState<string>('');
 
+  // Real-time drag propagation: temporary task overrides during drag
+  const [dragTempTasks, setDragTempTasks] = useState<Map<string, { startDate: string }>>(new Map());
+
   const tasks = getAllTasks(project);
   const criticalCount = tasks.filter(t => t.isCritical).length;
   const projectStart = new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())));
