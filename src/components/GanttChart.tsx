@@ -1205,8 +1205,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       : bar.isCritical
                                       ? 'hsl(var(--gantt-critical))'
                                       : 'hsl(var(--gantt-bar))',
-                                    opacity: 0.85,
-                                    transition: (isDragging || isResizing) ? 'none' : 'left 0.2s ease, width 0.2s ease',
+                                    opacity: isDragPropagated ? 0.75 : 0.85,
+                                    transition: (isDragging || isResizing || isDragPropagated) ? 'none' : 'left 0.2s ease, width 0.2s ease',
                                     zIndex: 10,
                                     cursor: 'grab',
                                   }}
