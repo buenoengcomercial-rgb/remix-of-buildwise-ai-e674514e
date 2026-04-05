@@ -33,6 +33,10 @@ export function applyRupToProject(project: Project): Project {
     phases: project.phases.map(p => ({
       ...p,
       tasks: p.tasks.map(t => {
+        // Respect manual override — don't overwrite duration
+        if (t.isManual) {
+          return t;
+        }
         const { duration, totalHours, bottleneckRole } = calculateRupDuration(t);
         return { ...t, duration, totalHours, bottleneckRole, calculatedDuration: duration };
       }),
