@@ -763,6 +763,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
               );
             })}
           </div>
+        </div>
 
         <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
           <div className="flex">
