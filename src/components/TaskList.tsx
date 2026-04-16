@@ -326,6 +326,21 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         onProjectChange={onProjectChange}
       />
 
+      {/* Legenda de equipes */}
+      <div className="flex flex-wrap items-center gap-3 px-2 py-2 bg-card rounded-lg border border-border">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Equipes:</span>
+        {TEAM_CODES.map(code => {
+          const def = getTeamDefinition(code)!;
+          return (
+            <div key={code} className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+              <span className="text-[10px] font-medium text-foreground">{def.label}</span>
+              <span className="text-[9px] text-muted-foreground">({def.composition})</span>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="space-y-3">
         {project.phases.map((phase, pi) => {
           const phaseProgress = phase.tasks.length ? Math.round(phase.tasks.reduce((s, t) => s + t.percentComplete, 0) / phase.tasks.length) : 0;
