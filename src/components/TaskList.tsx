@@ -521,9 +521,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 </select>
                               </div>
                               {/* Nome */}
-                              <div className="flex items-center gap-1 min-w-0">
-                                <GripVertical className={`w-3.5 h-3.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
-                                {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
+                              <div className="flex items-start gap-1 min-w-0 pt-0.5">
+                                <GripVertical className={`w-3.5 h-3.5 mt-0.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
+                                {task.isCritical && <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-destructive flex-shrink-0" />}
                                 {isEditing ? (
                                   <InlineInput
                                     value={task.name}
@@ -531,7 +531,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     className="flex-1 min-w-0"
                                   />
                                 ) : (
-                                  <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
+                                  <button onClick={() => setExpandedRup(showRup ? null : task.id)} title={task.name} className={`text-xs font-medium whitespace-normal break-words leading-tight text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
                                     {task.name}
                                   </button>
                                 )}
