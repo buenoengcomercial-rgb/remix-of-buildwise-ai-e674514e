@@ -124,16 +124,24 @@ export function applyDailyLogsToProject(project: Project): Project {
           (s, l) => s + ((l.plannedQuantity || 0) - (l.actualQuantity || 0)),
           0
         );
-        const daysConsumed = logs.length;
         const remainingDuration = plannedDailyProduction > 0
           ? Math.ceil(remainingQuantity / plannedDailyProduction)
           : 0;
-        const recalculatedDuration = Math.max(1, daysConsumed + remainingDuration);
+
+        // Anchor forecast to the LAST real log date — not startDate + count
+        const sortedLogs = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+        const lastLogDate = new Date(sortedLogs[sortedLogs.length - 1].date);
+        const forecastEnd = new Date(lastLogDate);
+        if (remainingQuantity > 0) {
+          forecastEnd.setDate(forecastEnd.getDate() + remainingDuration);
+        }
+        const forecastEndDate = forecastEnd.toISOString().split('T')[0];
 
         const startDate = new Date(t.startDate);
-        const forecastEnd = new Date(startDate);
-        forecastEnd.setDate(forecastEnd.getDate() + recalculatedDuration);
-        const forecastEndDate = forecastEnd.toISOString().split('T')[0];
+        const recalculatedDuration = Math.max(
+          1,
+          Math.ceil((forecastEnd.getTime() - startDate.getTime()) / 86400000)
+        );
 
         const physicalProgress = Math.min(100, Math.round((executedQuantityTotal / t.quantity) * 1000) / 10);
 
