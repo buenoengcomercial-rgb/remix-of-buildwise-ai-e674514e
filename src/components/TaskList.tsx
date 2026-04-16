@@ -836,6 +836,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 </motion.div>
                               )}
                             </AnimatePresence>
+
+                            {/* Daily production log panel */}
+                            <AnimatePresence>
+                              {expandedDaily === task.id && (
+                                <DailyLogsPanel
+                                  task={task}
+                                  onChange={(logs: DailyProductionLog[]) =>
+                                    updateTask(phase.id, task.id, { dailyLogs: logs })
+                                  }
+                                />
+                              )}
+                            </AnimatePresence>
                           </div>
                         );
                       })}
