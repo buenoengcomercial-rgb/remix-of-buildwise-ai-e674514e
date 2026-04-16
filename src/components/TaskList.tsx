@@ -559,6 +559,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 )}
                               </div>
 
+                              {/* Produção Diária (auto) */}
+                              <div className={`text-[10px] font-medium text-center ${rowTeam ? 'opacity-90' : 'text-foreground'}`}>
+                                {getDailyProduction(task)}
+                              </div>
+
                               {/* Responsável */}
                               <div className="">
                                 {isEditing ? (
