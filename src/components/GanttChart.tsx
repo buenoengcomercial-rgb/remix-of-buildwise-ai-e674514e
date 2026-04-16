@@ -341,7 +341,53 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setTimeout(() => runPropagation(taskId), 0);
   };
 
-  // Chapter date change — distribute tasks proportionally
+  // Edit baseline (Plan) dates — respects RUP duration mode
+  const handleBaselineDateChange = (taskId: string, field: 'start' | 'end', date: Date | undefined) => {
+    if (!date || !onProjectChange) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task.baseline) return;
+
+    const isRup = (task.durationMode || 'manual') === 'rup';
+    const rupDuration = isRup ? calculateRupDuration(task).duration : task.baseline.duration;
+
+    let newStart: Date;
+    let newDuration: number;
+    let newEnd: Date;
+
+    if (field === 'start') {
+      newStart = date;
+      if (isRup) {
+        newDuration = rupDuration;
+        newEnd = addDays(newStart, newDuration);
+      } else {
+        // Manual: keep duration, shift end
+        newDuration = task.baseline.duration;
+        newEnd = addDays(newStart, newDuration);
+      }
+    } else {
+      newEnd = date;
+      if (isRup) {
+        // RUP: keep duration, shift start backward
+        newDuration = rupDuration;
+        newStart = addDays(newEnd, -newDuration);
+      } else {
+        // Manual: keep start, recalc duration
+        newStart = new Date(task.baseline.startDate);
+        newDuration = Math.max(1, diffDays(newStart, newEnd));
+        newEnd = addDays(newStart, newDuration);
+      }
+    }
+
+    const newBaseline = {
+      ...task.baseline,
+      startDate: dateToISO(newStart),
+      duration: newDuration,
+      endDate: dateToISO(newEnd),
+      plannedDailyProduction: task.quantity && newDuration > 0 ? task.quantity / newDuration : task.baseline.plannedDailyProduction,
+    };
+
+    updateTask(taskId, { baseline: newBaseline });
+  };
   const handleChapterDateChange = (phaseId: string, field: 'start' | 'end', date: Date | undefined) => {
     if (!date || !onProjectChange) return;
     const phase = project.phases.find(p => p.id === phaseId);
@@ -946,58 +992,132 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
-                                    {task.baseline && (
-                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>Plan: {formatDateFull(task.baseline.startDate)}</span>
-                                    )}
-                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'Real: ' : ''}{formatDateFull(task.current?.startDate ?? task.startDate)}</span>
-                                  </button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar
-                                    mode="single"
-                                    selected={new Date(task.startDate)}
-                                    onSelect={(d) => handleDateChange(task.id, 'start', d)}
-                                    className={cn("p-3 pointer-events-auto")}
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  {(() => {
-                                    const forecastEnd = task.current?.forecastEndDate ?? task.current?.endDate ?? endDate;
-                                    const hasForecast = !!task.current?.forecastEndDate;
-                                    let forecastCls = rowTeamDef ? '' : 'text-foreground';
-                                    if (task.baseline) {
-                                      const fEnd = new Date(forecastEnd).getTime();
-                                      const bEnd = new Date(task.baseline.endDate).getTime();
-                                      if (fEnd > bEnd) forecastCls = 'text-destructive';
-                                      else if (fEnd < bEnd) forecastCls = 'text-success';
-                                    }
-                                    return (
-                                      <button
-                                        title={hasForecast ? 'Previsão atualizada pelo apontamento diário' : undefined}
-                                        className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}
-                                      >
-                                        {task.baseline && (
-                                          <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>Plan: {formatDateFull(task.baseline.endDate)}</span>
-                                        )}
-                                        <span className={`${forecastCls} font-medium`}>{task.baseline ? 'Prev: ' : ''}{formatDateFull(forecastEnd)}</span>
+                              <div className="flex flex-col gap-0.5">
+                                {task.baseline && (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className={`text-[8px] transition-colors text-center w-full ${rowTeamDef ? 'opacity-60 hover:opacity-100' : 'text-muted-foreground hover:text-primary'}`} title="Editar data planejada (baseline)">
+                                        Plan: {formatDateFull(task.baseline.startDate)}
                                       </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={new Date(task.baseline.startDate)}
+                                        onSelect={(d) => handleBaselineDateChange(task.id, 'start', d)}
+                                        className={cn("p-3 pointer-events-auto")}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                                {(() => {
+                                  const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
+                                  const realStart = task.current?.startDate ?? task.startDate;
+                                  const labelEl = (
+                                    <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium`}>
+                                      {task.baseline ? 'Real: ' : ''}{formatDateFull(realStart)}
+                                    </span>
+                                  );
+                                  if (hasLogs) {
+                                    return (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90">
+                                            {labelEl}
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p className="text-xs">Datas reais vêm do apontamento diário</p>
+                                        </TooltipContent>
+                                      </Tooltip>
                                     );
-                                  })()}
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar
-                                    mode="single"
-                                    selected={new Date(endDate)}
-                                    onSelect={(d) => handleDateChange(task.id, 'end', d)}
-                                    className={cn("p-3 pointer-events-auto")}
-                                  />
-                                </PopoverContent>
-                              </Popover>
+                                  }
+                                  return (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button className={`text-center w-full leading-tight transition-colors ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
+                                          {labelEl}
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={new Date(task.startDate)}
+                                          onSelect={(d) => handleDateChange(task.id, 'start', d)}
+                                          className={cn("p-3 pointer-events-auto")}
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  );
+                                })()}
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                {task.baseline && (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className={`text-[8px] transition-colors text-center w-full ${rowTeamDef ? 'opacity-60 hover:opacity-100' : 'text-muted-foreground hover:text-primary'}`} title="Editar data planejada (baseline)">
+                                        Plan: {formatDateFull(task.baseline.endDate)}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={new Date(task.baseline.endDate)}
+                                        onSelect={(d) => handleBaselineDateChange(task.id, 'end', d)}
+                                        className={cn("p-3 pointer-events-auto")}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                                {(() => {
+                                  const forecastEnd = task.current?.forecastEndDate ?? task.current?.endDate ?? endDate;
+                                  const hasForecast = !!task.current?.forecastEndDate;
+                                  const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
+                                  let forecastCls = rowTeamDef ? '' : 'text-foreground';
+                                  if (task.baseline) {
+                                    const fEnd = new Date(forecastEnd).getTime();
+                                    const bEnd = new Date(task.baseline.endDate).getTime();
+                                    if (fEnd > bEnd) forecastCls = 'text-destructive';
+                                    else if (fEnd < bEnd) forecastCls = 'text-success';
+                                  }
+                                  const labelEl = (
+                                    <span className={`text-[9px] ${forecastCls} font-medium`}>
+                                      {task.baseline ? 'Prev: ' : ''}{formatDateFull(forecastEnd)}
+                                    </span>
+                                  );
+                                  if (hasLogs) {
+                                    return (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90" title={hasForecast ? 'Previsão atualizada pelo apontamento diário' : undefined}>
+                                            {labelEl}
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p className="text-xs">Datas reais vêm do apontamento diário</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  }
+                                  return (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button className={`text-center w-full leading-tight transition-colors ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
+                                          {labelEl}
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={new Date(endDate)}
+                                          onSelect={(d) => handleDateChange(task.id, 'end', d)}
+                                          className={cn("p-3 pointer-events-auto")}
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  );
+                                })()}
+                              </div>
                               <div className="text-center">
                                 {task.baseline ? (() => {
                                   const dev = task.duration - task.baseline.duration;

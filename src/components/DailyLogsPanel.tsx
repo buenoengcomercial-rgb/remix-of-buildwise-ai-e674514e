@@ -87,11 +87,7 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
     }
     const projected = new Date(lastLogDate);
     projected.setDate(projected.getDate() + (previewRemaining <= 0 ? 0 : previewRemainingDuration));
-    const baselineEndTime = task.baseline ? new Date(task.baseline.endDate).getTime() : null;
-    const resolvedTime = baselineEndTime === null
-      ? projected.getTime()
-      : Math.max(baselineEndTime, projected.getTime(), new Date(lastLogDate).getTime());
-    return new Date(resolvedTime).toISOString().split('T')[0];
+    return projected.toISOString().split('T')[0];
   })();
   const previewDuration = Math.max(
     1,
