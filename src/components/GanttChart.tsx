@@ -1449,27 +1449,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 className={`border-b border-border relative ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'}`}
                                 style={{ height: ROW_HEIGHT }}
                               >
-                                {/* Baseline (fina, no topo) */}
-                                {task.baseline && (() => {
-                                  const bStart = diffDays(projectStart, new Date(task.baseline.startDate));
-                                  const bLeft = bStart * dayWidth;
-                                  const bWidth = task.baseline.duration * dayWidth;
-                                  const deviation = task.duration - task.baseline.duration;
-                                  return (
-                                    <div
-                                      className="absolute rounded-sm border border-dashed border-muted-foreground/50 bg-muted/40 pointer-events-none"
-                                      style={{
-                                        left: bLeft,
-                                        width: bWidth,
-                                        top: 4,
-                                        height: 4,
-                                        zIndex: 5,
-                                      }}
-                                      title={`Linha de base: ${formatDateFull(task.baseline.startDate)} → ${formatDateFull(task.baseline.endDate)} (${task.baseline.duration}d)${deviation !== 0 ? ` • Desvio: ${deviation > 0 ? '+' : ''}${deviation}d` : ''}`}
-                                    />
-                                  );
-                                })()}
-                                {/* Daily execution markers (abaixo da barra real) */}
+                                {/* Daily execution markers (abaixo da barra) — meta vs realizado por dia */}
                                 {(task.dailyLogs || []).filter(l => l.actualQuantity > 0).map((log) => {
                                   const dayOffset = diffDays(projectStart, new Date(log.date));
                                   const planned = log.plannedQuantity || 0;
@@ -1496,17 +1476,49 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     />
                                   );
                                 })}
-                                {/* Bar (real / previsto) */}
+                                {/* Linha pontilhada: dias trabalhados (apontamento diário) */}
+                                {(() => {
+                                  const workedLogs = (task.dailyLogs || []).filter(l => l.actualQuantity > 0);
+                                  if (workedLogs.length === 0) return null;
+                                  const dates = workedLogs.map(l => new Date(l.date).getTime());
+                                  const firstLog = new Date(Math.min(...dates));
+                                  const lastLog = new Date(Math.max(...dates));
+                                  const left = diffDays(projectStart, firstLog) * dayWidth;
+                                  const width = (diffDays(firstLog, lastLog) + 1) * dayWidth;
+                                  const teamDef = getTeamDefinition(task.team);
+                                  const color = teamDef ? teamDef.borderColor : 'hsl(var(--foreground))';
+                                  return (
+                                    <div
+                                      className="absolute pointer-events-none"
+                                      style={{
+                                        left,
+                                        width,
+                                        top: 18,
+                                        height: 0,
+                                        borderTop: `2px dashed ${color}`,
+                                        zIndex: 12,
+                                      }}
+                                      title={`Dias trabalhados: ${formatDateFull(toISODateLocal(firstLog))} → ${formatDateFull(toISODateLocal(lastLog))}`}
+                                    />
+                                  );
+                                })()}
+                                {/* Barra cheia = datas planejadas (baseline). Fallback: current. */}
                                 {(() => {
                                   const isLate = task.baseline ? task.duration > task.baseline.duration : false;
+                                  const barLeft = task.baseline
+                                    ? diffDays(projectStart, new Date(task.baseline.startDate)) * dayWidth
+                                    : currentLeft;
+                                  const barWidth = task.baseline
+                                    ? task.baseline.duration * dayWidth
+                                    : currentWidth;
                                   return (
                                 <div
                                   className={`absolute rounded-md group ${
                                     bar.isCritical ? 'ring-1 ring-destructive/40' : ''
                                   } ${isLate && !bar.isCritical && !hasViolation ? 'ring-1 ring-destructive/60' : ''} ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   style={{
-                                    left: currentLeft,
-                                    width: currentWidth,
+                                    left: barLeft,
+                                    width: barWidth,
                                     top: 12,
                                     height: 14,
                                     borderRadius: 6,
