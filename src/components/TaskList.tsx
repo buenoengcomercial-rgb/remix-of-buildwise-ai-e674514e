@@ -30,7 +30,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
       min={min}
       max={max}
       step={step}
-      className={`bg-transparent border border-border rounded px-1.5 py-0.5 text-[11px] focus:border-primary focus:outline-none transition-colors ${className}`}
+      className={`bg-transparent border border-current/30 rounded px-1.5 py-0.5 text-[11px] focus:border-primary focus:outline-none transition-colors ${className}`}
     />
   );
 }
