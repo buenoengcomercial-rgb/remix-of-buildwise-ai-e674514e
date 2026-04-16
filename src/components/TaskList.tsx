@@ -30,7 +30,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
       min={min}
       max={max}
       step={step}
-      className={`bg-transparent border border-border rounded px-1.5 py-0.5 text-[11px] focus:border-primary focus:outline-none transition-colors ${className}`}
+      className={`bg-transparent border border-current/30 rounded px-1.5 py-0.5 text-[11px] focus:border-primary focus:outline-none transition-colors ${className}`}
     />
   );
 }
@@ -437,18 +437,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                             onDragEnd={handleDragEnd}
                             className={`${dropTargetId === task.id && dragTaskId !== task.id ? 'border-t-2 border-t-primary' : ''} ${dragTaskId === task.id ? 'opacity-40' : ''}`}
                           >
+                            {(() => {
+                              const rowTeam = getTeamDefinition(task.team);
+                              return (
                             <div
                               className={`grid grid-cols-12 gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
-                                !getTeamDefinition(task.team) ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
+                                !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={(() => {
-                                const td = getTeamDefinition(task.team);
-                                return td ? { backgroundColor: td.bgColor, color: td.textColor } : {};
-                              })()}
+                              style={rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}}
                             >
                               {/* Nome */}
                               <div className="col-span-2 flex items-center gap-1 min-w-0">
-                                <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                                <GripVertical className={`w-3.5 h-3.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
                                 {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
                                 {(() => {
                                   const teamDef = getTeamDefinition(task.team);
@@ -472,7 +472,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     <select
                                       value={task.team || ''}
                                       onChange={e => updateTask(phase.id, task.id, { team: (e.target.value || undefined) as TeamCode | undefined })}
-                                      className="text-[9px] bg-transparent border border-border rounded px-1 py-0.5"
+                                      className="text-[9px] bg-transparent border border-current/30 rounded px-1 py-0.5"
+                                      style={rowTeam ? { color: 'inherit' } : undefined}
                                     >
                                       <option value="">Sem equipe</option>
                                       {TEAM_CODES.map(code => (
@@ -481,7 +482,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     </select>
                                   </div>
                                 ) : (
-                                  <button onClick={() => setExpandedRup(showRup ? null : task.id)} className="text-xs font-medium text-foreground truncate text-left hover:text-primary transition-colors">
+                                  <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
                                     {task.name}
                                   </button>
                                 )}
@@ -505,7 +506,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     />
                                   </>
                                 ) : (
-                                  <span className="text-[10px] text-muted-foreground">{task.quantity ? `${task.quantity} ${task.unit}` : '—'}</span>
+                                  <span className={`text-[10px] ${rowTeam ? 'opacity-70' : 'text-muted-foreground'}`}>{task.quantity ? `${task.quantity} ${task.unit}` : '—'}</span>
                                 )}
                               </div>
 
@@ -518,7 +519,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     className="w-full"
                                   />
                                 ) : (
-                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                                  <div className={`flex items-center gap-1 text-[10px] truncate ${rowTeam ? 'opacity-80' : 'text-muted-foreground'}`}>
                                     <User className="w-3 h-3 flex-shrink-0" />
                                     {task.responsible || '—'}
                                   </div>
@@ -526,28 +527,28 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Duração (auto) */}
-                              <div className="col-span-1 text-[10px] font-bold text-foreground">
+                              <div className={`col-span-1 text-[10px] font-bold ${rowTeam ? '' : 'text-foreground'}`}>
                                 {task.duration}d
-                                <span className="text-[8px] text-muted-foreground ml-0.5">🔒</span>
+                                <span className={`text-[8px] ml-0.5 ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>🔒</span>
                               </div>
 
                               {/* Horas (auto) */}
-                              <div className="col-span-1 text-[10px] text-muted-foreground">
+                              <div className={`col-span-1 text-[10px] ${rowTeam ? 'opacity-80' : 'text-muted-foreground'}`}>
                                 {task.totalHours ? `${Math.round(task.totalHours)}h` : `${task.duration * DAILY_HOURS}h`}
                               </div>
 
                               {/* Gargalo */}
                               <div className="col-span-1">
                                 {task.bottleneckRole ? (
-                                  <span className="text-[9px] px-1 py-0.5 rounded bg-warning/15 text-warning font-medium truncate block text-center">
+                                  <span className={`text-[9px] px-1 py-0.5 rounded font-medium truncate block text-center ${rowTeam ? 'bg-white/20' : 'bg-warning/15 text-warning'}`}>
                                     {task.bottleneckRole}
                                   </span>
-                                ) : <span className="text-[10px] text-muted-foreground">—</span>}
+                                ) : <span className={`text-[10px] ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>}
                               </div>
 
                               {/* Folga */}
                               <div className="col-span-1">
-                                <span className={`text-[10px] font-bold ${task.float === 0 ? 'text-destructive' : 'text-success'}`}>
+                                <span className={`text-[10px] font-bold ${rowTeam ? '' : (task.float === 0 ? 'text-destructive' : 'text-success')}`}>
                                   {task.float !== undefined ? `${task.float}d` : '—'}
                                 </span>
                               </div>
@@ -562,14 +563,15 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       const selected = Array.from(e.target.selectedOptions, o => o.value);
                                       updateTask(phase.id, task.id, { dependencies: selected });
                                     }}
-                                    className="w-full text-[9px] bg-transparent border border-border rounded px-1 py-0.5"
+                                    className="w-full text-[9px] bg-transparent border border-current/30 rounded px-1 py-0.5"
+                                    style={rowTeam ? { color: 'inherit' } : undefined}
                                   >
                                     {allTasks.filter(t => t.id !== task.id).map(t => (
                                       <option key={t.id} value={t.id}>{t.name}</option>
                                     ))}
                                   </select>
                                 ) : (
-                                  <span className="text-[9px] text-muted-foreground">
+                                  <span className={`text-[9px] ${rowTeam ? 'opacity-70' : 'text-muted-foreground'}`}>
                                     {task.dependencies.length > 0
                                       ? task.dependencies.map(d => allTasks.find(t => t.id === d)?.name?.slice(0, 8) || d).join(', ')
                                       : '—'}
@@ -580,9 +582,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               {/* Progresso */}
                               <div className="col-span-1">
                                 <div className="flex items-center gap-1">
-                                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${rowTeam ? 'bg-white/20' : 'bg-muted'}`}>
                                     <div
-                                      className={`h-full rounded-full transition-all ${isDelayed ? 'bg-destructive' : 'bg-primary'}`}
+                                      className={`h-full rounded-full transition-all ${rowTeam ? 'bg-white/70' : (isDelayed ? 'bg-destructive' : 'bg-primary')}`}
                                       style={{ width: `${task.percentComplete}%` }}
                                     />
                                   </div>
@@ -592,7 +594,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     max={100}
                                     value={task.percentComplete}
                                     onChange={e => updateTask(phase.id, task.id, { percentComplete: Math.min(100, Math.max(0, Number(e.target.value))) })}
-                                    className="w-9 text-[10px] font-bold text-center bg-transparent border border-border rounded px-0.5 py-0.5"
+                                    className={`w-9 text-[10px] font-bold text-center bg-transparent border rounded px-0.5 py-0.5 ${rowTeam ? 'border-current/30' : 'border-border'}`}
+                                    style={rowTeam ? { color: 'inherit' } : undefined}
                                   />
                                 </div>
                               </div>
@@ -621,6 +624,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 </button>
                               </div>
                             </div>
+                              );
+                            })()}
 
                             {/* RUP detail panel */}
                             <AnimatePresence>
