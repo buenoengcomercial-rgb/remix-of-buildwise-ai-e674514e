@@ -952,7 +952,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     {task.baseline && (
                                       <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>Plan: {formatDateFull(task.baseline.startDate)}</span>
                                     )}
-                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'Real: ' : ''}{formatDateFull(task.startDate)}</span>
+                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'Real: ' : ''}{formatDateFull(task.current?.startDate ?? task.startDate)}</span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
