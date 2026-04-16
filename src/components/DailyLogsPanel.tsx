@@ -77,24 +77,26 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
   const previewRemainingDuration = plannedDailyProduction > 0
     ? Math.ceil(previewRemaining / plannedDailyProduction)
     : 0;
-  const previewStartDate = task.current?.startDate ?? task.startDate;
+  const previewStartDate = sortedLogs.length > 0
+    ? sortedLogs[0].date
+    : (task.current?.startDate ?? task.startDate);
   const lastLogDate = sortedLogs.length > 0 ? sortedLogs[sortedLogs.length - 1].date : previewStartDate;
-  const elapsedDays = sortedLogs.length > 0
-    ? Math.max(1, Math.ceil((new Date(lastLogDate).getTime() - new Date(previewStartDate).getTime()) / 86400000) + 1)
-    : (task.current?.duration ?? task.duration);
-  const previewDuration = sortedLogs.length === 0
-    ? (task.current?.duration ?? task.duration)
-    : previewRemaining <= 0
-      ? elapsedDays
-      : elapsedDays + previewRemainingDuration;
   const previewEndDate = (() => {
     if (sortedLogs.length === 0) {
       return task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate;
     }
-    const base = new Date(lastLogDate);
-    base.setDate(base.getDate() + (previewRemaining <= 0 ? 0 : previewRemainingDuration));
-    return base.toISOString().split('T')[0];
+    const projected = new Date(lastLogDate);
+    projected.setDate(projected.getDate() + (previewRemaining <= 0 ? 0 : previewRemainingDuration));
+    const baselineEndTime = task.baseline ? new Date(task.baseline.endDate).getTime() : null;
+    const resolvedTime = baselineEndTime === null
+      ? projected.getTime()
+      : Math.max(baselineEndTime, projected.getTime(), new Date(lastLogDate).getTime());
+    return new Date(resolvedTime).toISOString().split('T')[0];
   })();
+  const previewDuration = Math.max(
+    1,
+    Math.ceil((new Date(previewEndDate).getTime() - new Date(previewStartDate).getTime()) / 86400000)
+  );
 
   const accStatus = statusForDelta(task.accumulatedDelayQuantity || 0, plannedDailyProduction);
   const unit = task.unit || 'un';

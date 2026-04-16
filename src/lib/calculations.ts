@@ -128,28 +128,38 @@ export function applyDailyLogsToProject(project: Project): Project {
           ? Math.ceil(remainingQuantity / plannedDailyProduction)
           : 0;
 
-        // Anchor forecast to the LAST real log date — not startDate + count
         const sortedLogs = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+        const firstLogDate = new Date(sortedLogs[0].date);
         const lastLogDate = new Date(sortedLogs[sortedLogs.length - 1].date);
-        const forecastEnd = new Date(lastLogDate);
+
+        const projectedForecastEnd = new Date(lastLogDate);
         if (remainingQuantity > 0) {
-          forecastEnd.setDate(forecastEnd.getDate() + remainingDuration);
+          projectedForecastEnd.setDate(projectedForecastEnd.getDate() + remainingDuration);
         }
+
+        const baselineEndTime = t.baseline ? new Date(t.baseline.endDate).getTime() : null;
+        const projectedEndTime = projectedForecastEnd.getTime();
+        const resolvedForecastTime = baselineEndTime === null
+          ? projectedEndTime
+          : Math.max(baselineEndTime, projectedEndTime, lastLogDate.getTime());
+        const forecastEnd = new Date(resolvedForecastTime);
         const forecastEndDate = forecastEnd.toISOString().split('T')[0];
 
         const startDate = new Date(t.startDate);
+        const currentStartDate = firstLogDate;
         const recalculatedDuration = Math.max(
           1,
           Math.ceil((forecastEnd.getTime() - startDate.getTime()) / 86400000)
+        );
+        const currentDuration = Math.max(
+          1,
+          Math.ceil((forecastEnd.getTime() - currentStartDate.getTime()) / 86400000)
         );
 
         const physicalProgress = Math.min(100, Math.round((executedQuantityTotal / t.quantity) * 1000) / 10);
 
         const shouldOverrideDuration = !t.isManual;
         const newDuration = shouldOverrideDuration ? recalculatedDuration : t.duration;
-        const currentEnd = new Date(startDate);
-        currentEnd.setDate(currentEnd.getDate() + newDuration);
-        const currentEndDate = currentEnd.toISOString().split('T')[0];
 
         return {
           ...t,
@@ -163,8 +173,8 @@ export function applyDailyLogsToProject(project: Project): Project {
           physicalProgress,
           percentComplete: Math.max(t.percentComplete, Math.round(physicalProgress)),
           current: {
-            startDate: t.startDate,
-            duration: newDuration,
+            startDate: firstLogDate.toISOString().split('T')[0],
+            duration: currentDuration,
             // Sync end with forecast so Gantt + panel show same date
             endDate: forecastEndDate,
             forecastEndDate,
