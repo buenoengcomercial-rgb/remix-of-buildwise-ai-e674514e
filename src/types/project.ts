@@ -70,6 +70,29 @@ export interface Task {
   forecastEndDate?: string;
   physicalProgress?: number;
   originalDuration?: number; // snapshot before daily-log adjustment
+  // Baseline (linha de base fixa) e Current (cronograma variável)
+  baseline?: TaskBaseline;
+  current?: TaskCurrent;
+}
+
+export interface TaskBaseline {
+  startDate: string;
+  duration: number;
+  endDate: string;
+  plannedDailyProduction?: number;
+  quantity?: number;
+  capturedAt: string;
+}
+
+export interface TaskCurrent {
+  startDate: string;
+  duration: number;
+  endDate: string;
+  forecastEndDate?: string;
+  executedQuantityTotal?: number;
+  remainingQuantity?: number;
+  accumulatedDelayQuantity?: number;
+  physicalProgress?: number;
 }
 
 export interface DailyProductionLog {
