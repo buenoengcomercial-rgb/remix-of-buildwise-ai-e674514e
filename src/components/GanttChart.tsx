@@ -1381,10 +1381,22 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                           const teamDef = getTeamDefinition(task.team);
                                           const teamLabel = teamDef ? `${teamDef.label} (${teamDef.composition})` : '';
                                           const prodLabel = formatTeamLabel(task);
-                                          if (teamLabel && prodLabel) return `${teamLabel} • ${prodLabel}`;
-                                          if (teamLabel) return teamLabel;
-                                          if (prodLabel) return prodLabel;
-                                          return `${task.percentComplete}% • ${task.duration}d`;
+                                          const parts: string[] = [];
+                                          if (teamLabel) parts.push(teamLabel);
+                                          if (prodLabel) parts.push(prodLabel);
+                                          if (task.baseline) {
+                                            const dev = task.duration - task.baseline.duration;
+                                            parts.push(`Base: ${formatDateFull(task.baseline.startDate)}→${formatDateFull(task.baseline.endDate)} (${task.baseline.duration}d)`);
+                                            if (task.current) {
+                                              parts.push(`Previsto: ${formatDateFull(task.current.startDate)}→${formatDateFull(task.current.forecastEndDate || task.current.endDate)} (${task.current.duration}d)`);
+                                            }
+                                            if (dev !== 0) parts.push(`Desvio: ${dev > 0 ? '+' : ''}${dev}d`);
+                                          }
+                                          if (task.physicalProgress !== undefined && (task.dailyLogs?.length || 0) > 0) {
+                                            parts.push(`Físico: ${task.physicalProgress.toFixed(1)}%`);
+                                          }
+                                          if (parts.length === 0) return `${task.percentComplete}% • ${task.duration}d`;
+                                          return parts.join(' • ');
                                         })()
                                     }
                                   </div>

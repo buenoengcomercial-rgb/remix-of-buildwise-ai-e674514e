@@ -598,9 +598,37 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Duração (auto) */}
-                              <div className={`col-span-1 text-[10px] font-bold ${rowTeam ? '' : 'text-foreground'}`}>
-                                {task.duration}d
-                                <span className={`text-[8px] ml-0.5 ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>🔒</span>
+                              <div className={`col-span-1 text-[10px] font-bold flex items-center gap-1 ${rowTeam ? '' : 'text-foreground'}`}>
+                                <span>{task.duration}d</span>
+                                <span className={`text-[8px] ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>🔒</span>
+                                {task.baseline && task.baseline.duration !== task.duration && (() => {
+                                  const dev = task.duration - task.baseline.duration;
+                                  const cls = dev <= 0
+                                    ? 'bg-success/15 text-success'
+                                    : dev <= 2
+                                      ? 'bg-warning/15 text-warning'
+                                      : 'bg-destructive/15 text-destructive';
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${cls}`}>
+                                          Δ {dev > 0 ? '+' : ''}{dev}d
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="text-[10px] space-y-0.5">
+                                        <div><strong>Base:</strong> {new Date(task.baseline.startDate).toLocaleDateString('pt-BR')} → {new Date(task.baseline.endDate).toLocaleDateString('pt-BR')} ({task.baseline.duration}d)</div>
+                                        <div><strong>Previsto:</strong> {new Date(task.current?.startDate ?? task.startDate).toLocaleDateString('pt-BR')} → {new Date(task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate).toLocaleDateString('pt-BR')} ({task.current?.duration ?? task.duration}d)</div>
+                                        <div><strong>Desvio:</strong> {dev > 0 ? '+' : ''}{dev} dias</div>
+                                        {task.accumulatedDelayQuantity !== undefined && (
+                                          <div><strong>Saldo acumulado:</strong> {task.accumulatedDelayQuantity.toFixed(1)} {task.unit || 'un'}</div>
+                                        )}
+                                        {task.executedQuantityTotal !== undefined && (
+                                          <div><strong>Executado:</strong> {task.executedQuantityTotal.toFixed(1)} {task.unit || 'un'}</div>
+                                        )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })()}
                               </div>
 
                               {/* Horas (auto) */}

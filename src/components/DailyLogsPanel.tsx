@@ -71,6 +71,20 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
       className="overflow-hidden border-t border-border bg-muted/10"
     >
       <div className="px-8 py-3 space-y-3">
+        {task.baseline && (
+          <div className="flex items-center gap-2 flex-wrap text-[10px] bg-card border border-border rounded-md px-2 py-1">
+            <span className="font-semibold text-muted-foreground uppercase tracking-wider">Cronograma:</span>
+            <span className="text-muted-foreground">Base: <strong className="text-foreground">{task.baseline.duration}d</strong> ({new Date(task.baseline.startDate).toLocaleDateString('pt-BR')} → {new Date(task.baseline.endDate).toLocaleDateString('pt-BR')})</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">Previsto: <strong className="text-primary">{task.current?.duration ?? task.duration}d</strong> ({new Date(task.current?.startDate ?? task.startDate).toLocaleDateString('pt-BR')} → {new Date(task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate).toLocaleDateString('pt-BR')})</span>
+            {(() => {
+              const dev = (task.current?.duration ?? task.duration) - task.baseline.duration;
+              if (dev === 0) return null;
+              const cls = dev <= 0 ? 'text-success' : dev <= 2 ? 'text-warning' : 'text-destructive';
+              return <span className={`font-bold ${cls}`}>· Desvio: {dev > 0 ? '+' : ''}{dev}d</span>;
+            })()}
+          </div>
+        )}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h4 className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
             <ClipboardList className="w-3.5 h-3.5 text-info" />
