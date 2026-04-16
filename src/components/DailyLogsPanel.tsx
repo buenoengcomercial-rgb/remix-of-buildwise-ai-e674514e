@@ -50,15 +50,51 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
     onChange(logs.filter(l => l.id !== id));
   };
 
-  // Linhas com saldo acumulado
+  // Linhas: saldo dia, saldo acumulado, executado acumulado, falta executar
   let acc = 0;
-  const rows = [...logs]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map(l => {
-      const delta = (l.plannedQuantity || 0) - (l.actualQuantity || 0);
-      acc += delta;
-      return { ...l, delta, accumulated: acc, status: statusForDelta(delta, l.plannedQuantity || 0) };
-    });
+  let execAcc = 0;
+  const totalQty = task.quantity || 0;
+  const sortedLogs = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+  const rows = sortedLogs.map(l => {
+    const planned = l.plannedQuantity || 0;
+    const actual = l.actualQuantity || 0;
+    const delta = planned - actual;
+    acc += delta;
+    execAcc += actual;
+    const remainingAfter = totalQty > 0 ? Math.max(totalQty - execAcc, 0) : 0;
+    return {
+      ...l,
+      delta,
+      accumulated: acc,
+      executedAcc: execAcc,
+      remainingAfter,
+      status: statusForDelta(delta, planned),
+    };
+  });
+
+  // Preview em tempo real do "Previsto" — atualiza imediatamente ao digitar realizado
+  const previewRemaining = totalQty > 0 ? Math.max(totalQty - execAcc, 0) : 0;
+  const previewRemainingDuration = plannedDailyProduction > 0
+    ? Math.ceil(previewRemaining / plannedDailyProduction)
+    : 0;
+  const previewStartDate = task.current?.startDate ?? task.startDate;
+  const lastLogDate = sortedLogs.length > 0 ? sortedLogs[sortedLogs.length - 1].date : previewStartDate;
+  const elapsedDays = sortedLogs.length > 0
+    ? Math.max(1, Math.ceil((new Date(lastLogDate).getTime() - new Date(previewStartDate).getTime()) / 86400000) + 1)
+    : (task.current?.duration ?? task.duration);
+  const previewDuration = sortedLogs.length === 0
+    ? (task.current?.duration ?? task.duration)
+    : previewRemaining <= 0
+      ? elapsedDays
+      : elapsedDays + previewRemainingDuration;
+  const previewEndDate = (() => {
+    if (sortedLogs.length === 0) {
+      return task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate;
+    }
+    const base = new Date(lastLogDate);
+    base.setDate(base.getDate() + (previewRemaining <= 0 ? 0 : previewRemainingDuration));
+    return base.toISOString().split('T')[0];
+  })();
 
   const accStatus = statusForDelta(task.accumulatedDelayQuantity || 0, plannedDailyProduction);
   const unit = task.unit || 'un';
