@@ -133,25 +133,31 @@ export function applyDailyLogsToProject(project: Project): Project {
         if (sortedLogs.length === 0) {
           return { ...t, current: buildCurrent() };
         }
-        const firstLogDate = new Date(sortedLogs[0].date);
-        const lastLogDate = new Date(sortedLogs[sortedLogs.length - 1].date);
+        const firstLogISO = sortedLogs[0].date;
+        const lastLogISO = sortedLogs[sortedLogs.length - 1].date;
+        // Parse local (sem timezone shift)
+        const parseLocal = (iso: string) => {
+          const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
+        };
+        const firstLogDate = parseLocal(firstLogISO);
+        const lastLogDate = parseLocal(lastLogISO);
 
-        // Previsão = exatamente último log (saldo=0) ou último log + dias restantes (sem clamp pela baseline)
+        // Previsão = EXATAMENTE último log (sem somar saldo, sem clamp pela baseline).
+        // Suprimimos `remainingDuration` propositalmente: a previsão deve refletir
+        // a última data de execução real registrada no diário de obra.
+        void remainingDuration;
         const forecastEnd = new Date(lastLogDate);
-        if (remainingQuantity > 0) {
-          forecastEnd.setDate(forecastEnd.getDate() + remainingDuration);
-        }
-        const forecastEndDate = forecastEnd.toISOString().split('T')[0];
+        const forecastEndDate = lastLogISO;
 
-        const startDate = new Date(t.startDate);
-        const currentStartDate = firstLogDate;
+        const startDate = parseLocal(t.startDate);
         const recalculatedDuration = Math.max(
           1,
-          Math.ceil((forecastEnd.getTime() - startDate.getTime()) / 86400000)
+          Math.ceil((forecastEnd.getTime() - startDate.getTime()) / 86400000) + 1
         );
         const currentDuration = Math.max(
           1,
-          Math.ceil((forecastEnd.getTime() - currentStartDate.getTime()) / 86400000)
+          Math.ceil((lastLogDate.getTime() - firstLogDate.getTime()) / 86400000) + 1
         );
 
         const physicalProgress = Math.min(100, Math.round((executedQuantityTotal / t.quantity) * 1000) / 10);
@@ -171,7 +177,7 @@ export function applyDailyLogsToProject(project: Project): Project {
           physicalProgress,
           percentComplete: Math.max(t.percentComplete, Math.round(physicalProgress)),
           current: {
-            startDate: firstLogDate.toISOString().split('T')[0],
+            startDate: firstLogISO,
             duration: currentDuration,
             // Sync end with forecast so Gantt + panel show same date
             endDate: forecastEndDate,

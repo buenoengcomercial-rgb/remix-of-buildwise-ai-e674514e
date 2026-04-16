@@ -8,22 +8,57 @@ export function diffDays(a: Date, b: Date) {
   return Math.ceil((b.getTime() - a.getTime()) / 86400000);
 }
 
+/** Parse "YYYY-MM-DD" as a LOCAL date (no timezone shift).
+ *  Falls back to native Date for anything else. */
+export function parseISODateLocal(iso: string | Date): Date {
+  if (iso instanceof Date) return iso;
+  if (typeof iso === 'string') {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+  }
+  return new Date(iso);
+}
+
+/** Format ISO date "YYYY-MM-DD" as "dd/mm/aaaa" without timezone drift. */
+export function formatISODateBR(iso: string | Date): string {
+  const d = parseISODateLocal(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/** Format ISO date "YYYY-MM-DD" as "dd/mm" without timezone drift. */
+export function formatISODateShortBR(iso: string | Date): string {
+  const d = parseISODateLocal(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+/** Convert Date → "YYYY-MM-DD" using LOCAL components (no UTC shift). */
+export function toISODateLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function formatDateFull(d: string) {
-  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatISODateBR(d);
 }
 
 export function formatDateShort(d: string) {
-  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return formatISODateShortBR(d);
 }
 
 export function getEndDate(startDate: string, duration: number): string {
-  const d = new Date(startDate);
+  const d = parseISODateLocal(startDate);
   d.setDate(d.getDate() + duration);
-  return d.toISOString().split('T')[0];
+  return toISODateLocal(d);
 }
 
 export function dateToISO(d: Date): string {
-  return d.toISOString().split('T')[0];
+  return toISODateLocal(d);
 }
 
 export const MONTH_NAMES_PT: Record<number, string> = {
