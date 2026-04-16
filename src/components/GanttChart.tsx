@@ -1310,7 +1310,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       whiteSpace: 'nowrap',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      maxWidth: 120,
+                                      maxWidth: 280,
                                       display: 'block',
                                     }}
                                   >
