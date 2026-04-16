@@ -1469,6 +1469,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     );
                                   })()}
                                 </div>
+                                  );
+                                })()}
 
                                 {/* Label to the right of the bar */}
                                 <div
