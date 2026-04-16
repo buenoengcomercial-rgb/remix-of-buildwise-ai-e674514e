@@ -1,57 +1,39 @@
 
-## Objetivo
+## Contexto
 
-Reorganizar as 3 representações visuais da barra do Gantt para refletir claramente:
-1. **Barra cheia** = datas **planejadas (baseline)** com a cor da equipe
-2. **Linha pontilhada no meio** = **dias trabalhados** (apontamento diário), na cor da equipe
-3. **Marcadores diários** abaixo permanecem como hoje (verde/âmbar/vermelho conforme meta vs realizado)
+A linha pontilhada de "dias trabalhados" já foi removida na rodada anterior. Restam então 2 ajustes do plano original ainda pendentes + legenda:
 
-## Estado atual em `src/components/GanttChart.tsx`
+1. **Bug de fuso horário**: a barra cheia usa `new Date(task.baseline.startDate)` (linha 1483), que interpreta `'2026-05-14'` como UTC e desloca 1 dia no Brasil. Mesmo problema nos marcadores diários (linha 1454: `new Date(log.date)`).
+2. **Barra fininha (14px)**: pouco visível.
+3. **Sem legenda**: usuários não sabem o que cada elemento representa.
 
-- Linha 1453 (baseline): faixa fina cinza pontilhada no topo (4px)
-- Linha 1503 (bar principal): barra cheia colorida pela equipe usando `task.startDate/duration` (real/previsto)
-- Linha 1473 (marcadores): pequenos retângulos de 3px abaixo, um por log
+## Mudanças (apenas em `src/components/GanttChart.tsx`)
 
-Isso confunde porque a barra cheia segue o real/previsto, não o planejamento.
+### A) Corrigir vínculo de datas (timezone-safe)
+- Linha 1454: `new Date(log.date)` → `parseISODateLocal(log.date)`
+- Linha 1483: `new Date(task.baseline.startDate)` → `parseISODateLocal(task.baseline.startDate)`
+- Verificar se `parseISODateLocal` já está importado de `./gantt/utils`; se não, adicionar ao import.
 
-## Mudanças
+Resultado: a barra cheia da tarefa "Suporte de Fixação" começa exatamente sob a coluna **14/05** e termina em **19/05**, sem deslocamento de 1 dia.
 
-### 1) Inverter o papel da barra cheia (linha 1500–1609)
-Trocar `currentLeft / currentWidth` (que vêm de `task.startDate/duration`) por:
-- `baseLeft = diffDays(projectStart, baseline.startDate) * dayWidth`
-- `baseWidth = baseline.duration * dayWidth`
+### B) Deixar a barra mais robusta
+- Linha 1497: `height: 14` → `height: 20`
+- Linha 1496: `top: 12` → `top: 9` (mantém centralização vertical num row de 32px: 9 + 20 = 29, sobra 3 acima e 3 abaixo)
+- Linha 1513: `opacity: isDragPropagated ? 0.75 : 0.85` → `opacity: isDragPropagated ? 0.85 : 0.95`
+- Linha 1471: marcadores diários `top: 28` → `top: 30` (para não colidir com a barra mais alta)
 
-A barra cheia passa a representar o **planejado**. Cor de fundo continua = `teamDef.bgColor`.  
-Quando a tarefa não tem `baseline` (ainda não capturada), cair no comportamento atual (usar `task.startDate/duration`) para não quebrar.
+### C) Adicionar legenda visual
+Localizar o cabeçalho/legenda existente do Gantt (acima da grid) e acrescentar dois itens explicativos:
+- **▬** Barra cheia (cor da equipe) = planejado (baseline)
+- **■** Marcadores coloridos abaixo = meta vs realizado por dia (verde = ok, âmbar = leve atraso, vermelho = atraso significativo)
 
-Manter:
-- Drag/resize, tooltip, ring de violação, progress fill interno (overlay branco com `percentComplete`).
-- O drag/resize ainda altera `task.startDate/duration` (planejado), pois a baseline é o plano corrente exibido.
+Se houver hoje uma legenda só de equipes, adicionar uma seção compacta "Elementos do Gantt" ao lado.
 
-### 2) Substituir os marcadores diários por uma linha pontilhada contínua (linha 1472–1498)
-Em vez de N retângulos individuais, renderizar **uma única linha pontilhada** representando o intervalo trabalhado:
-
-- `firstLog = min(dailyLogs.date)` → `lastLog = max(dailyLogs.date)`
-- `left = diffDays(projectStart, firstLog) * dayWidth`
-- `width = (diffDays(firstLog, lastLog) + 1) * dayWidth`
-- Posicionada no **meio vertical** da barra cheia (ex.: `top: 18`, altura 0)
-- `borderTop: 2px dashed ${teamDef.borderColor}` (cor da equipe)
-- `zIndex: 12` (acima da barra cheia)
-
-Manter os pequenos marcadores coloridos (verde/âmbar/vermelho) por log abaixo da barra, pois indicam meta vs realizado por dia — informação distinta. Eles descem para `top: 28` (já estão).
-
-### 3) Remover a faixa fina de baseline antiga (linha 1453–1471)
-Como a barra cheia agora é o próprio baseline, esta faixa duplicada pode ser removida. O título/tooltip já mostra "Base: …→… (Xd)".
-
-### 4) Ajustar tooltip (linha 1580–1586)
-- "Base: 12/05→17/05 (5d)" → continua, agora corresponde à própria barra
-- "Previsto/Real: 14/05→22/05 (9d)" → continua, agora corresponde à linha pontilhada
-- "Desvio: +Xd" → mantido
+## Resultado esperado em "Suporte de Fixação"
+- Barra cheia azul-Charlie alinhada exatamente em **14/05 → 19/05**
+- Altura visivelmente maior (20px) e mais opaca (0.95)
+- Marcadores diários (verde/âmbar/vermelho) logo abaixo, sem sobreposição
+- Legenda explicando o significado de cada elemento
 
 ## Arquivo
 `src/components/GanttChart.tsx` (apenas)
-
-## Resultado esperado em "Suporte de Fixação"
-- Barra cheia azul-Charlie cobrindo **12/05 → 17/05** (5 dias planejados)
-- Linha pontilhada azul-Charlie atravessando o meio de **14/05 → 22/05** (9 dias trabalhados), extrapolando à direita da barra cheia, deixando visível o atraso
-- Marcadores coloridos por dia permanecem abaixo
