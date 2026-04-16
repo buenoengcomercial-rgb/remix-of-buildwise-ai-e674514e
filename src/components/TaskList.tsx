@@ -457,46 +457,39 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               const rowTeam = getTeamDefinition(task.team);
                               return (
                             <div
-                              className={`grid grid-cols-12 gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              className={`grid gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}}
+                              style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
+                              {/* Equipe inicial */}
+                              <div className="flex items-center justify-center">
+                                <select
+                                  value={task.team || ''}
+                                  onChange={e => updateTask(phase.id, task.id, { team: (e.target.value || undefined) as TeamCode | undefined })}
+                                  className="w-8 h-7 text-[10px] font-bold text-center rounded cursor-pointer border-0 appearance-none"
+                                  style={rowTeam
+                                    ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor, border: `2px solid ${rowTeam.borderColor}` }
+                                    : { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                                  }
+                                  title="Selecionar equipe"
+                                >
+                                  <option value="">—</option>
+                                  {TEAM_CODES.map(code => (
+                                    <option key={code} value={code}>{getTeamDefinition(code)!.label.charAt(0)}</option>
+                                  ))}
+                                </select>
+                              </div>
                               {/* Nome */}
-                              <div className="col-span-2 flex items-center gap-1 min-w-0">
+                              <div className="flex items-center gap-1 min-w-0">
                                 <GripVertical className={`w-3.5 h-3.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
                                 {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
-                                {(() => {
-                                  const teamDef = getTeamDefinition(task.team);
-                                  if (teamDef) return (
-                                    <span
-                                      className="px-1.5 py-0.5 text-[8px] font-bold rounded-full flex-shrink-0"
-                                      style={{ background: teamDef.bgColor, color: teamDef.textColor, border: `1px solid ${teamDef.borderColor}` }}
-                                    >
-                                      {teamDef.label}
-                                    </span>
-                                  );
-                                  return null;
-                                })()}
                                 {isEditing ? (
-                                  <div className="flex items-center gap-1 w-full min-w-0">
-                                    <InlineInput
-                                      value={task.name}
-                                      onChange={v => updateTask(phase.id, task.id, { name: v })}
-                                      className="flex-1 min-w-0"
-                                    />
-                                    <select
-                                      value={task.team || ''}
-                                      onChange={e => updateTask(phase.id, task.id, { team: (e.target.value || undefined) as TeamCode | undefined })}
-                                      className="text-[9px] bg-transparent border border-current/30 rounded px-1 py-0.5"
-                                      style={rowTeam ? { color: 'inherit' } : undefined}
-                                    >
-                                      <option value="">Sem equipe</option>
-                                      {TEAM_CODES.map(code => (
-                                        <option key={code} value={code}>{getTeamDefinition(code)!.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
+                                  <InlineInput
+                                    value={task.name}
+                                    onChange={v => updateTask(phase.id, task.id, { name: v })}
+                                    className="flex-1 min-w-0"
+                                  />
                                 ) : (
                                   <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
                                     {task.name}
