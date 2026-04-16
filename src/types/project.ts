@@ -7,10 +7,18 @@ export interface LaborComposition {
 }
 
 export type DependencyType = 'TI' | 'II' | 'TT' | 'IT';
+export type TeamCode = 'alpha' | 'bravo';
 
 export interface TaskDependency {
   taskId: string;
   type: DependencyType;
+}
+
+export interface TaskLocation {
+  torre?: string;
+  pavimento?: number;
+  bloco?: string;
+  ambiente?: string;
 }
 
 export interface Task {
@@ -27,22 +35,29 @@ export interface Task {
   children?: Task[];
   isExpanded?: boolean;
   level: number;
+  // Location & organization
+  location?: TaskLocation;
+  team?: TeamCode;
+  frenteServico?: string;
+  disciplina?: string;
+  ordemExecucao?: number;
   observations?: string;
-  durationMode?: 'manual' | 'rup'; // how duration is determined
-  isManual?: boolean; // true when user manually set duration
-  manualDuration?: number; // user-set duration value
+  // Duration mode
+  durationMode?: 'manual' | 'rup';
+  isManual?: boolean;
+  manualDuration?: number;
   // RUP fields
   quantity?: number;
   unit?: string;
   laborCompositions?: LaborComposition[];
   // CPM fields (computed)
-  es?: number; // Early Start (day offset from project start)
-  ef?: number; // Early Finish
-  ls?: number; // Late Start
-  lf?: number; // Late Finish
-  float?: number; // Total float
+  es?: number;
+  ef?: number;
+  ls?: number;
+  lf?: number;
+  float?: number;
   isCritical?: boolean;
-  bottleneckRole?: string; // role that defines duration
+  bottleneckRole?: string;
   calculatedDuration?: number;
   totalHours?: number;
 }
