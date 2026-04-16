@@ -1309,6 +1309,33 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     />
                                   );
                                 })()}
+                                {/* Daily execution markers */}
+                                {(task.dailyLogs || []).filter(l => l.actualQuantity > 0).map((log) => {
+                                  const dayOffset = diffDays(projectStart, new Date(log.date));
+                                  const planned = log.plannedQuantity || 0;
+                                  const delta = planned - log.actualQuantity;
+                                  let colorClass = 'bg-emerald-500';
+                                  if (planned > 0) {
+                                    if (delta <= 0) colorClass = 'bg-emerald-500';
+                                    else if (delta <= planned * 0.2) colorClass = 'bg-amber-500';
+                                    else colorClass = 'bg-red-500';
+                                  }
+                                  const dStr = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                                  return (
+                                    <div
+                                      key={log.id}
+                                      className={`absolute rounded-sm ${colorClass} pointer-events-auto`}
+                                      style={{
+                                        left: dayOffset * dayWidth + 1,
+                                        width: Math.max(2, dayWidth - 2),
+                                        top: ROW_HEIGHT - 6,
+                                        height: 4,
+                                        zIndex: 8,
+                                      }}
+                                      title={`${dStr} — Realizado ${log.actualQuantity}${planned > 0 ? ` / Meta ${planned}` : ''}`}
+                                    />
+                                  );
+                                })}
                                 {/* Bar */}
                                 <div
                                   className={`absolute rounded-md group ${
