@@ -853,13 +853,21 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           const depTypes = getDepTypes(task);
                           const noWorkDays = hasNoWorkingDays(task);
 
+                          const rowTeamDef = getTeamDefinition(task.team);
                           return (
                             <div
                               key={task.id}
-                              className={`grid items-center gap-0.5 px-1 border-b border-border hover:bg-muted/30 transition-colors ${
-                                idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'
-                              } ${task.isCritical ? 'bg-destructive/5' : ''} ${noWorkDays ? 'bg-warning/10' : ''}`}
-                              style={{ height: ROW_HEIGHT, gridTemplateColumns: sidebarCols }}
+                              className={`grid items-center gap-0.5 px-1 border-b border-border hover:brightness-110 transition-colors ${
+                                !rowTeamDef ? (idx % 2 === 0 ? 'bg-card' : 'bg-muted/10') : ''
+                              } ${task.isCritical && !rowTeamDef ? 'bg-destructive/5' : ''} ${noWorkDays && !rowTeamDef ? 'bg-warning/10' : ''}`}
+                              style={{
+                                height: ROW_HEIGHT,
+                                gridTemplateColumns: sidebarCols,
+                                ...(rowTeamDef ? {
+                                  backgroundColor: rowTeamDef.bgColor,
+                                  color: rowTeamDef.textColor,
+                                } : {}),
+                              }}
                               title={hasViolation ? violations.join('\n') : noWorkDays ? 'Tarefa sem dias úteis no período' : undefined}
                             >
                               <div className="text-center">

@@ -438,9 +438,13 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                             className={`${dropTargetId === task.id && dragTaskId !== task.id ? 'border-t-2 border-t-primary' : ''} ${dragTaskId === task.id ? 'opacity-40' : ''}`}
                           >
                             <div
-                              className={`grid grid-cols-12 gap-2 px-5 py-3 border-t border-border hover:bg-muted/20 transition-colors items-center ${
-                                isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : ''
+                              className={`grid grid-cols-12 gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
+                                !getTeamDefinition(task.team) ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
+                              style={(() => {
+                                const td = getTeamDefinition(task.team);
+                                return td ? { backgroundColor: td.bgColor, color: td.textColor } : {};
+                              })()}
                             >
                               {/* Nome */}
                               <div className="col-span-2 flex items-center gap-1 min-w-0">
