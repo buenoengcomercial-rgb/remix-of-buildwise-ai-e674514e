@@ -1293,9 +1293,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       ? violations[0]
                                       : noWorkDays
                                       ? 'Tarefa sem dias úteis no período'
-                                      : formatTeamLabel(task)
-                                        ? `${formatTeamLabel(task)}`
-                                        : `${task.percentComplete}% • ${task.duration}d`
+                                      : (() => {
+                                          const teamDef = getTeamDefinition(task.team);
+                                          const teamLabel = teamDef ? `${teamDef.label} (${teamDef.composition})` : '';
+                                          const prodLabel = formatTeamLabel(task);
+                                          if (teamLabel && prodLabel) return `${teamLabel} • ${prodLabel}`;
+                                          if (teamLabel) return teamLabel;
+                                          if (prodLabel) return prodLabel;
+                                          return `${task.percentComplete}% • ${task.duration}d`;
+                                        })()
                                     }
                                   </div>
                                 </div>
@@ -1322,7 +1328,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       display: 'block',
                                     }}
                                   >
-                                    {getShortLabel(task.name)}{formatTeamLabel(task) ? ` — ${formatTeamLabel(task)}` : ''}
+                                    {getShortLabel(task.name)}{task.team ? ` — ${getTeamDefinition(task.team)?.label}` : ''}{formatTeamLabel(task) ? ` • ${formatTeamLabel(task)}` : ''}
                                   </span>
                                 </div>
                               </div>
