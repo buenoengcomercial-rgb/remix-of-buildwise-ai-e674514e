@@ -948,8 +948,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </div>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className={`text-[9px] transition-colors text-center w-full ${rowTeamDef ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
-                                    {formatDateFull(task.startDate)}
+                                  <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
+                                    {task.baseline && (
+                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>P: {formatDateFull(task.baseline.startDate)}</span>
+                                    )}
+                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'R: ' : ''}{formatDateFull(task.startDate)}</span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -963,8 +966,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </Popover>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className={`text-[9px] transition-colors text-center w-full ${rowTeamDef ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
-                                    {formatDateFull(endDate)}
+                                  <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
+                                    {task.baseline && (
+                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>P: {formatDateFull(task.baseline.endDate)}</span>
+                                    )}
+                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'P: ' : ''}{formatDateFull(endDate)}</span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -976,6 +982,23 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   />
                                 </PopoverContent>
                               </Popover>
+                              <div className="text-center">
+                                {task.baseline ? (() => {
+                                  const dev = task.duration - task.baseline.duration;
+                                  const cls = dev > 0
+                                    ? 'bg-destructive/15 text-destructive'
+                                    : dev < 0
+                                    ? 'bg-success/15 text-success'
+                                    : 'bg-muted text-muted-foreground';
+                                  return (
+                                    <span className={`inline-block px-1 py-0.5 rounded text-[9px] font-bold ${cls}`}>
+                                      {dev > 0 ? '+' : ''}{dev}d
+                                    </span>
+                                  );
+                                })() : (
+                                  <span className={`text-[9px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>
+                                )}
+                              </div>
                               <div className="text-center">
                                 <input
                                   className={`w-full text-[9px] bg-transparent border-b border-border/50 text-center focus:outline-none focus:border-primary ${rowTeamDef ? 'opacity-80' : 'text-muted-foreground'}`}
