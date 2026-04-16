@@ -871,19 +871,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               title={hasViolation ? violations.join('\n') : noWorkDays ? 'Tarefa sem dias úteis no período' : undefined}
                             >
                               <div className="text-center">
-                                <span className="text-[9px] font-mono text-muted-foreground">{taskNum}</span>
+                                <span className={`text-[9px] font-mono ${rowTeamDef ? 'opacity-70' : 'text-muted-foreground'}`}>{taskNum}</span>
                               </div>
                               <div className="min-w-0 flex items-center gap-1 pl-1">
                                 {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
                                 {hasViolation && <AlertTriangle className="w-3 h-3 text-destructive flex-shrink-0" />}
                                 {noWorkDays && <AlertTriangle className="w-3 h-3 text-warning flex-shrink-0" />}
-                                <p className="text-[11px] font-medium text-foreground line-clamp-2 break-words leading-tight">{task.name}</p>
+                                <p className={`text-[11px] font-medium line-clamp-2 break-words leading-tight ${rowTeamDef ? '' : 'text-foreground'}`}>{task.name}</p>
                               </div>
                               <div className="text-center">
                                 <input
                                   className={`w-full text-[10px] font-bold bg-transparent text-center focus:outline-none focus:ring-1 focus:ring-primary rounded ${
-                                    (task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground'
+                                    rowTeamDef ? '' : ((task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground')
                                   }`}
+                                  style={rowTeamDef ? { color: 'inherit' } : undefined}
                                   value={editingDurationTaskId === task.id ? localDuration : task.duration}
                                   type="number"
                                   min={1}
@@ -918,9 +919,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     <button
                                       onClick={() => toggleDurationMode(task.id)}
                                       className={`text-[8px] font-bold rounded px-0.5 py-0 transition-colors ${
-                                        (task.durationMode || 'manual') === 'rup'
-                                          ? 'bg-primary/20 text-primary'
-                                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                                        rowTeamDef
+                                          ? 'bg-white/20'
+                                          : ((task.durationMode || 'manual') === 'rup'
+                                            ? 'bg-primary/20 text-primary'
+                                            : 'bg-muted text-muted-foreground hover:text-foreground')
                                       }`}
                                       title={(task.durationMode || 'manual') === 'rup' ? 'Modo RUP (clique para manual)' : 'Modo Manual (clique para RUP)'}
                                     >
@@ -938,7 +941,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </div>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className="text-[9px] text-foreground hover:text-primary transition-colors text-center w-full">
+                                  <button className={`text-[9px] transition-colors text-center w-full ${rowTeamDef ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
                                     {formatDateFull(task.startDate)}
                                   </button>
                                 </PopoverTrigger>
@@ -953,7 +956,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </Popover>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className="text-[9px] text-foreground hover:text-primary transition-colors text-center w-full">
+                                  <button className={`text-[9px] transition-colors text-center w-full ${rowTeamDef ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
                                     {formatDateFull(endDate)}
                                   </button>
                                 </PopoverTrigger>
@@ -968,7 +971,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </Popover>
                               <div className="text-center">
                                 <input
-                                  className="w-full text-[9px] bg-transparent border-b border-border/50 text-center text-muted-foreground focus:outline-none focus:border-primary"
+                                  className={`w-full text-[9px] bg-transparent border-b border-border/50 text-center focus:outline-none focus:border-primary ${rowTeamDef ? 'opacity-80' : 'text-muted-foreground'}`}
+                                  style={rowTeamDef ? { color: 'inherit' } : undefined}
                                   defaultValue={depDisplay}
                                   key={depDisplay}
                                   placeholder="—"
@@ -982,8 +986,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     value={depTypes[0].type}
                                     onValueChange={(val) => handleDepTypeChange(task.id, 0, val as DependencyType)}
                                   >
-                                    <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent">
-                                      <SelectValue />
+                                    <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: 'inherit' } : undefined}>
+                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="TI" className="text-[10px]">TI</SelectItem>
@@ -993,7 +997,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <span className="text-[9px] text-muted-foreground">—</span>
+                                  <span className={`text-[9px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>
                                 )}
                               </div>
                               <div className="text-center">
@@ -1009,7 +1013,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     onProjectChange(updated);
                                   }}
                                 >
-                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent">
+                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: 'inherit' } : undefined}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
