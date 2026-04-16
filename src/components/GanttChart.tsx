@@ -581,8 +581,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return result.dias === 0;
   }, [obraConfig]);
 
-  const sidebarCols = '24px 1fr 28px 20px 68px 68px 50px 50px';
-  const sidebarWidth = 460;
+  const sidebarCols = '24px 1fr 28px 20px 68px 68px 50px 50px 56px';
+  const sidebarWidth = 520;
 
   // Toggle duration mode and recalculate if switching to RUP
   const toggleDurationMode = (taskId: string) => {
@@ -759,6 +759,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 <div key={code} className="flex items-center gap-1">
                   <div className="w-3 h-1.5 rounded-full" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
                   <span>{def.label}</span>
+                  <span className="text-muted-foreground/70">({def.composition})</span>
                 </div>
               );
             })}
@@ -782,6 +783,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Fim</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dep</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tipo</span>
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Equipe</span>
               </div>
 
               {/* Rows */}
@@ -985,6 +987,38 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 ) : (
                                   <span className="text-[9px] text-muted-foreground">—</span>
                                 )}
+                              </div>
+                              <div className="text-center">
+                                <Select
+                                  value={task.team || '_none'}
+                                  onValueChange={(val) => {
+                                    const newTeam = val === '_none' ? undefined : val as TeamCode;
+                                    const updated = { ...project };
+                                    updated.phases = updated.phases.map(p => ({
+                                      ...p,
+                                      tasks: p.tasks.map(t => t.id === task.id ? { ...t, team: newTeam } : t)
+                                    }));
+                                    onProjectChange(updated);
+                                  }}
+                                >
+                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="_none" className="text-[10px]">—</SelectItem>
+                                    {TEAM_CODES.map(code => {
+                                      const def = TEAM_DEFINITIONS[code];
+                                      return (
+                                        <SelectItem key={code} value={code} className="text-[10px]">
+                                          <span className="flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+                                            {def.label}
+                                          </span>
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
                               </div>
                             </div>
                           );
