@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import DependencyArrows from './gantt/DependencyArrows';
 import ConfiguracaoObra, { ObraConfig, loadObraConfig } from './ConfiguracaoObra';
 import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
-import { addDays, diffDays, formatDateFull, getEndDate, MONTH_NAMES_PT, dateToISO } from './gantt/utils';
+import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, MONTH_NAMES_PT, dateToISO } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
 import { toast } from 'sonner';
