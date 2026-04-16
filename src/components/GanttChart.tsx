@@ -1476,32 +1476,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     />
                                   );
                                 })}
-                                {/* Linha pontilhada: dias trabalhados (apontamento diário) */}
-                                {(() => {
-                                  const workedLogs = (task.dailyLogs || []).filter(l => l.actualQuantity > 0);
-                                  if (workedLogs.length === 0) return null;
-                                  const dates = workedLogs.map(l => new Date(l.date).getTime());
-                                  const firstLog = new Date(Math.min(...dates));
-                                  const lastLog = new Date(Math.max(...dates));
-                                  const left = diffDays(projectStart, firstLog) * dayWidth;
-                                  const width = (diffDays(firstLog, lastLog) + 1) * dayWidth;
-                                  const teamDef = getTeamDefinition(task.team);
-                                  const color = teamDef ? teamDef.borderColor : 'hsl(var(--foreground))';
-                                  return (
-                                    <div
-                                      className="absolute pointer-events-none"
-                                      style={{
-                                        left,
-                                        width,
-                                        top: 18,
-                                        height: 0,
-                                        borderTop: `2px dashed ${color}`,
-                                        zIndex: 12,
-                                      }}
-                                      title={`Dias trabalhados: ${formatDateFull(toISODateLocal(firstLog))} → ${formatDateFull(toISODateLocal(lastLog))}`}
-                                    />
-                                  );
-                                })()}
                                 {/* Barra cheia = datas planejadas (baseline). Fallback: current. */}
                                 {(() => {
                                   const isLate = task.baseline ? task.duration > task.baseline.duration : false;
