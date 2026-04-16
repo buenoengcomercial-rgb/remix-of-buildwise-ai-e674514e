@@ -498,7 +498,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Quantidade + Unidade */}
-                              <div className="col-span-1 flex items-center gap-0.5">
+                              <div className="flex items-center gap-0.5">
                                 {isEditing ? (
                                   <>
                                     <InlineInput
@@ -520,7 +520,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Responsável */}
-                              <div className="col-span-1">
+                              <div className="">
                                 {isEditing ? (
                                   <InlineInput
                                     value={task.responsible}
@@ -547,7 +547,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Gargalo */}
-                              <div className="col-span-1">
+                              <div className="">
                                 {task.bottleneckRole ? (
                                   <span className={`text-[9px] px-1 py-0.5 rounded font-medium truncate block text-center ${rowTeam ? 'bg-white/20' : 'bg-warning/15 text-warning'}`}>
                                     {task.bottleneckRole}
@@ -556,14 +556,14 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Folga */}
-                              <div className="col-span-1">
+                              <div className="">
                                 <span className={`text-[10px] font-bold ${rowTeam ? '' : (task.float === 0 ? 'text-destructive' : 'text-success')}`}>
                                   {task.float !== undefined ? `${task.float}d` : '—'}
                                 </span>
                               </div>
 
                               {/* Dependências */}
-                              <div className="col-span-1">
+                              <div className="">
                                 {isEditing ? (
                                   <select
                                     multiple
@@ -589,7 +589,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Progresso */}
-                              <div className="col-span-1">
+                              <div className="">
                                 <div className="flex items-center gap-1">
                                   <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${rowTeam ? 'bg-white/20' : 'bg-muted'}`}>
                                     <div
@@ -610,12 +610,12 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Status (auto) */}
-                              <div className="col-span-1">
+                              <div className="">
                                 <StatusBadge percent={task.percentComplete} />
                               </div>
 
                               {/* Ações */}
-                              <div className="col-span-1 flex items-center gap-1">
+                              <div className="flex items-center gap-1">
                                 {isEditing ? (
                                   <button onClick={() => setEditingTask(null)} className="p-1 rounded hover:bg-success/20 text-success transition-colors" title="Salvar">
                                     <Check className="w-3 h-3" />
