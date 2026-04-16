@@ -1289,6 +1289,26 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 className={`border-b border-border relative ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'}`}
                                 style={{ height: ROW_HEIGHT }}
                               >
+                                {/* Baseline shadow (linha de base fixa) */}
+                                {task.baseline && (() => {
+                                  const bStart = diffDays(projectStart, new Date(task.baseline.startDate));
+                                  const bLeft = bStart * dayWidth;
+                                  const bWidth = task.baseline.duration * dayWidth;
+                                  const deviation = task.duration - task.baseline.duration;
+                                  return (
+                                    <div
+                                      className="absolute rounded border border-dashed border-muted-foreground/40 bg-muted/30 pointer-events-none"
+                                      style={{
+                                        left: bLeft,
+                                        width: bWidth,
+                                        top: (ROW_HEIGHT - 16) / 2 + 1,
+                                        height: 14,
+                                        zIndex: 5,
+                                      }}
+                                      title={`Linha de base: ${formatDateFull(task.baseline.startDate)} → ${formatDateFull(task.baseline.endDate)} (${task.baseline.duration}d)${deviation !== 0 ? ` • Desvio: ${deviation > 0 ? '+' : ''}${deviation}d` : ''}`}
+                                    />
+                                  );
+                                })()}
                                 {/* Bar */}
                                 <div
                                   className={`absolute rounded-md group ${
