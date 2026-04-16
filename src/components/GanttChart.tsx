@@ -868,7 +868,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   color: rowTeamDef.textColor,
                                 } : {}),
                               }}
-                              title={hasViolation ? violations.join('\n') : noWorkDays ? 'Tarefa sem dias úteis no período' : undefined}
+                              title={[
+                                hasViolation ? violations.join('\n') : null,
+                                noWorkDays ? 'Tarefa sem dias úteis no período' : null,
+                                task.dailyLogs && task.dailyLogs.length > 0
+                                  ? `Apontamento: ${task.physicalProgress?.toFixed(1) ?? 0}% físico • Saldo: ${(task.accumulatedDelayQuantity || 0).toFixed(1)} ${task.unit || 'un'} • Previsão: ${task.forecastEndDate ? new Date(task.forecastEndDate).toLocaleDateString('pt-BR') : '—'}`
+                                  : null,
+                              ].filter(Boolean).join('\n') || undefined}
                             >
                               <div className="text-center">
                                 <span className={`text-[9px] font-mono ${rowTeamDef ? 'opacity-70' : 'text-muted-foreground'}`}>{taskNum}</span>
