@@ -61,6 +61,23 @@ export interface Task {
   bottleneckRole?: string;
   calculatedDuration?: number;
   totalHours?: number;
+  // Daily production tracking
+  dailyLogs?: DailyProductionLog[];
+  executedQuantityTotal?: number;
+  remainingQuantity?: number;
+  accumulatedDelayQuantity?: number;
+  recalculatedDuration?: number;
+  forecastEndDate?: string;
+  physicalProgress?: number;
+  originalDuration?: number; // snapshot before daily-log adjustment
+}
+
+export interface DailyProductionLog {
+  id: string;
+  date: string;            // ISO yyyy-mm-dd
+  plannedQuantity: number;
+  actualQuantity: number;
+  notes?: string;
 }
 
 export interface Material {

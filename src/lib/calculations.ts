@@ -44,6 +44,69 @@ export function applyRupToProject(project: Project): Project {
   };
 }
 
+/** Apply daily production logs: recompute remaining duration, forecast date, physical progress.
+ * Logs override `duration` (unless task.isManual), so CPM downstream propagates automatically. */
+export function applyDailyLogsToProject(project: Project): Project {
+  return {
+    ...project,
+    phases: project.phases.map(p => ({
+      ...p,
+      tasks: p.tasks.map(t => {
+        const logs = t.dailyLogs || [];
+        if (!t.quantity || t.quantity <= 0 || t.duration <= 0) {
+          return t;
+        }
+        const baseDuration = t.originalDuration ?? t.duration;
+        const plannedDailyProduction = t.quantity / baseDuration;
+
+        if (logs.length === 0) {
+          return {
+            ...t,
+            executedQuantityTotal: 0,
+            remainingQuantity: t.quantity,
+            accumulatedDelayQuantity: 0,
+            recalculatedDuration: baseDuration,
+            physicalProgress: t.percentComplete,
+          };
+        }
+
+        const executedQuantityTotal = logs.reduce((s, l) => s + (l.actualQuantity || 0), 0);
+        const remainingQuantity = Math.max(0, t.quantity - executedQuantityTotal);
+        const accumulatedDelayQuantity = logs.reduce(
+          (s, l) => s + ((l.plannedQuantity || 0) - (l.actualQuantity || 0)),
+          0
+        );
+        const daysConsumed = logs.length;
+        const remainingDuration = plannedDailyProduction > 0
+          ? Math.ceil(remainingQuantity / plannedDailyProduction)
+          : 0;
+        const recalculatedDuration = Math.max(1, daysConsumed + remainingDuration);
+
+        const startDate = new Date(t.startDate);
+        const forecastEnd = new Date(startDate);
+        forecastEnd.setDate(forecastEnd.getDate() + recalculatedDuration);
+        const forecastEndDate = forecastEnd.toISOString().split('T')[0];
+
+        const physicalProgress = Math.min(100, Math.round((executedQuantityTotal / t.quantity) * 1000) / 10);
+
+        const shouldOverrideDuration = !t.isManual;
+        return {
+          ...t,
+          originalDuration: baseDuration,
+          duration: shouldOverrideDuration ? recalculatedDuration : t.duration,
+          executedQuantityTotal,
+          remainingQuantity,
+          accumulatedDelayQuantity,
+          recalculatedDuration,
+          forecastEndDate,
+          physicalProgress,
+          percentComplete: Math.max(t.percentComplete, Math.round(physicalProgress)),
+        };
+      }),
+    })),
+  };
+}
+
 /** CPM Forward + Backward pass */
 export function calculateCPM(project: Project): Project {
   const allTasks = getAllTasks(project);

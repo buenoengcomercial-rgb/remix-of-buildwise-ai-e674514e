@@ -1,8 +1,9 @@
-import { Project, Task, LaborComposition } from '@/types/project';
+import { Project, Task, LaborComposition, DailyProductionLog } from '@/types/project';
 import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
 import { useState, useRef, useCallback } from 'react';
-import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
+import DailyLogsPanel from '@/components/DailyLogsPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -85,6 +86,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
 export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(project.phases.map(p => p.id)));
   const [expandedRup, setExpandedRup] = useState<string | null>(null);
+  const [expandedDaily, setExpandedDaily] = useState<string | null>(null);
   const [simulating, setSimulating] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -688,6 +690,13 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     <Edit3 className="w-3 h-3" />
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => setExpandedDaily(expandedDaily === task.id ? null : task.id)}
+                                  className={`p-1 rounded transition-colors ${expandedDaily === task.id ? 'bg-info/30 text-info' : 'hover:bg-info/20 text-info'}`}
+                                  title="Apontamento diário de produção"
+                                >
+                                  <ClipboardList className="w-3 h-3" />
+                                </button>
                                 <button onClick={() => duplicateTask(phase.id, task)} className="p-1 rounded hover:bg-info/20 text-info transition-colors" title="Duplicar">
                                   <Copy className="w-3 h-3" />
                                 </button>
@@ -825,6 +834,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     )}
                                   </div>
                                 </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            {/* Daily production log panel */}
+                            <AnimatePresence>
+                              {expandedDaily === task.id && (
+                                <DailyLogsPanel
+                                  task={task}
+                                  onChange={(logs: DailyProductionLog[]) =>
+                                    updateTask(phase.id, task.id, { dailyLogs: logs })
+                                  }
+                                />
                               )}
                             </AnimatePresence>
                           </div>
