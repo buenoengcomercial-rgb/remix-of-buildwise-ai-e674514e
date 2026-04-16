@@ -581,8 +581,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return result.dias === 0;
   }, [obraConfig]);
 
-  const sidebarCols = '24px 1fr 28px 20px 68px 68px 50px 50px 56px';
-  const sidebarWidth = 520;
+  const sidebarCols = '24px 1fr 28px 20px 78px 78px 44px 44px 44px 56px';
+  const sidebarWidth = 580;
 
   // Toggle duration mode and recalculate if switching to RUP
   const toggleDurationMode = (taskId: string) => {
@@ -781,6 +781,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Início</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Fim</span>
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Desvio: Previsto − Base">Δ</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dep</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tipo</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Equipe</span>
@@ -947,8 +948,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </div>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className={`text-[9px] transition-colors text-center w-full ${rowTeamDef ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
-                                    {formatDateFull(task.startDate)}
+                                  <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
+                                    {task.baseline && (
+                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>P: {formatDateFull(task.baseline.startDate)}</span>
+                                    )}
+                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'R: ' : ''}{formatDateFull(task.startDate)}</span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -962,8 +966,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </Popover>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className={`text-[9px] transition-colors text-center w-full ${rowTeamDef ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
-                                    {formatDateFull(endDate)}
+                                  <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
+                                    {task.baseline && (
+                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>P: {formatDateFull(task.baseline.endDate)}</span>
+                                    )}
+                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'P: ' : ''}{formatDateFull(endDate)}</span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -975,6 +982,23 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   />
                                 </PopoverContent>
                               </Popover>
+                              <div className="text-center">
+                                {task.baseline ? (() => {
+                                  const dev = task.duration - task.baseline.duration;
+                                  const cls = dev > 0
+                                    ? 'bg-destructive/15 text-destructive'
+                                    : dev < 0
+                                    ? 'bg-success/15 text-success'
+                                    : 'bg-muted text-muted-foreground';
+                                  return (
+                                    <span className={`inline-block px-1 py-0.5 rounded text-[9px] font-bold ${cls}`}>
+                                      {dev > 0 ? '+' : ''}{dev}d
+                                    </span>
+                                  );
+                                })() : (
+                                  <span className={`text-[9px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>
+                                )}
+                              </div>
                               <div className="text-center">
                                 <input
                                   className={`w-full text-[9px] bg-transparent border-b border-border/50 text-center focus:outline-none focus:border-primary ${rowTeamDef ? 'opacity-80' : 'text-muted-foreground'}`}
@@ -1289,7 +1313,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 className={`border-b border-border relative ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'}`}
                                 style={{ height: ROW_HEIGHT }}
                               >
-                                {/* Baseline shadow (linha de base fixa) */}
+                                {/* Baseline (fina, no topo) */}
                                 {task.baseline && (() => {
                                   const bStart = diffDays(projectStart, new Date(task.baseline.startDate));
                                   const bLeft = bStart * dayWidth;
@@ -1297,19 +1321,19 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const deviation = task.duration - task.baseline.duration;
                                   return (
                                     <div
-                                      className="absolute rounded border border-dashed border-muted-foreground/40 bg-muted/30 pointer-events-none"
+                                      className="absolute rounded-sm border border-dashed border-muted-foreground/50 bg-muted/40 pointer-events-none"
                                       style={{
                                         left: bLeft,
                                         width: bWidth,
-                                        top: (ROW_HEIGHT - 16) / 2 + 1,
-                                        height: 14,
+                                        top: 4,
+                                        height: 4,
                                         zIndex: 5,
                                       }}
                                       title={`Linha de base: ${formatDateFull(task.baseline.startDate)} → ${formatDateFull(task.baseline.endDate)} (${task.baseline.duration}d)${deviation !== 0 ? ` • Desvio: ${deviation > 0 ? '+' : ''}${deviation}d` : ''}`}
                                     />
                                   );
                                 })()}
-                                {/* Daily execution markers */}
+                                {/* Daily execution markers (abaixo da barra real) */}
                                 {(task.dailyLogs || []).filter(l => l.actualQuantity > 0).map((log) => {
                                   const dayOffset = diffDays(projectStart, new Date(log.date));
                                   const planned = log.plannedQuantity || 0;
@@ -1328,24 +1352,27 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       style={{
                                         left: dayOffset * dayWidth + 1,
                                         width: Math.max(2, dayWidth - 2),
-                                        top: ROW_HEIGHT - 6,
-                                        height: 4,
+                                        top: 28,
+                                        height: 3,
                                         zIndex: 8,
                                       }}
                                       title={`${dStr} — Realizado ${log.actualQuantity}${planned > 0 ? ` / Meta ${planned}` : ''}`}
                                     />
                                   );
                                 })}
-                                {/* Bar */}
+                                {/* Bar (real / previsto) */}
+                                {(() => {
+                                  const isLate = task.baseline ? task.duration > task.baseline.duration : false;
+                                  return (
                                 <div
                                   className={`absolute rounded-md group ${
                                     bar.isCritical ? 'ring-1 ring-destructive/40' : ''
-                                  } ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
+                                  } ${isLate && !bar.isCritical && !hasViolation ? 'ring-1 ring-destructive/60' : ''} ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   style={{
                                     left: currentLeft,
                                     width: currentWidth,
-                                    top: (ROW_HEIGHT - 16) / 2,
-                                    height: 16,
+                                    top: 12,
+                                    height: 14,
                                     borderRadius: 6,
                                     background: bar.isDelayed
                                       ? 'hsl(var(--gantt-bar-delayed))'
@@ -1442,6 +1469,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     );
                                   })()}
                                 </div>
+                                  );
+                                })()}
 
                                 {/* Label to the right of the bar */}
                                 <div
