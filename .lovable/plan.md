@@ -1,42 +1,62 @@
 
 ## Objetivo
-Acrescentar no Gantt **marcadores diários de execução real** (a partir de `dailyLogs` com `actualQuantity > 0`) e enriquecer o tooltip com base, previsão, executado, restante e dias trabalhados — preservando a baseline (sombra atrás) e a barra atual já existentes.
+Compactar e profissionalizar a visualização do Gantt, deixando explícitos **planejado vs real vs execução diária**, e enriquecer a tabela lateral com colunas Plan/Real/Desvio.
 
-## Arquivo único alterado
-`src/components/GanttChart.tsx`
+## Arquivos alterados
 
-## Mudanças
+### 1. `src/components/GanttChart.tsx` — barras + marcadores
+Reorganizar as 3 camadas dentro de cada linha (`ROW_HEIGHT = 32`):
 
-### 1. Marcadores diários de execução
-Logo após a renderização da sombra de baseline (~linha 1311) e antes da barra atual (~linha 1313), adicionar um bloco que itera `task.dailyLogs`:
-- Para cada log com `actualQuantity > 0`:
-  - Calcular `dayOffset = diffDays(projectStart, new Date(log.date))`
-  - Renderizar um quadradinho colorido com:
-    - `left: dayOffset * dayWidth + 1`
-    - `width: dayWidth - 2`
-    - `top: ROW_HEIGHT - 6` (logo abaixo da barra principal, na faixa inferior da linha)
-    - `height: 4`
-    - Cor baseada em `dailyDelta = plannedQuantity − actualQuantity`:
-      - `≤ 0` → verde (`hsl(var(--success))` ou `bg-emerald-500`)
-      - `≤ 20% da meta` → amarelo (`bg-amber-500`)
-      - `> 20%` → vermelho (`bg-red-500`)
-    - `title` com `dd/mm — Realizado X / Meta Y` para tooltip nativo no marcador
-    - `zIndex: 8` (acima da sombra de baseline, abaixo da barra principal `zIndex 10`)
-- `pointer-events-auto` apenas no marcador, para não atrapalhar drag da barra.
+- **Baseline (secundária, fina, no topo)**
+  - `top: 4`, `height: 4`
+  - `border-dashed border` cinza (`border-muted-foreground/40`), fundo `bg-muted/30`
+  - `left/width` calculados a partir de `task.baseline.startDate` e `baseline.duration`
+  - `zIndex: 5`, sem pointer-events
+- **Barra real (principal, grossa, central)**
+  - `top: 12`, `height: 14` (mais grossa que hoje)
+  - cor da equipe (mantém lógica atual de `teamColor`)
+  - usa `task.startDate` / `task.duration` (= cronograma variável)
+  - mantém drag/resize/handles atuais — apenas ajustar `top`/`height`
+  - se `current.duration > baseline.duration` → adicionar `ring-1 ring-red-500/60` (atraso)
+  - crítico: mantém ring atual
+- **Marcadores diários (abaixo da barra real)**
+  - `top: 28`, `height: 3`
+  - já existem; reposicionar e afinar (eram 4px → 3px)
+  - mantém cores verde/amarelo/vermelho por delta
 
-### 2. Tooltip enriquecido
-No tooltip da barra (~linha 1380-1400), adicionar quando há `dailyLogs`:
-- `Executado: {executedQuantityTotal} {unit}`
-- `Restante: {remainingQuantity} {unit}`
-- `Dias trabalhados: {datas formatadas dd/MM separadas por vírgula, máx 5 + "…"}`
+Resultado: linha compacta com 3 camadas legíveis dentro dos 32px.
 
-Trocar o `whitespace-nowrap` do tooltip por `whitespace-pre-line` e juntar partes com `\n` quando `task.baseline || task.dailyLogs?.length` para legibilidade multilinha (mantendo single-line para tarefas simples).
+### 2. Tabela lateral (mesmo arquivo)
+Hoje a sidebar do Gantt mostra colunas básicas. Adicionar/reorganizar:
+- **Início**: duas sublinhas pequenas — `Plan: dd/mm` (cinza) e `Real: dd/mm` (cor normal)
+- **Fim**: `Plan: dd/mm` e `Prev: dd/mm`
+- **Desvio**: nova coluna com badge:
+  - `Δ +Nd` vermelho se `current.duration − baseline.duration > 0`
+  - `Δ -Nd` verde se `< 0`
+  - `0d` cinza se igual
+- Largura: comprimir colunas existentes para acomodar; usar `text-[10px]` para os rótulos Plan/Real.
+
+Localizar a render da sidebar (header + linhas de tarefa) e expandir o grid de colunas. Verificar se a sidebar é parte do `GanttChart.tsx` ou componente separado — provavelmente inline no mesmo arquivo.
+
+### 3. Tooltip enriquecido
+Já cobrimos parcialmente. Garantir formato final multi-linha:
+```
+{nome}
+Equipe: {team}
+Planejado: dd/mm/aaaa → dd/mm/aaaa
+Real/Previsto: dd/mm/aaaa → dd/mm/aaaa
+Desvio: ±Nd
+Executado: X un
+Restante: Y un
+Dias trabalhados: dd/mm, dd/mm, …
+```
+Usar `whitespace-pre-line` (já implementado).
 
 ## Garantias
-- Marcadores são puramente visuais (camada extra) — não afetam drag, resize, dependências, CPM ou propagação.
-- Sem mudança em `types.ts`, `calculations.ts` ou `Index.tsx` (os campos `dailyLogs`, `executedQuantityTotal`, `remainingQuantity` já existem).
-- Tarefas sem `dailyLogs` continuam idênticas ao comportamento atual.
-- Baseline shadow (já existente) permanece atrás; barra atual permanece principal.
+- Drag/resize continuam ancorados na barra real (top:12, height:14) — handles permanecem acessíveis.
+- Baseline e marcadores são camadas visuais sem pointer-events que afetem interação.
+- CPM, RUP, dependências, cores de equipe, setas: intactos.
+- `task.baseline` e `task.current` já existem na modelagem — sem mudança em types/calculations.
 
 ## Resultado
-Cada tarefa exibirá: faixa pontilhada (base) ▪ barra colorida (atual/reprogramada) ▪ pequenos blocos coloridos abaixo nos dias com apontamento real. Tooltip mostrará Base, Previsto, Executado, Restante e lista de dias trabalhados.
+Cada linha do Gantt: faixa fina tracejada (base) ▸ barra grossa colorida (real) ▸ ticks finos coloridos (execução diária). Sidebar mostra Plan/Real/Prev e Δ desvio. Tooltip consolidado.
