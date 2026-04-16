@@ -257,6 +257,25 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return { left: start * dayWidth, width, isDelayed, isCritical, isComplete };
   };
 
+  // Helper: team production info for a task
+  const getTaskTeamInfo = (task: Task) => {
+    const totalWorkers = (task.laborCompositions || []).reduce((sum, c) => sum + (c.workerCount || 0), 0);
+    const bottleneckComp = task.bottleneckRole
+      ? (task.laborCompositions || []).find(c => c.role === task.bottleneckRole)
+      : undefined;
+    const mainRole = task.bottleneckRole || bottleneckComp?.role || task.responsible || 'Equipe';
+    const mainWorkers = bottleneckComp ? bottleneckComp.workerCount : (totalWorkers || 0);
+    const totalHours = task.totalHours || 0;
+    const hoursPerDay = task.duration > 0 ? totalHours / task.duration : 0;
+    return { mainRole, mainWorkers, totalWorkers, totalHours, hoursPerDay };
+  };
+
+  const formatTeamLabel = (task: Task) => {
+    const info = getTaskTeamInfo(task);
+    if (info.totalHours === 0 && info.mainWorkers === 0) return '';
+    return `${info.mainRole} (${info.mainWorkers}) • ${Math.round(info.totalHours)}h • ${info.hoursPerDay.toFixed(1)}h/dia`;
+  };
+
   const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
     if (!onProjectChange) return;
     const newProject = {
@@ -1266,7 +1285,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       ? violations[0]
                                       : noWorkDays
                                       ? 'Tarefa sem dias úteis no período'
-                                      : `${task.percentComplete}% • ${task.duration}d`
+                                      : formatTeamLabel(task)
+                                        ? `${formatTeamLabel(task)}`
+                                        : `${task.percentComplete}% • ${task.duration}d`
                                     }
                                   </div>
                                 </div>
@@ -1289,11 +1310,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       whiteSpace: 'nowrap',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      maxWidth: 120,
+                                      maxWidth: 280,
                                       display: 'block',
                                     }}
                                   >
-                                    {getShortLabel(task.name)}
+                                    {getShortLabel(task.name)}{formatTeamLabel(task) ? ` — ${formatTeamLabel(task)}` : ''}
                                   </span>
                                 </div>
                               </div>
