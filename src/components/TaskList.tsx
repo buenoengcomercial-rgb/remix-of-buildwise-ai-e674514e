@@ -14,6 +14,14 @@ interface TaskListProps {
 const DAILY_HOURS = 8;
 
 /** Encurta nomes de cargos longos (ex: SINAPI) para caber na coluna de gargalo. */
+/** Calcula a produção diária de uma tarefa: quantidade total / duração. */
+function getDailyProduction(task: Task): string {
+  if (!task.quantity || !task.duration || task.duration <= 0) return '—';
+  const value = task.quantity / task.duration;
+  const formatted = Number.isInteger(value) ? value.toString() : value.toFixed(1);
+  return `${formatted} ${task.unit || ''}/dia`.trim();
+}
+
 function abbreviateRole(role: string): string {
   if (!role) return '';
   const cleaned = role
@@ -451,10 +459,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 {isExpanded && (
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
                     <div className="border-t border-border">
-                      <div className="grid gap-2 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr' }}>
+                      <div className="grid gap-2 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr' }}>
                         <div>Eq.</div>
                         <div>Tarefa</div>
                         <div>Qtd.</div>
+                        <div className="text-center">Prod. Diária</div>
                         <div>Responsável</div>
                         <div>Duração</div>
                         <div>Horas</div>
@@ -491,7 +500,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               className={`grid gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
@@ -548,6 +557,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 ) : (
                                   <span className={`text-[10px] ${rowTeam ? 'opacity-70' : 'text-muted-foreground'}`}>{task.quantity ? `${task.quantity} ${task.unit}` : '—'}</span>
                                 )}
+                              </div>
+
+                              {/* Produção Diária (auto) */}
+                              <div className={`text-[10px] font-medium text-center ${rowTeam ? 'opacity-90' : 'text-foreground'}`}>
+                                {getDailyProduction(task)}
                               </div>
 
                               {/* Responsável */}
