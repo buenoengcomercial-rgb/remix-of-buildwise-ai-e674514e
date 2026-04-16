@@ -132,17 +132,11 @@ export function applyDailyLogsToProject(project: Project): Project {
         const firstLogDate = new Date(sortedLogs[0].date);
         const lastLogDate = new Date(sortedLogs[sortedLogs.length - 1].date);
 
-        const projectedForecastEnd = new Date(lastLogDate);
+        // Previsão = exatamente último log (saldo=0) ou último log + dias restantes (sem clamp pela baseline)
+        const forecastEnd = new Date(lastLogDate);
         if (remainingQuantity > 0) {
-          projectedForecastEnd.setDate(projectedForecastEnd.getDate() + remainingDuration);
+          forecastEnd.setDate(forecastEnd.getDate() + remainingDuration);
         }
-
-        const baselineEndTime = t.baseline ? new Date(t.baseline.endDate).getTime() : null;
-        const projectedEndTime = projectedForecastEnd.getTime();
-        const resolvedForecastTime = baselineEndTime === null
-          ? projectedEndTime
-          : Math.max(baselineEndTime, projectedEndTime, lastLogDate.getTime());
-        const forecastEnd = new Date(resolvedForecastTime);
         const forecastEndDate = forecastEnd.toISOString().split('T')[0];
 
         const startDate = new Date(t.startDate);
