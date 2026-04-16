@@ -690,6 +690,13 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     <Edit3 className="w-3 h-3" />
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => setExpandedDaily(expandedDaily === task.id ? null : task.id)}
+                                  className={`p-1 rounded transition-colors ${expandedDaily === task.id ? 'bg-info/30 text-info' : 'hover:bg-info/20 text-info'}`}
+                                  title="Apontamento diário de produção"
+                                >
+                                  <ClipboardList className="w-3 h-3" />
+                                </button>
                                 <button onClick={() => duplicateTask(phase.id, task)} className="p-1 rounded hover:bg-info/20 text-info transition-colors" title="Duplicar">
                                   <Copy className="w-3 h-3" />
                                 </button>
