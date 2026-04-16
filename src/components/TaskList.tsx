@@ -616,8 +616,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent side="top" className="text-[10px] space-y-0.5">
-                                        <div><strong>Base:</strong> {new Date(task.baseline.startDate).toLocaleDateString('pt-BR')} → {new Date(task.baseline.endDate).toLocaleDateString('pt-BR')} ({task.baseline.duration}d)</div>
-                                        <div><strong>Previsto:</strong> {new Date(task.current?.startDate ?? task.startDate).toLocaleDateString('pt-BR')} → {new Date(task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate).toLocaleDateString('pt-BR')} ({task.current?.duration ?? task.duration}d)</div>
+                                        <div><strong>Base:</strong> {formatISODateBR(task.baseline.startDate)} → {formatISODateBR(task.baseline.endDate)} ({task.baseline.duration}d)</div>
+                                        <div><strong>Previsto:</strong> {formatISODateBR(task.current?.startDate ?? task.startDate)} → {formatISODateBR(task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate)} ({task.current?.duration ?? task.duration}d)</div>
                                         <div><strong>Desvio:</strong> {dev > 0 ? '+' : ''}{dev} dias</div>
                                         {task.accumulatedDelayQuantity !== undefined && (
                                           <div><strong>Saldo acumulado:</strong> {task.accumulatedDelayQuantity.toFixed(1)} {task.unit || 'un'}</div>
