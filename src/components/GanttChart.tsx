@@ -1360,16 +1360,19 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     />
                                   );
                                 })}
-                                {/* Bar */}
+                                {/* Bar (real / previsto) */}
+                                {(() => {
+                                  const isLate = task.baseline ? task.duration > task.baseline.duration : false;
+                                  return (
                                 <div
                                   className={`absolute rounded-md group ${
                                     bar.isCritical ? 'ring-1 ring-destructive/40' : ''
-                                  } ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
+                                  } ${isLate && !bar.isCritical && !hasViolation ? 'ring-1 ring-destructive/60' : ''} ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   style={{
                                     left: currentLeft,
                                     width: currentWidth,
-                                    top: (ROW_HEIGHT - 16) / 2,
-                                    height: 16,
+                                    top: 12,
+                                    height: 14,
                                     borderRadius: 6,
                                     background: bar.isDelayed
                                       ? 'hsl(var(--gantt-bar-delayed))'
