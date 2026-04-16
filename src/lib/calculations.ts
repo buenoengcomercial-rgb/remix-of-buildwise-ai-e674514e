@@ -128,7 +128,11 @@ export function applyDailyLogsToProject(project: Project): Project {
           ? Math.ceil(remainingQuantity / plannedDailyProduction)
           : 0;
 
-        const sortedLogs = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+        const validLogs = logs.filter(l => l.date && !isNaN(new Date(l.date).getTime()));
+        const sortedLogs = [...validLogs].sort((a, b) => a.date.localeCompare(b.date));
+        if (sortedLogs.length === 0) {
+          return { ...t, current: buildCurrent() };
+        }
         const firstLogDate = new Date(sortedLogs[0].date);
         const lastLogDate = new Date(sortedLogs[sortedLogs.length - 1].date);
 
