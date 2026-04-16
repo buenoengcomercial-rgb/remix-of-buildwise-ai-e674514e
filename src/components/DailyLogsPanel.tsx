@@ -72,26 +72,26 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
     };
   });
 
-  // Preview em tempo real do "Previsto" — atualiza imediatamente ao digitar realizado
-  const previewRemaining = totalQty > 0 ? Math.max(totalQty - execAcc, 0) : 0;
-  const previewRemainingDuration = plannedDailyProduction > 0
-    ? Math.ceil(previewRemaining / plannedDailyProduction)
-    : 0;
+  // Preview em tempo real do "Previsto" — atualiza imediatamente ao digitar realizado.
+  // Regra: previsto = EXATAMENTE a última data registrada no diário (sem somar saldo).
+  const parseLocal = (iso: string) => {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
+  };
+  const formatBR = (iso: string) => {
+    const d = parseLocal(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
   const previewStartDate = sortedLogs.length > 0
     ? sortedLogs[0].date
     : (task.current?.startDate ?? task.startDate);
-  const lastLogDate = sortedLogs.length > 0 ? sortedLogs[sortedLogs.length - 1].date : previewStartDate;
-  const previewEndDate = (() => {
-    if (sortedLogs.length === 0) {
-      return task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate;
-    }
-    const projected = new Date(lastLogDate);
-    projected.setDate(projected.getDate() + (previewRemaining <= 0 ? 0 : previewRemainingDuration));
-    return projected.toISOString().split('T')[0];
-  })();
+  const lastLogDateISO = sortedLogs.length > 0 ? sortedLogs[sortedLogs.length - 1].date : previewStartDate;
+  const previewEndDate = sortedLogs.length === 0
+    ? (task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate)
+    : lastLogDateISO;
   const previewDuration = Math.max(
     1,
-    Math.ceil((new Date(previewEndDate).getTime() - new Date(previewStartDate).getTime()) / 86400000)
+    Math.ceil((parseLocal(previewEndDate).getTime() - parseLocal(previewStartDate).getTime()) / 86400000) + 1
   );
 
   const accStatus = statusForDelta(task.accumulatedDelayQuantity || 0, plannedDailyProduction);
@@ -108,9 +108,9 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
         {task.baseline && (
           <div className="flex items-center gap-2 flex-wrap text-[10px] bg-card border border-border rounded-md px-2 py-1">
             <span className="font-semibold text-muted-foreground uppercase tracking-wider">Cronograma:</span>
-            <span className="text-muted-foreground">Base: <strong className="text-foreground">{task.baseline.duration}d</strong> ({new Date(task.baseline.startDate).toLocaleDateString('pt-BR')} → {new Date(task.baseline.endDate).toLocaleDateString('pt-BR')})</span>
+            <span className="text-muted-foreground">Base: <strong className="text-foreground">{task.baseline.duration}d</strong> ({formatBR(task.baseline.startDate)} → {formatBR(task.baseline.endDate)})</span>
             <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">Previsto: <strong className="text-primary">{previewDuration}d</strong> ({new Date(previewStartDate).toLocaleDateString('pt-BR')} → {new Date(previewEndDate).toLocaleDateString('pt-BR')})</span>
+            <span className="text-muted-foreground">Previsto: <strong className="text-primary">{previewDuration}d</strong> ({formatBR(previewStartDate)} → {formatBR(previewEndDate)})</span>
             {(() => {
               const dev = previewDuration - task.baseline.duration;
               if (dev === 0) return null;
@@ -130,7 +130,7 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
             </span>
             {sortedLogs.length > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                Previsão: {new Date(previewEndDate).toLocaleDateString('pt-BR')}
+                Previsão: {formatBR(previewEndDate)}
               </span>
             )}
             {task.physicalProgress !== undefined && (

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import DependencyArrows from './gantt/DependencyArrows';
 import ConfiguracaoObra, { ObraConfig, loadObraConfig } from './ConfiguracaoObra';
 import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
-import { addDays, diffDays, formatDateFull, getEndDate, MONTH_NAMES_PT, dateToISO } from './gantt/utils';
+import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, MONTH_NAMES_PT, dateToISO } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
 import { toast } from 'sonner';
@@ -919,7 +919,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 hasViolation ? violations.join('\n') : null,
                                 noWorkDays ? 'Tarefa sem dias úteis no período' : null,
                                 task.dailyLogs && task.dailyLogs.length > 0
-                                  ? `Apontamento: ${task.physicalProgress?.toFixed(1) ?? 0}% físico • Saldo: ${(task.accumulatedDelayQuantity || 0).toFixed(1)} ${task.unit || 'un'} • Previsão: ${task.forecastEndDate ? new Date(task.forecastEndDate).toLocaleDateString('pt-BR') : '—'}`
+                                  ? `Apontamento: ${task.physicalProgress?.toFixed(1) ?? 0}% físico • Saldo: ${(task.accumulatedDelayQuantity || 0).toFixed(1)} ${task.unit || 'un'} • Previsão: ${task.forecastEndDate ? formatDateFull(task.forecastEndDate) : '—'}`
                                   : null,
                               ].filter(Boolean).join('\n') || undefined}
                             >
@@ -1480,7 +1480,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     else if (delta <= planned * 0.2) colorClass = 'bg-amber-500';
                                     else colorClass = 'bg-red-500';
                                   }
-                                  const dStr = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                                  const dStr = formatDateShort(log.date);
                                   return (
                                     <div
                                       key={log.id}
@@ -1590,7 +1590,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                             const unit = task.unit || 'un';
                                             if (task.executedQuantityTotal !== undefined) parts.push(`Executado: ${task.executedQuantityTotal} ${unit}`);
                                             if (task.remainingQuantity !== undefined) parts.push(`Restante: ${task.remainingQuantity} ${unit}`);
-                                            const dates = workedLogs.map(l => new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+                                            const dates = workedLogs.map(l => formatDateShort(l.date));
                                             const shown = dates.slice(0, 5).join(', ') + (dates.length > 5 ? '…' : '');
                                             parts.push(`Dias trabalhados: ${shown}`);
                                           }
