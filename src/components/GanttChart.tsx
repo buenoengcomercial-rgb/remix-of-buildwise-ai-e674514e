@@ -950,9 +950,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 <PopoverTrigger asChild>
                                   <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
                                     {task.baseline && (
-                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>P: {formatDateFull(task.baseline.startDate)}</span>
+                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>Plan: {formatDateFull(task.baseline.startDate)}</span>
                                     )}
-                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'R: ' : ''}{formatDateFull(task.startDate)}</span>
+                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'Real: ' : ''}{formatDateFull(task.startDate)}</span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -966,12 +966,28 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </Popover>
                               <Popover>
                                 <PopoverTrigger asChild>
-                                  <button className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}>
-                                    {task.baseline && (
-                                      <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>P: {formatDateFull(task.baseline.endDate)}</span>
-                                    )}
-                                    <span className={`${rowTeamDef ? '' : 'text-foreground'} font-medium`}>{task.baseline ? 'P: ' : ''}{formatDateFull(endDate)}</span>
-                                  </button>
+                                  {(() => {
+                                    const forecastEnd = task.current?.forecastEndDate ?? task.current?.endDate ?? endDate;
+                                    const hasForecast = !!task.current?.forecastEndDate;
+                                    let forecastCls = rowTeamDef ? '' : 'text-foreground';
+                                    if (task.baseline) {
+                                      const fEnd = new Date(forecastEnd).getTime();
+                                      const bEnd = new Date(task.baseline.endDate).getTime();
+                                      if (fEnd > bEnd) forecastCls = 'text-destructive';
+                                      else if (fEnd < bEnd) forecastCls = 'text-success';
+                                    }
+                                    return (
+                                      <button
+                                        title={hasForecast ? 'Previsão atualizada pelo apontamento diário' : undefined}
+                                        className={`text-[9px] transition-colors text-center w-full leading-tight flex flex-col ${rowTeamDef ? 'hover:opacity-70' : 'hover:text-primary'}`}
+                                      >
+                                        {task.baseline && (
+                                          <span className={`text-[8px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>Plan: {formatDateFull(task.baseline.endDate)}</span>
+                                        )}
+                                        <span className={`${forecastCls} font-medium`}>{task.baseline ? 'Prev: ' : ''}{formatDateFull(forecastEnd)}</span>
+                                      </button>
+                                    );
+                                  })()}
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
                                   <Calendar
