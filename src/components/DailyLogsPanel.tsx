@@ -128,9 +128,9 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${STATUS_BG[accStatus]}`}>
               Saldo: {(task.accumulatedDelayQuantity || 0).toFixed(1)} {unit}
             </span>
-            {task.forecastEndDate && (
+            {sortedLogs.length > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                Previsão: {new Date(task.forecastEndDate).toLocaleDateString('pt-BR')}
+                Previsão: {new Date(previewEndDate).toLocaleDateString('pt-BR')}
               </span>
             )}
             {task.physicalProgress !== undefined && (
