@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import DependencyArrows from './gantt/DependencyArrows';
 import ConfiguracaoObra, { ObraConfig, loadObraConfig } from './ConfiguracaoObra';
 import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
-import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, MONTH_NAMES_PT, dateToISO, toISODateLocal } from './gantt/utils';
+import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, MONTH_NAMES_PT, dateToISO, toISODateLocal, parseISODateLocal } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
 import { toast } from 'sonner';
@@ -780,6 +780,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
         {/* Legend */}
         <div className="flex items-center gap-3 text-[9px] text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-2 mr-2 border-r border-border pr-3">
+            <span className="font-medium">Elementos:</span>
+            <div className="flex items-center gap-1"><div className="w-4 h-2 rounded" style={{ background: 'hsl(var(--gantt-bar))', opacity: 0.95 }} /> <span>Barra cheia = Planejado (baseline)</span></div>
+            <div className="flex items-center gap-1">
+              <span className="flex gap-0.5">
+                <span className="w-1 h-1.5 rounded-sm bg-emerald-500" />
+                <span className="w-1 h-1.5 rounded-sm bg-amber-500" />
+                <span className="w-1 h-1.5 rounded-sm bg-destructive" />
+              </span>
+              <span>Marcadores diários = Meta vs Realizado</span>
+            </div>
+          </div>
           <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-primary opacity-85" /> Normal</div>
           <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-success opacity-85" /> Concluído</div>
           <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-destructive opacity-85" /> Atrasado</div>
@@ -1451,7 +1463,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               >
                                 {/* Daily execution markers (abaixo da barra) — meta vs realizado por dia */}
                                 {(task.dailyLogs || []).filter(l => l.actualQuantity > 0).map((log) => {
-                                  const dayOffset = diffDays(projectStart, new Date(log.date));
+                                  const dayOffset = diffDays(projectStart, parseISODateLocal(log.date));
                                   const planned = log.plannedQuantity || 0;
                                   const delta = planned - log.actualQuantity;
                                   let colorClass = 'bg-emerald-500';
@@ -1468,7 +1480,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       style={{
                                         left: dayOffset * dayWidth + 1,
                                         width: Math.max(2, dayWidth - 2),
-                                        top: 28,
+                                        top: 30,
                                         height: 3,
                                         zIndex: 8,
                                       }}
@@ -1480,7 +1492,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 {(() => {
                                   const isLate = task.baseline ? task.duration > task.baseline.duration : false;
                                   const barLeft = task.baseline
-                                    ? diffDays(projectStart, new Date(task.baseline.startDate)) * dayWidth
+                                    ? diffDays(projectStart, parseISODateLocal(task.baseline.startDate)) * dayWidth
                                     : currentLeft;
                                   const barWidth = task.baseline
                                     ? task.baseline.duration * dayWidth
@@ -1493,8 +1505,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   style={{
                                     left: barLeft,
                                     width: barWidth,
-                                    top: 12,
-                                    height: 14,
+                                    top: 9,
+                                    height: 20,
                                     borderRadius: 6,
                                     background: bar.isDelayed
                                       ? 'hsl(var(--gantt-bar-delayed))'
@@ -1510,7 +1522,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       const teamDef = getTeamDefinition(task.team);
                                       return teamDef ? `1px solid ${teamDef.borderColor}` : 'none';
                                     })(),
-                                    opacity: isDragPropagated ? 0.75 : 0.85,
+                                    opacity: isDragPropagated ? 0.85 : 0.95,
                                     transition: (isDragging || isResizing || isDragPropagated) ? 'none' : 'left 0.2s ease, width 0.2s ease',
                                     zIndex: 10,
                                     cursor: 'grab',
