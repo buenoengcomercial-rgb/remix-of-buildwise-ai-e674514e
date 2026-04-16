@@ -169,7 +169,7 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
         {rows.map(row => (
           <div
             key={row.id}
-            className={`grid grid-cols-7 gap-2 text-[11px] items-center py-1 px-2 rounded ${STATUS_BG[row.status]}`}
+            className={`grid grid-cols-8 gap-2 text-[11px] items-center py-1 px-2 rounded ${STATUS_BG[row.status]}`}
           >
             <input
               type="date"
@@ -198,6 +198,9 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
               {row.delta.toFixed(1)}
             </div>
             <div className="text-center font-bold">{row.accumulated.toFixed(1)}</div>
+            <div className={`text-center font-bold ${row.remainingAfter <= 0 ? 'text-success' : ''}`} title={`Falta executar após este lançamento: ${row.remainingAfter.toFixed(1)} ${unit}`}>
+              {row.remainingAfter.toFixed(1)} {unit}
+            </div>
             <input
               type="text"
               value={row.notes || ''}
