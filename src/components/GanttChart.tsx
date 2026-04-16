@@ -1488,20 +1488,25 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     />
                                   );
                                 })}
-                                {/* Barra cheia = datas planejadas (baseline). Fallback: current. */}
+                                {/* Faixa fina = baseline original (referência) */}
+                                {task.baseline && (() => {
+                                  const blLeft = diffDays(projectStart, parseISODateLocal(task.baseline.startDate)) * dayWidth;
+                                  const blWidth = task.baseline.duration * dayWidth;
+                                  return (
+                                    <div
+                                      className="absolute rounded bg-muted-foreground/30 pointer-events-none"
+                                      style={{ left: blLeft, width: blWidth, top: 26, height: 3, zIndex: 7 }}
+                                      title={`Baseline: ${formatDateFull(task.baseline.startDate)} → ${formatDateFull(task.baseline.endDate)} (${task.baseline.duration}d)`}
+                                    />
+                                  );
+                                })()}
+                                {/* Barra cheia = current (planejado corrente, editável via drag) */}
                                 {(() => {
-                                  const isLate = task.baseline ? task.duration > task.baseline.duration : false;
-                                  const barLeft = task.baseline
-                                    ? diffDays(projectStart, parseISODateLocal(task.baseline.startDate)) * dayWidth
-                                    : currentLeft;
-                                  const barWidth = task.baseline
-                                    ? task.baseline.duration * dayWidth
-                                    : currentWidth;
+                                  const barLeft = currentLeft;
+                                  const barWidth = currentWidth;
                                   return (
                                 <div
-                                  className={`absolute rounded-md group ${
-                                    bar.isCritical ? 'ring-1 ring-destructive/40' : ''
-                                  } ${isLate && !bar.isCritical && !hasViolation ? 'ring-1 ring-destructive/60' : ''} ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
+                                  className={`absolute rounded-md group ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   style={{
                                     left: barLeft,
                                     width: barWidth,
