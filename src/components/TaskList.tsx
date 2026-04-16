@@ -505,7 +505,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               const rowTeam = getTeamDefinition(task.team);
                               return (
                             <div
-                              className={`grid gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-start ${
+                              className={`grid gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
                               style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
@@ -529,9 +529,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 </select>
                               </div>
                               {/* Nome */}
-                              <div className="flex items-start gap-1 min-w-0 pt-0.5">
-                                <GripVertical className={`w-3.5 h-3.5 mt-0.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
-                                {task.isCritical && <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-destructive flex-shrink-0" />}
+                              <div className="flex items-center gap-1 min-w-0">
+                                <GripVertical className={`w-3.5 h-3.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
+                                {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
                                 {isEditing ? (
                                   <InlineInput
                                     value={task.name}
@@ -539,9 +539,16 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     className="flex-1 min-w-0"
                                   />
                                 ) : (
-                                  <button onClick={() => setExpandedRup(showRup ? null : task.id)} title={task.name} className={`text-xs font-medium whitespace-normal break-words leading-tight text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
-                                    {task.name}
-                                  </button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
+                                        {truncateWords(task.name, 4)}
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-md whitespace-normal break-words">
+                                      {task.name}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 )}
                               </div>
 
