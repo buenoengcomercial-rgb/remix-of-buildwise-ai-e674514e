@@ -1606,9 +1606,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                           <span
                                             className="absolute text-[9px] font-bold px-1 rounded leading-none whitespace-nowrap"
                                             style={{
-                                              left: offsetPx + 10,
-                                              top: '50%',
-                                              transform: 'translateY(-50%)',
+                                              left: offsetPx + 8,
+                                              top: -16,
                                               color,
                                               background: 'white',
                                               boxShadow: `0 0 0 1px ${color}`,
