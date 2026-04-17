@@ -924,9 +924,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 {noWorkDays && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#b45309', filter: 'drop-shadow(0 0 1px white)' }} />}
                                 <p className={`text-[11px] font-medium line-clamp-2 break-words leading-tight ${rowTeamDef ? '' : 'text-foreground'}`}>{task.name}</p>
                               </div>
-                              <div className="text-center">
+                              <div className="text-center relative">
                                 <input
-                                  className={`w-full text-[10px] font-bold bg-transparent text-center focus:outline-none focus:ring-1 focus:ring-primary rounded ${
+                                  className={`w-full text-[10px] font-bold bg-transparent text-center pr-2.5 focus:outline-none focus:ring-1 focus:ring-primary rounded ${
                                     rowTeamDef ? '' : ((task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground')
                                   }`}
                                   style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
@@ -957,6 +957,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     ? `RUP: ${task.bottleneckRole || '—'} — edite para desvincular`
                                     : 'Duração manual (dias)'}
                                 />
+                                <span
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] opacity-60 pointer-events-none"
+                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
+                                >d</span>
                               </div>
                               <div className="text-center">
                                 <Tooltip>
