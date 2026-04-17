@@ -1,11 +1,11 @@
 export function addDays(date: Date, days: number) {
-  const r = new Date(date);
-  r.setDate(r.getDate() + days);
-  return r;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
 
 export function diffDays(a: Date, b: Date) {
-  return Math.ceil((b.getTime() - a.getTime()) / 86400000);
+  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((utcB - utcA) / 86400000);
 }
 
 /** Parse "YYYY-MM-DD" as a LOCAL date (no timezone shift).
