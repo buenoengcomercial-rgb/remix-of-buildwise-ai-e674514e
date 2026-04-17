@@ -444,43 +444,36 @@ export function propagateAllDependencies(
 
       const predStart = new Date(pred.startDate);
       const predEnd = addDaysCalc(predStart, pred.duration);
-      const succStart = new Date(succ.startDate);
-      const succEnd = addDaysCalc(succStart, succ.duration);
 
       let newStartDate: Date | null = null;
 
       switch (type) {
         case 'TI':
-          // Successor start must be >= predecessor end
-          if (succStart < predEnd) {
-            newStartDate = predEnd;
-          }
+          // Início da sucessora = Fim da predecessora (vínculo rígido)
+          newStartDate = predEnd;
           break;
         case 'II':
-          // Successor start must be >= predecessor start
-          if (succStart < predStart) {
-            newStartDate = predStart;
-          }
+          // Início da sucessora = Início da predecessora
+          newStartDate = predStart;
           break;
         case 'TT':
-          // Successor end must be >= predecessor end
-          if (succEnd < predEnd) {
-            newStartDate = addDaysCalc(predEnd, -succ.duration);
-          }
+          // Fim da sucessora = Fim da predecessora
+          newStartDate = addDaysCalc(predEnd, -succ.duration);
           break;
         case 'IT':
-          // Successor end must be >= predecessor start
-          if (succEnd < predStart) {
-            newStartDate = addDaysCalc(predStart, -succ.duration);
-          }
+          // Fim da sucessora = Início da predecessora
+          newStartDate = addDaysCalc(predStart, -succ.duration);
           break;
       }
 
-      if (newStartDate) {
-        taskMap.set(successorId, { ...succ, startDate: dateToISO(newStartDate) });
-        anyChanged = true;
-        adjustedTypes.add(type);
-        propagate(successorId, depth + 1);
+      if (newStartDate !== null) {
+        const newISO = dateToISO(newStartDate);
+        if (newISO !== succ.startDate) {
+          taskMap.set(successorId, { ...succ, startDate: newISO });
+          anyChanged = true;
+          adjustedTypes.add(type);
+          propagate(successorId, depth + 1);
+        }
       }
     }
   }
