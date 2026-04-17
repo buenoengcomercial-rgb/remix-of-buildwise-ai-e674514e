@@ -1,53 +1,44 @@
 
 
-## Plano: Ajustar larguras das colunas e reposicionar badge de %
+## Plano: Remover coluna Duração, redistribuir espaços e reposicionar badge
 
-### Problema atual
-1. Coluna **DURAÇÃO** ficou estreita demais (44px) — com o sufixo "d" o número some/trunca.
-2. Outras colunas (Início, Fim, % Concl., Dep) podem estar apertadas após adicionar a nova coluna.
-3. Badge de % no Gantt está centralizado na linha tracejada — usuário quer fixo no **lado direito, na ponta da última data do apontamento diário** (ponto onde Real termina = início da projeção).
-
-### 1. Redimensionar colunas da sidebar (`src/components/GanttChart.tsx`)
-Aumentar larguras para evitar truncamento:
+### 1. Remover coluna DURAÇÃO e redistribuir larguras
+Em `src/components/GanttChart.tsx`:
 
 | Coluna | Antes | Depois |
 |---|---|---|
 | Drag handle | 24px | 24px |
 | Nome (EAP) | 1fr | 1fr |
-| Equipe | 28px | 32px |
-| Crítica (!) | 20px | 20px |
-| Início | 78px | 88px |
-| Fim | 78px | 88px |
-| **Duração** | **44px** | **58px** (cabe "999d") |
-| % Concl. | 42px | 48px |
-| Dep | 44px | 48px |
-| Ações | 56px | 56px |
+| Equipe | 58px | 36px |
+| Crítica (!) | 20px | 22px |
+| Início | 88px | 92px |
+| Fim | 88px | 92px |
+| ~~Duração~~ | ~~58px~~ | **removida** |
+| % Concl. | 48px | 56px |
+| Dep | 48px | 52px |
+| Ações | 56px | 60px |
 
-Novo `sidebarCols`: `'24px 1fr 32px 20px 88px 88px 58px 48px 48px 56px'`
-Novo `sidebarWidth`: `620` (era 578).
+- `sidebarCols`: `'24px 1fr 36px 22px 92px 92px 56px 52px 60px'` (9 colunas)
+- `sidebarWidth`: `562` (era 620 — libera 58px da Duração e redistribui)
+- Remover header "Duração", célula do input de duração + sufixo "d" das linhas de tarefa, e célula equivalente das linhas de fase
+- Duração continua calculada internamente (CPM/datas) — apenas sai da UI
 
-Aplicar em **todas** as ocorrências (header, linhas de fase, linhas de tarefa) para manter alinhamento.
+### 2. Reposicionar badge de % no Gantt
+- Posição X: `left = (offsetDays * dayWidth) + 8px` (afasta horizontalmente do ponto do último apontamento)
+- Posição Y: `top: -16px` (eleva acima da linha tracejada e da barra)
+- Remover `transform: translateX(-50%)` — ancora pela borda esquerda
+- Manter cores semânticas (azul/verde no prazo, vermelho atrasado) e `drop-shadow` branco
+- Esconder badge se não houver apontamentos diários
 
-### 2. Sufixo "d" sem cobrir o número
-Ajustar wrapper do input de duração:
-- Input com `pr-3` (padding-right) para reservar espaço.
-- `<span>d</span>` em `right-1 text-[9px]` (em vez de 8px) para ficar mais visível.
-- `text-align: left` no input para o número não colidir com o "d".
-
-### 3. Reposicionar badge de % no Gantt
-Atualmente: badge centralizado no meio da linha tracejada.
-Novo comportamento:
-- Calcular posição X = `(diasDoStartAtéÚltimoApontamento) * dayWidth` — ou seja, fim da parte "Real" / início da parte "Previsto".
-- Badge ancorado nesse ponto com `transform: translateX(-50%)` e `top` levemente acima da linha.
-- Se não há apontamentos, esconder o badge (não há projeção).
-- Cor mantém a semântica: azul se em dia, vermelho se atrasado.
-- Manter `drop-shadow` branco para legibilidade.
+### 3. Espaçamento vertical das linhas
+- Manter altura atual das linhas (sem alteração) — o problema relatado é horizontal
+- Garantir que header, linhas de fase e linhas de tarefa usem o **mesmo** novo `sidebarCols` para alinhamento perfeito
 
 ### Arquivo afetado
-- `src/components/GanttChart.tsx` (somente).
+- `src/components/GanttChart.tsx` (somente)
 
 ### Resultado esperado
-- Coluna Duração mostra `12d`, `120d` sem truncar.
-- Datas Início/Fim com folga visual.
-- Badge % fixo no ponto exato onde termina o último apontamento, deixando claro: "deste ponto pra frente é projeção, e o status atual é XX%".
+- Sidebar mais limpa sem coluna Duração e sem o "d" desalinhado
+- Colunas Início/Fim/% Concl./Dep/Ações com folga visual extra
+- Badge de % afastado e elevado em relação ao último apontamento, sem poluir barra nem linha tracejada
 
