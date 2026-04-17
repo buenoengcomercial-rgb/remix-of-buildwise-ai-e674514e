@@ -2,6 +2,27 @@ export function addDays(date: Date, days: number) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
 
+/** Advance `days` working days from `startDate`, skipping Sundays and (optionally) Saturdays.
+ *  When `trabalhaSabado` is true, Saturdays count as half a day. */
+export function addWorkDays(startDate: Date, days: number, trabalhaSabado: boolean = false): Date {
+  let current = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  let remaining = days;
+  let safety = 0;
+  while (remaining > 0 && safety < 10000) {
+    safety++;
+    current = new Date(current.getFullYear(), current.getMonth(), current.getDate() + 1);
+    const dow = current.getDay();
+    if (dow === 0) continue;
+    if (dow === 6) {
+      if (!trabalhaSabado) continue;
+      remaining -= 0.5;
+      continue;
+    }
+    remaining -= 1;
+  }
+  return current;
+}
+
 export function diffDays(a: Date, b: Date) {
   const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
   const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
