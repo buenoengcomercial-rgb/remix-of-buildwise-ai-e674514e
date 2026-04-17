@@ -1475,15 +1475,69 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const plannedEndISO = dateToISO(addDays(parseISODateLocal(task.startDate), task.duration));
                                   const isLate = previstoISO > plannedEndISO;
                                   const color = isLate ? 'hsl(var(--destructive))' : 'hsl(var(--success))';
+                                  // Centralizar verticalmente na barra (top:9, height:20 → centro = 19)
+                                  // Usa traço branco com contorno escuro para contraste sobre qualquer cor de barra
+                                  const BAR_TOP = 9;
+                                  const BAR_HEIGHT = 20;
+                                  const lineCenter = BAR_TOP + BAR_HEIGHT / 2; // 19
+                                  const overlayHeight = 12;
+                                  const overlayTop = lineCenter - overlayHeight / 2; // 13
                                   return (
                                     <div
                                       className="absolute pointer-events-none"
-                                      style={{ left, width, top: 32, height: 8, zIndex: 11 }}
+                                      style={{ left, width, top: overlayTop, height: overlayHeight, zIndex: 20 }}
                                       title={`Real: ${formatDateFull(realStartISO)} → Previsto: ${formatDateFull(previstoISO)}`}
                                     >
-                                      <div style={{ position: 'absolute', top: 3, left: 0, right: 0, borderTop: `2px dashed ${color}` }} />
-                                      <div style={{ position: 'absolute', left: -1, top: 0, width: 2, height: 8, background: color }} />
-                                      <div style={{ position: 'absolute', right: -1, top: 0, width: 2, height: 8, background: color }} />
+                                      {/* Halo escuro para contraste sobre barras claras */}
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          top: overlayHeight / 2 - 2,
+                                          left: 0,
+                                          right: 0,
+                                          height: 4,
+                                          borderRadius: 2,
+                                          background: 'hsl(var(--background) / 0.55)',
+                                          boxShadow: '0 0 0 1px hsl(var(--foreground) / 0.35)',
+                                        }}
+                                      />
+                                      {/* Linha tracejada principal (cor status: vermelho/verde) */}
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          top: overlayHeight / 2 - 1,
+                                          left: 2,
+                                          right: 2,
+                                          borderTop: `2px dashed ${color}`,
+                                          filter: 'drop-shadow(0 0 1px hsl(var(--foreground) / 0.6))',
+                                        }}
+                                      />
+                                      {/* Marcador início (Real) */}
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          left: 0,
+                                          top: 0,
+                                          width: 3,
+                                          height: overlayHeight,
+                                          background: color,
+                                          borderRadius: 1,
+                                          boxShadow: '0 0 0 1px hsl(var(--background))',
+                                        }}
+                                      />
+                                      {/* Marcador fim (Previsto) */}
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          right: 0,
+                                          top: 0,
+                                          width: 3,
+                                          height: overlayHeight,
+                                          background: color,
+                                          borderRadius: 1,
+                                          boxShadow: '0 0 0 1px hsl(var(--background))',
+                                        }}
+                                      />
                                     </div>
                                   );
                                 })()}
