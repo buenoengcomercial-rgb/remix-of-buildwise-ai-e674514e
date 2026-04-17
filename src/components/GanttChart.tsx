@@ -984,6 +984,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               <div className="flex flex-col gap-0.5">
                                 {(() => {
                                   const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
+                                  const hasRealData = (task.dailyLogs || []).some(l => (l.actualQuantity ?? 0) > 0) && !!task.current?.startDate;
                                   const startNonUtil = !isDiaUtil(parseISODateLocal(task.startDate), obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado);
                                   const labelEl = (
                                     <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium inline-flex items-center justify-center gap-0.5`}>
@@ -991,12 +992,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       {formatDateFull(task.startDate)}
                                     </span>
                                   );
+                                  const realLine = hasRealData ? (
+                                    <span className="text-[8px] font-semibold text-info leading-none">
+                                      Real: {formatDateFull(task.current!.startDate)}
+                                    </span>
+                                  ) : null;
                                   if (hasLogs) {
                                     return (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90">
+                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90 flex flex-col items-center gap-0.5">
                                             {labelEl}
+                                            {realLine}
                                           </button>
                                         </TooltipTrigger>
                                         <TooltipContent>
@@ -1027,6 +1034,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               <div className="flex flex-col gap-0.5">
                                 {(() => {
                                   const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
+                                  const hasRealData = (task.dailyLogs || []).some(l => (l.actualQuantity ?? 0) > 0) && !!task.current?.startDate;
                                   const endNonUtil = !isDiaUtil(parseISODateLocal(endDate), obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado);
                                   const labelEl = (
                                     <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium inline-flex items-center justify-center gap-0.5`}>
@@ -1034,12 +1042,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       {formatDateFull(endDate)}
                                     </span>
                                   );
+                                  const previsto = task.current?.forecastEndDate || task.current?.endDate;
+                                  const isLate = !!previsto && previsto > endDate;
+                                  const prevLine = hasRealData && previsto ? (
+                                    <span className={`text-[8px] font-semibold leading-none ${isLate ? 'text-destructive' : 'text-success'}`}>
+                                      Prev: {formatDateFull(previsto)}
+                                    </span>
+                                  ) : null;
                                   if (hasLogs) {
                                     return (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90">
+                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90 flex flex-col items-center gap-0.5">
                                             {labelEl}
+                                            {prevLine}
                                           </button>
                                         </TooltipTrigger>
                                         <TooltipContent>
