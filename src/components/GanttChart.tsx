@@ -779,8 +779,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         <div className="flex items-center gap-3 text-[9px] text-muted-foreground flex-wrap">
           <div className="flex items-center gap-2 mr-2 border-r border-border pr-3">
             <span className="font-medium">Elementos:</span>
-            <div className="flex items-center gap-1"><div className="w-4 h-2 rounded" style={{ background: 'hsl(var(--gantt-bar))', border: '1px solid hsl(var(--gantt-bar))' }} /> <span>Planejado (Manual / RUP)</span></div>
-            <div className="flex items-center gap-1"><div className="w-4 h-0" style={{ borderTop: '2px dashed #6b7280' }} /> <span>Apontamento diário (quando registrado)</span></div>
+            <div className="flex items-center gap-1"><div className="w-4 h-2 rounded" style={{ background: 'hsl(var(--gantt-bar))', border: '1px solid hsl(var(--gantt-bar))' }} /> <span>Planejado — cor da equipe ou status</span></div>
           </div>
           <div className="flex items-center gap-3 ml-2 border-l border-border pl-3">
             <span className="font-medium">Dep:</span>
@@ -1385,34 +1384,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 className={`border-b border-border relative ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/10'}`}
                                 style={{ height: ROW_HEIGHT }}
                               >
-                                {/* Daily execution markers (abaixo da barra) — meta vs realizado por dia */}
-                                {(task.dailyLogs || []).filter(l => l.actualQuantity > 0).map((log) => {
-                                  const dayOffset = diffDays(projectStart, parseISODateLocal(log.date));
-                                  const planned = log.plannedQuantity || 0;
-                                  const delta = planned - log.actualQuantity;
-                                  let colorClass = 'bg-emerald-500';
-                                  if (planned > 0) {
-                                    if (delta <= 0) colorClass = 'bg-emerald-500';
-                                    else if (delta <= planned * 0.2) colorClass = 'bg-amber-500';
-                                    else colorClass = 'bg-red-500';
-                                  }
-                                  const dStr = formatDateShort(log.date);
-                                  return (
-                                    <div
-                                      key={log.id}
-                                      className={`absolute rounded-sm ${colorClass} pointer-events-auto`}
-                                      style={{
-                                        left: dayOffset * dayWidth + 1,
-                                        width: Math.max(2, dayWidth - 2),
-                                        top: 30,
-                                        height: 3,
-                                        zIndex: 8,
-                                      }}
-                                      title={`${dStr} — Realizado ${log.actualQuantity}${planned > 0 ? ` / Meta ${planned}` : ''}`}
-                                    />
-                                  );
-                                })}
-                                {/* Barra cheia = planejado (task.startDate + task.duration, Manual ou RUP) */}
+                                {/* Barra planejada = task.startDate + task.duration (Manual ou RUP) */}
                                 {(() => {
                                   const barLeft = currentLeft;
                                   const barWidth = currentWidth;
@@ -1511,30 +1483,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 </div>
                                   );
                                 })()}
-                                {/* Linha tracejada cinza = apontamento diário (só se tiver logs) */}
-                                {(() => {
-                                  const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
-                                  if (!hasLogs || !task.current) return null;
-                                  const realLeft = diffDays(projectStart, parseISODateLocal(task.current.startDate)) * dayWidth;
-                                  const realEnd = task.current.forecastEndDate || task.current.endDate;
-                                  const realWidth = diffDays(parseISODateLocal(task.current.startDate), parseISODateLocal(realEnd)) * dayWidth;
-                                  return (
-                                    <div
-                                      className="absolute pointer-events-none"
-                                      style={{
-                                        left: realLeft,
-                                        width: Math.max(realWidth, dayWidth),
-                                        top: 17,
-                                        height: 0,
-                                        borderTop: '2px dashed #6b7280',
-                                        zIndex: 11,
-                                      }}
-                                      title={`Real/Previsto: ${formatDateFull(task.current.startDate)} → ${formatDateFull(realEnd)} (${task.current.duration}d)`}
-                                    />
-                                  );
-                                })()}
-
-                                {/* Label to the right of the bar */}
+                                {/* Label à direita da barra — 3 primeiras palavras */}
                                 <div
                                   className="absolute z-10 pointer-events-none"
                                   style={{
@@ -1552,11 +1501,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       whiteSpace: 'nowrap',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      maxWidth: 280,
+                                      maxWidth: 200,
                                       display: 'block',
                                     }}
                                   >
-                                    {getShortLabel(task.name)}{task.team ? ` — ${getTeamDefinition(task.team)?.label}` : ''}{formatTeamLabel(task) ? ` • ${formatTeamLabel(task)}` : ''}
+                                    {task.name.split(/\s+/).slice(0, 3).join(' ')}{task.name.split(/\s+/).length > 3 ? '…' : ''}
                                   </span>
                                 </div>
                               </div>
