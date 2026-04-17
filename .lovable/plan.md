@@ -1,41 +1,47 @@
 
 
-## Plano: Melhorar contraste visual no Gantt e cores de equipes
+## Plano: Sufixo "d", padronização de datas, coluna % Concluído e badge no Gantt
 
-### 1. `src/lib/teams.ts` — já está conforme
-As cores em `teams.ts` já seguem o padrão solicitado (bgColor 94% L, textColor 18-22% L, borderColor/barColor médios). Nenhuma alteração necessária aqui — já validado no arquivo atual.
+### 1. Coluna DURAÇÃO — sufixo "d"
+Em `src/components/GanttChart.tsx`, envolver o `<input type="number">` da duração num wrapper `relative` e adicionar um `<span>d</span>` absoluto à direita (`text-[8px] opacity-60 pointer-events-none`), preservando edição numérica.
 
-### 2. `src/components/GanttChart.tsx` — ajustes de contraste
+### 2. Datas REAL / PREV — mesma fonte/tamanho da data principal
+Padronizar as labels Real e Prev para `text-[9px] font-medium` (igual à data principal), mantendo as cores semânticas já aplicadas:
+- Real → `#1e40af` (azul escuro)
+- Prev → `#166534` (verde escuro) no prazo / `#991b1b` (vermelho escuro) se atrasado
 
-**a) Separar fundo da linha vs cor da barra**
-- Linhas da sidebar continuam com `rowTeamDef.bgColor` (claro).
-- Barras do Gantt passam a usar `teamDef.barColor` (médio/saturado), com fallback para `bgColor`.
-- Aplicar em `getBarStyle` e em qualquer renderização de barra principal/baseline.
+### 3. Nova coluna "% Concluído"
+- `sidebarCols`: adicionar coluna de ~42px após "Fim" → `'24px 1fr 28px 20px 78px 78px 42px 44px 44px 56px'`
+- `sidebarWidth`: aumentar para `578`
+- Header novo `% Concl.` entre "Fim" e "Dep"
+- **Tarefa**: exibir `task.physicalProgress ?? task.percentComplete` como `XX%`
+- **Capítulo/Fase**: média ponderada por duração das tarefas filhas
+- **Cor dinâmica**: verde se ≥ esperado-no-tempo, vermelho se atrasado, cinza se sem dado
 
-**b) Datas REAL / PREV com cores fixas de alto contraste**
-- `Real:` → `color: '#1e40af'` (azul escuro), `text-[9px] font-semibold`.
-- `Prev:` → `color: '#166534'` (verde escuro) no prazo, `'#991b1b'` (vermelho escuro) se atrasado.
-- Substitui a herança de cor da equipe nessas labels específicas para garantir leitura.
-
-**c) Linha tracejada Real→Previsto mais visível**
-- `borderTop: '3px dashed #1e3a8a'` (azul-marinho forte).
-- Adicionar `filter: 'drop-shadow(0 1px 0 white)'` para destacar sobre qualquer fundo.
-
-**d) Ícone AlertTriangle com contorno**
-- `color: '#b45309'` (âmbar escuro) + `filter: 'drop-shadow(0 0 1px white)'`.
-- Aplicar em todas as instâncias do `<AlertTriangle>` no Gantt.
-
-**e) Texto das colunas usa `textColor` da equipe**
-- Substituir todos os `style={rowTeamDef ? { color: 'inherit' } : undefined}` por `style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}`.
-- Garante texto escuro legível sobre fundo claro da linha.
+### 4. Badge de % na linha tracejada do Gantt
+No grid (linha tracejada Real→Previsto), sobrepor um badge pequeno (`text-[9px] font-bold px-1 rounded`) no centro da linha exibindo o mesmo `XX%` da coluna, herdando a cor da linha (azul = no prazo, vermelho = atrasado), com `drop-shadow` branco para legibilidade.
 
 ### Arquivo afetado
-- `src/components/GanttChart.tsx` (todas as alterações).
-- `src/lib/teams.ts` validado — sem mudanças.
+- `src/components/GanttChart.tsx` (todas as alterações inline; helper de % ponderado calculado inline no render dos capítulos)
+
+---
+
+## Sugestões para melhorar o fluxo de gestão (não implementadas agora)
+
+1. **Painel "Hoje"** — tela inicial com tarefas do dia, atrasos críticos, apontamentos pendentes e materiais a chegar.
+2. **Indicadores SPI/CPI** — Schedule/Cost Performance Index calculados do baseline + apontamentos (padrão PMI).
+3. **Notificações inteligentes** — alertas automáticos para atrasos críticos, dependências bloqueadas e equipes ociosas.
+4. **Versionamento de baseline** — snapshots semanais/mensais para análise de desvios temporais.
+5. **RDO automático** — Relatório Diário de Obra em PDF a partir dos apontamentos + clima + efetivo.
+6. **Curva S real vs planejado** — sobreposição das duas curvas para comparação imediata.
+7. **Gestão de equipes** — visualização de carga/ociosidade por equipe com realocação por drag-and-drop.
+8. **Modo offline (PWA)** — apontamento em campo sem internet, com sincronização posterior.
+9. **Multi-projeto/Portfólio** — KPIs comparativos entre várias obras.
+10. **Fotos georreferenciadas** — anexar fotos diárias por tarefa, criando memória visual da execução.
 
 ### Resultado esperado
-- Linhas com fundo claro suave + texto escuro legível.
-- Barras do Gantt com cor saturada destacando da linha.
-- Datas Real/Prev sempre legíveis com semântica de cor (azul/verde/vermelho).
-- Linha tracejada e ícone de alerta visíveis sobre qualquer fundo.
+- Coluna DURAÇÃO mostra `5d`, `12d`, etc.
+- Datas Real/Prev com mesma tipografia da data principal.
+- Nova coluna "% Concl." visível por tarefa e por capítulo.
+- Badge percentual sobreposto à linha tracejada, sincronizado com a coluna.
 
