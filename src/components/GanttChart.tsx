@@ -1074,6 +1074,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   );
                                 })()}
                               </div>
+                              {/* Duração (apenas leitura) */}
+                              <div className="text-center">
+                                <span className={`text-[10px] font-medium ${rowTeamDef ? '' : 'text-foreground'}`} title="Duração em dias">
+                                  {task.duration}
+                                </span>
+                              </div>
                               {/* % Concluído */}
                               <div className="text-center">
                                 {(() => {
