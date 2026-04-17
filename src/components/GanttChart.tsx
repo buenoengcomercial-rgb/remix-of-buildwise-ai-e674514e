@@ -990,29 +990,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 </Tooltip>
                               </div>
                               <div className="flex flex-col gap-0.5">
-                                {task.baseline && (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <button className={`text-[8px] transition-colors text-center w-full ${rowTeamDef ? 'opacity-60 hover:opacity-100' : 'text-muted-foreground hover:text-primary'}`} title="Editar data planejada (baseline)">
-                                        Plan: {formatDateFull(task.baseline.startDate)}
-                                      </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={new Date(task.baseline.startDate)}
-                                        onSelect={(d) => handleBaselineDateChange(task.id, 'start', d)}
-                                        className={cn("p-3 pointer-events-auto")}
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                )}
                                 {(() => {
                                   const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
-                                  const realStart = task.current?.startDate ?? task.startDate;
                                   const labelEl = (
                                     <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium`}>
-                                      {task.baseline ? 'Real: ' : ''}{formatDateFull(realStart)}
+                                      {formatDateFull(task.startDate)}
                                     </span>
                                   );
                                   if (hasLogs) {
@@ -1049,44 +1031,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 })()}
                               </div>
                               <div className="flex flex-col gap-0.5">
-                                {task.baseline && (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <button className={`text-[8px] transition-colors text-center w-full ${rowTeamDef ? 'opacity-60 hover:opacity-100' : 'text-muted-foreground hover:text-primary'}`} title="Editar data planejada (baseline)">
-                                        Plan: {formatDateFull(task.baseline.endDate)}
-                                      </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={new Date(task.baseline.endDate)}
-                                        onSelect={(d) => handleBaselineDateChange(task.id, 'end', d)}
-                                        className={cn("p-3 pointer-events-auto")}
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                )}
                                 {(() => {
-                                  const forecastEnd = task.current?.forecastEndDate ?? task.current?.endDate ?? endDate;
-                                  const hasForecast = !!task.current?.forecastEndDate;
                                   const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
-                                  let forecastCls = rowTeamDef ? '' : 'text-foreground';
-                                  if (task.baseline) {
-                                    const fEnd = new Date(forecastEnd).getTime();
-                                    const bEnd = new Date(task.baseline.endDate).getTime();
-                                    if (fEnd > bEnd) forecastCls = 'text-destructive';
-                                    else if (fEnd < bEnd) forecastCls = 'text-success';
-                                  }
                                   const labelEl = (
-                                    <span className={`text-[9px] ${forecastCls} font-medium`}>
-                                      {task.baseline ? 'Prev: ' : ''}{formatDateFull(forecastEnd)}
+                                    <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium`}>
+                                      {formatDateFull(endDate)}
                                     </span>
                                   );
                                   if (hasLogs) {
                                     return (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90" title={hasForecast ? 'Previsão atualizada pelo apontamento diário' : undefined}>
+                                          <button disabled className="text-center w-full leading-tight cursor-not-allowed opacity-90">
                                             {labelEl}
                                           </button>
                                         </TooltipTrigger>
@@ -1114,23 +1070,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     </Popover>
                                   );
                                 })()}
-                              </div>
-                              <div className="text-center">
-                                {task.baseline ? (() => {
-                                  const dev = task.duration - task.baseline.duration;
-                                  const cls = dev > 0
-                                    ? 'bg-destructive/15 text-destructive'
-                                    : dev < 0
-                                    ? 'bg-success/15 text-success'
-                                    : 'bg-muted text-muted-foreground';
-                                  return (
-                                    <span className={`inline-block px-1 py-0.5 rounded text-[9px] font-bold ${cls}`}>
-                                      {dev > 0 ? '+' : ''}{dev}d
-                                    </span>
-                                  );
-                                })() : (
-                                  <span className={`text-[9px] ${rowTeamDef ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>
-                                )}
                               </div>
                               <div className="text-center">
                                 <input
