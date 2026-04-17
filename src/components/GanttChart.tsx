@@ -917,8 +917,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               </div>
                               <div className="min-w-0 flex items-center gap-1 pl-1">
                                 {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
-                                {hasViolation && <AlertTriangle className="w-3 h-3 text-destructive flex-shrink-0" />}
-                                {noWorkDays && <AlertTriangle className="w-3 h-3 text-warning flex-shrink-0" />}
+                                {hasViolation && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'hsl(0, 75%, 38%)', filter: 'drop-shadow(0 0 1px white)' }} />}
+                                {noWorkDays && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'hsl(35, 90%, 32%)', filter: 'drop-shadow(0 0 1px white)' }} />}
                                 <p className={`text-[11px] font-medium line-clamp-2 break-words leading-tight ${rowTeamDef ? '' : 'text-foreground'}`}>{task.name}</p>
                               </div>
                               <div className="text-center">
@@ -926,7 +926,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   className={`w-full text-[10px] font-bold bg-transparent text-center focus:outline-none focus:ring-1 focus:ring-primary rounded ${
                                     rowTeamDef ? '' : ((task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground')
                                   }`}
-                                  style={rowTeamDef ? { color: 'inherit' } : undefined}
+                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
                                   value={editingDurationTaskId === task.id ? localDuration : task.duration}
                                   type="number"
                                   min={1}
@@ -988,12 +988,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const startNonUtil = !isDiaUtil(parseISODateLocal(task.startDate), obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado);
                                   const labelEl = (
                                     <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium inline-flex items-center justify-center gap-0.5`}>
-                                      {startNonUtil && <AlertTriangle className="w-2.5 h-2.5 text-warning" aria-label="Início em dia não útil" />}
+                                      {startNonUtil && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'hsl(35, 90%, 32%)', filter: 'drop-shadow(0 0 1px white)' }} aria-label="Início em dia não útil" />}
                                       {formatDateFull(task.startDate)}
                                     </span>
                                   );
                                   const realLine = hasRealData ? (
-                                    <span className="text-[8px] font-semibold text-info leading-none">
+                                    <span
+                                      className="text-[8px] font-semibold leading-none"
+                                      style={{ color: 'hsl(220, 90%, 30%)', filter: 'drop-shadow(0 0 1px hsl(var(--background)))' }}
+                                    >
                                       Real: {formatDateFull(task.current!.startDate)}
                                     </span>
                                   ) : null;
@@ -1038,14 +1041,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const endNonUtil = !isDiaUtil(parseISODateLocal(endDate), obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado);
                                   const labelEl = (
                                     <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium inline-flex items-center justify-center gap-0.5`}>
-                                      {endNonUtil && <AlertTriangle className="w-2.5 h-2.5 text-warning" aria-label="Fim em dia não útil" />}
+                                      {endNonUtil && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'hsl(35, 90%, 32%)', filter: 'drop-shadow(0 0 1px white)' }} aria-label="Fim em dia não útil" />}
                                       {formatDateFull(endDate)}
                                     </span>
                                   );
                                   const previsto = task.current?.forecastEndDate || task.current?.endDate;
                                   const isLate = !!previsto && previsto > endDate;
                                   const prevLine = hasRealData && previsto ? (
-                                    <span className={`text-[8px] font-semibold leading-none ${isLate ? 'text-destructive' : 'text-success'}`}>
+                                    <span
+                                      className="text-[8px] font-semibold leading-none"
+                                      style={{
+                                        color: isLate ? 'hsl(0, 75%, 32%)' : 'hsl(150, 70%, 24%)',
+                                        filter: 'drop-shadow(0 0 1px hsl(var(--background)))',
+                                      }}
+                                    >
                                       Prev: {formatDateFull(previsto)}
                                     </span>
                                   ) : null;
@@ -1086,7 +1095,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               <div className="text-center">
                                 <input
                                   className={`w-full text-[9px] bg-transparent border-b border-border/50 text-center focus:outline-none focus:border-primary ${rowTeamDef ? 'opacity-80' : 'text-muted-foreground'}`}
-                                  style={rowTeamDef ? { color: 'inherit' } : undefined}
+                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
                                   defaultValue={depDisplay}
                                   key={depDisplay}
                                   placeholder="—"
@@ -1100,9 +1109,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     value={depTypes[0].type}
                                     onValueChange={(val) => handleDepTypeChange(task.id, 0, val as DependencyType)}
                                   >
-                                    <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: 'inherit' } : undefined}>
+                                    <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}>
                                        <SelectValue />
-                                    </SelectTrigger>
+                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="TI" className="text-[10px]">TI</SelectItem>
                                       <SelectItem value="II" className="text-[10px]">II</SelectItem>
@@ -1127,7 +1136,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     onProjectChange(updated);
                                   }}
                                 >
-                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: 'inherit' } : undefined}>
+                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1412,7 +1421,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     borderRadius: 6,
                                     background: (() => {
                                       const teamDef = getTeamDefinition(task.team);
-                                      if (teamDef) return teamDef.bgColor;
+                                      if (teamDef) return teamDef.barColor;
                                       if (bar.isDelayed) return 'hsl(var(--gantt-bar-delayed))';
                                       if (bar.isComplete) return 'hsl(var(--gantt-bar-complete))';
                                       if (bar.isCritical) return 'hsl(var(--gantt-critical))';
@@ -1474,7 +1483,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const width = spanDays * dayWidth;
                                   const plannedEndISO = dateToISO(addDays(parseISODateLocal(task.startDate), task.duration));
                                   const isLate = previstoISO > plannedEndISO;
-                                  const color = isLate ? 'hsl(var(--destructive))' : 'hsl(var(--success))';
+                                  // Cor de alto contraste: azul-marinho forte (visível sobre fundos claros e escuros)
+                                  // Tom muda para vermelho/verde escuros conforme atrasado/no prazo
+                                  const color = isLate ? 'hsl(0, 80%, 32%)' : 'hsl(220, 90%, 25%)';
                                   // Centralizar verticalmente na barra (top:9, height:20 → centro = 19)
                                   // Usa traço branco com contorno escuro para contraste sobre qualquer cor de barra
                                   const BAR_TOP = 9;
@@ -1508,8 +1519,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                           top: overlayHeight / 2 - 1,
                                           left: 2,
                                           right: 2,
-                                          borderTop: `2px dashed ${color}`,
-                                          filter: 'drop-shadow(0 0 1px hsl(var(--foreground) / 0.6))',
+                                          borderTop: `3px dashed ${color}`,
+                                          filter: 'drop-shadow(0 1px 0 white) drop-shadow(0 -1px 0 white)',
                                         }}
                                       />
                                       {/* Marcador início (Real) */}
