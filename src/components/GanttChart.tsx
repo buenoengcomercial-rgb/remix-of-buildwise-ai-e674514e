@@ -1487,7 +1487,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const isLate = previstoISO > plannedEndISO;
                                   // Cor de alto contraste: azul-marinho forte (visível sobre fundos claros e escuros)
                                   // Tom muda para vermelho/verde escuros conforme atrasado/no prazo
-                                  const color = isLate ? 'hsl(0, 80%, 32%)' : 'hsl(220, 90%, 25%)';
+                                  const color = isLate ? '#991b1b' : '#1e3a8a';
                                   // Centralizar verticalmente na barra (top:9, height:20 → centro = 19)
                                   // Usa traço branco com contorno escuro para contraste sobre qualquer cor de barra
                                   const BAR_TOP = 9;
