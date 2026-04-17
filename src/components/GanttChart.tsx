@@ -1095,7 +1095,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               <div className="text-center">
                                 <input
                                   className={`w-full text-[9px] bg-transparent border-b border-border/50 text-center focus:outline-none focus:border-primary ${rowTeamDef ? 'opacity-80' : 'text-muted-foreground'}`}
-                                  style={rowTeamDef ? { color: 'inherit' } : undefined}
+                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
                                   defaultValue={depDisplay}
                                   key={depDisplay}
                                   placeholder="—"
