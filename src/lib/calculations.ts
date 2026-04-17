@@ -1,5 +1,6 @@
 import { Task, Project, DependencyType, TaskBaseline } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
+import { parseISODateLocal } from '@/components/gantt/utils';
 
 const DAILY_HOURS = 8;
 
