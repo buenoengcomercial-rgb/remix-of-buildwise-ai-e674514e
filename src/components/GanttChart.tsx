@@ -348,7 +348,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     if (!task || !task.baseline) return;
 
     const isRup = (task.durationMode || 'manual') === 'rup';
-    const rupDuration = isRup ? calculateRupDuration(task).duration : task.baseline.duration;
+    const rupDuration = isRup ? calculateRupDuration(task, obraConfig).duration : task.baseline.duration;
 
     let newStart: Date;
     let newDuration: number;
@@ -635,7 +635,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const newMode = currentMode === 'manual' ? 'rup' : 'manual';
     const updates: Partial<Task> = { durationMode: newMode };
     if (newMode === 'rup' && task.laborCompositions?.length && task.quantity) {
-      const { duration, totalHours, bottleneckRole } = calculateRupDuration(task);
+      const { duration, totalHours, bottleneckRole } = calculateRupDuration(task, obraConfig);
       updates.duration = duration;
       updates.totalHours = totalHours;
       updates.bottleneckRole = bottleneckRole;
