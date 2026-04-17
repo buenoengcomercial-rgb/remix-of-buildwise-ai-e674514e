@@ -50,7 +50,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const tasks = getAllTasks(project);
   const criticalCount = tasks.filter(t => t.isCritical).length;
   const projectStart = new Date(Math.min(...tasks.map(t => parseISODateLocal(t.startDate).getTime())));
-  const projectEnd = new Date(Math.max(...tasks.map(t => addDays(parseISODateLocal(t.startDate), t.duration).getTime())));
+  const projectEnd = new Date(Math.max(...tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime())));
   const totalDays = diffDays(projectStart, projectEnd) + 10;
   const dayWidth = DAY_WIDTH[viewMode];
   const chartWidth = totalDays * dayWidth;
@@ -78,7 +78,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const getChapterDiasUteis = useCallback((phase: typeof project.phases[0]) => {
     if (phase.tasks.length === 0) return { dias: 0, horas: 0 };
     const starts = phase.tasks.map(t => parseISODateLocal(t.startDate).getTime());
-    const ends = phase.tasks.map(t => addDays(parseISODateLocal(t.startDate), t.duration).getTime());
+    const ends = phase.tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime());
     const inicio = new Date(Math.min(...starts));
     const fim = new Date(Math.max(...ends));
     return calcularDiasUteis(inicio, fim, obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado, obraConfig.jornadaDiaria);
@@ -87,7 +87,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const getPhaseRange = (phase: typeof project.phases[0]) => {
     if (phase.tasks.length === 0) return { start: '', end: '' };
     const starts = phase.tasks.map(t => parseISODateLocal(t.startDate).getTime());
-    const ends = phase.tasks.map(t => addDays(parseISODateLocal(t.startDate), t.duration).getTime());
+    const ends = phase.tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime());
     return {
       start: dateToISO(new Date(Math.min(...starts))),
       end: dateToISO(new Date(Math.max(...ends))),
@@ -251,8 +251,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
   const getBarStyle = (task: Task) => {
     const start = diffDays(projectStart, parseISODateLocal(task.startDate));
-    const width = (task.duration + 1) * dayWidth;
-    const isDelayed = addDays(parseISODateLocal(task.startDate), task.duration) < today && task.percentComplete < 100;
+    const width = task.duration * dayWidth;
+    const isDelayed = addDays(parseISODateLocal(task.startDate), Math.max(0, task.duration - 1)) < today && task.percentComplete < 100;
     const isCritical = !!task.isCritical && !isDelayed && task.percentComplete < 100;
     const isComplete = task.percentComplete === 100;
     return { left: start * dayWidth, width, isDelayed, isCritical, isComplete };
@@ -329,13 +329,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         // Manual mode: keep duration, shift end date
         updateTask(taskId, { startDate: dateToISO(date) });
       } else {
-        const oldEnd = addDays(parseISODateLocal(task.startDate), task.duration);
-        const newDuration = Math.max(1, diffDays(date, oldEnd));
+        // Inclusive end-date convention: end = start + duration - 1
+        const oldEnd = addDays(parseISODateLocal(task.startDate), Math.max(0, task.duration - 1));
+        const newDuration = Math.max(1, diffDays(date, oldEnd) + 1);
         updateTask(taskId, { startDate: dateToISO(date), duration: newDuration });
       }
     } else {
       const start = parseISODateLocal(task.startDate);
-      const newDuration = Math.max(1, diffDays(start, date));
+      // Inclusive end-date: chosen `date` is the last working day
+      const newDuration = Math.max(1, diffDays(start, date) + 1);
       updateTask(taskId, { duration: newDuration, durationMode: 'manual' });
     }
     setTimeout(() => runPropagation(taskId), 0);
@@ -612,7 +614,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     if (draggingTaskId !== task.id) return null;
     const daysMoved = Math.round(dragOffset / dayWidth);
     const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
-    const newEnd = addDays(newStart, task.duration);
+    const newEnd = addDays(newStart, Math.max(0, task.duration - 1));
     return { start: formatDateFull(dateToISO(newStart)), end: formatDateFull(dateToISO(newEnd)) };
   };
 
@@ -720,7 +722,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const maxEnd = new Date(Math.max(...ends));
     const left = diffDays(projectStart, minStart) * dayWidth;
     const right = diffDays(projectStart, maxEnd) * dayWidth;
-    return { left, right, width: right - left };
+    return { left, right, width: Math.max(dayWidth, right - left) };
   };
 
   // Get day column background color
@@ -1391,7 +1393,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               if (!isResizing) return null;
                               const newDuration = Math.max(1, Math.round(currentWidth / dayWidth));
                               const newStart = addDays(projectStart, Math.round(currentLeft / dayWidth));
-                              const newEnd = addDays(newStart, newDuration);
+                              const newEnd = addDays(newStart, Math.max(0, newDuration - 1));
                               return {
                                 start: formatDateFull(dateToISO(newStart)),
                                 end: formatDateFull(dateToISO(newEnd)),
