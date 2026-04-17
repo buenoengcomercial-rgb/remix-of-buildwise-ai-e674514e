@@ -911,13 +911,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   color: rowTeamDef.textColor,
                                 } : {}),
                               }}
-                              title={[
-                                hasViolation ? violations.join('\n') : null,
-                                noWorkDays ? 'Tarefa sem dias úteis no período' : null,
-                                task.dailyLogs && task.dailyLogs.length > 0
-                                  ? `Apontamento: ${task.physicalProgress?.toFixed(1) ?? 0}% físico • Saldo: ${(task.accumulatedDelayQuantity || 0).toFixed(1)} ${task.unit || 'un'} • Previsão: ${task.forecastEndDate ? formatDateFull(task.forecastEndDate) : '—'}`
-                                  : null,
-                              ].filter(Boolean).join('\n') || undefined}
                             >
                               <div className="text-center">
                                 <span className={`text-[9px] font-mono ${rowTeamDef ? 'opacity-70' : 'text-muted-foreground'}`}>{taskNum}</span>
@@ -1390,7 +1383,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const barWidth = currentWidth;
                                   return (
                                 <div
-                                  className={`absolute rounded-md group ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
+                                  className={`absolute rounded-md ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   style={{
                                     left: barLeft,
                                     width: barWidth,
@@ -1442,72 +1435,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     style={{ width: `${task.percentComplete}%`, background: 'white', borderRadius: 6 }}
                                   />
 
-                                  {/* Tooltip */}
-                                  {(() => {
-                                    const hasMulti = (task.dailyLogs?.length || 0) > 0;
-                                    return (
-                                  <div className={`absolute -top-10 left-1/2 -translate-x-1/2 bg-foreground text-background text-[9px] px-2 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity ${hasMulti ? 'whitespace-pre-line' : 'whitespace-nowrap'} z-30 pointer-events-none`}>
-                                    {isResizing && resizeInfo
-                                      ? `${resizeSide === 'left' ? 'Início' : 'Fim'}: ${resizeSide === 'left' ? resizeInfo.start : resizeInfo.end} | ${resizeInfo.duration} dias`
-                                      : isDragging && dragDate
-                                      ? `${dragDate.start} → ${dragDate.end}`
-                                      : hasViolation
-                                      ? violations[0]
-                                      : noWorkDays
-                                      ? 'Tarefa sem dias úteis no período'
-                                      : (() => {
-                                          const teamDef = getTeamDefinition(task.team);
-                                          const mode = (task.durationMode || 'manual') === 'rup' ? 'RUP' : 'Manual';
-                                          const barEnd = getEndDate(task.startDate, task.duration);
-                                          const parts: string[] = [];
-                                          parts.push(`Início: ${formatDateFull(task.startDate)}`);
-                                          parts.push(`Fim: ${formatDateFull(barEnd)}`);
-                                          parts.push(`Duração: ${task.duration} dias`);
-                                          parts.push(`Modo: ${mode}`);
-                                          if (teamDef) parts.push(`Equipe: ${teamDef.label} (${teamDef.composition})`);
-                                          const workedLogs = (task.dailyLogs || []).filter(l => l.actualQuantity > 0);
-                                          if (workedLogs.length > 0) {
-                                            const unit = task.unit || 'un';
-                                            if (task.executedQuantityTotal !== undefined) parts.push(`Executado: ${task.executedQuantityTotal} ${unit}`);
-                                            if (task.remainingQuantity !== undefined) parts.push(`Restante: ${task.remainingQuantity} ${unit}`);
-                                          }
-                                          if (task.physicalProgress !== undefined && (task.dailyLogs?.length || 0) > 0) {
-                                            parts.push(`Físico: ${task.physicalProgress.toFixed(1)}%`);
-                                          }
-                                          return parts.join(hasMulti ? '\n' : ' • ');
-                                        })()
-                                    }
-                                  </div>
-                                    );
-                                  })()}
                                 </div>
                                   );
                                 })()}
-                                {/* Label à direita da barra — 3 primeiras palavras */}
-                                <div
-                                  className="absolute z-10 pointer-events-none"
-                                  style={{
-                                    left: currentLeft + currentWidth + 4,
-                                    top: 0,
-                                    height: ROW_HEIGHT,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                  }}
-                                >
-                                  <span
-                                    className="text-muted-foreground"
-                                    style={{
-                                      fontSize: '11px',
-                                      whiteSpace: 'nowrap',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      maxWidth: 200,
-                                      display: 'block',
-                                    }}
-                                  >
-                                    {task.name.split(/\s+/).slice(0, 3).join(' ')}{task.name.split(/\s+/).length > 3 ? '…' : ''}
-                                  </span>
-                                </div>
                               </div>
                             );
                           })}
