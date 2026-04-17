@@ -626,8 +626,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return result.dias === 0;
   }, [obraConfig]);
 
-  const sidebarCols = '24px 1fr 58px 20px 88px 88px 48px 48px 48px 56px';
-  const sidebarWidth = 620;
+  const sidebarCols = '24px 1fr 22px 92px 92px 56px 52px 60px 56px';
+  const sidebarWidth = 562;
 
   // Toggle duration mode and recalculate if switching to RUP
   const toggleDurationMode = (taskId: string) => {
@@ -822,7 +822,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
               >
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">#</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">Tarefa</span>
-                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dur</span>
                 <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Início</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Fim</span>
@@ -936,44 +935,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 {noWorkDays && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#b45309', filter: 'drop-shadow(0 0 1px white)' }} />}
                                 <p className={`text-[11px] font-medium line-clamp-2 break-words leading-tight ${rowTeamDef ? '' : 'text-foreground'}`}>{task.name}</p>
                               </div>
-                              <div className="text-center relative">
-                                <input
-                                  className={`w-full text-[10px] font-bold bg-transparent text-left pl-1 pr-3.5 focus:outline-none focus:ring-1 focus:ring-primary rounded ${
-                                    rowTeamDef ? '' : ((task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground')
-                                  }`}
-                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
-                                  value={editingDurationTaskId === task.id ? localDuration : task.duration}
-                                  type="number"
-                                  min={1}
-                                  onFocus={() => {
-                                    setEditingDurationTaskId(task.id);
-                                    setLocalDuration(String(task.duration));
-                                  }}
-                                  onChange={(e) => {
-                                    setLocalDuration(e.target.value);
-                                    // Live preview: update bar width in real-time
-                                    const val = parseInt(e.target.value);
-                                    if (!isNaN(val) && val >= 1) {
-                                      handleManualDurationChange(task.id, val);
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    const val = parseInt(localDuration);
-                                    if (!isNaN(val) && val >= 1) {
-                                      handleManualDurationChange(task.id, val);
-                                    }
-                                    setEditingDurationTaskId(null);
-                                  }}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                                  title={(task.durationMode || 'manual') === 'rup'
-                                    ? `RUP: ${task.bottleneckRole || '—'} — edite para desvincular`
-                                    : 'Duração manual (dias)'}
-                                />
-                                <span
-                                  className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] font-semibold opacity-70 pointer-events-none"
-                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
-                                >d</span>
-                              </div>
+                              
                               <div className="text-center">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1605,9 +1567,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                           <span
                                             className="absolute text-[9px] font-bold px-1 rounded leading-none whitespace-nowrap"
                                             style={{
-                                              left: offsetPx,
-                                              top: '50%',
-                                              transform: 'translate(-50%, -50%)',
+                                              left: offsetPx + 8,
+                                              top: -16,
                                               color,
                                               background: 'white',
                                               boxShadow: `0 0 0 1px ${color}`,
