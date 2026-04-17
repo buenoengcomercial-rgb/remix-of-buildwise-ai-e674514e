@@ -1,5 +1,6 @@
 import { Task, Project, DependencyType, TaskBaseline } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
+import { parseISODateLocal } from '@/components/gantt/utils';
 
 const DAILY_HOURS = 8;
 
@@ -59,7 +60,7 @@ export function captureBaseline(project: Project): Project {
         const baseDuration = isRup
           ? calculateRupDuration(t).duration
           : t.duration;
-        const start = new Date(t.startDate);
+        const start = parseISODateLocal(t.startDate);
         const end = new Date(start);
         end.setDate(end.getDate() + baseDuration);
         const baseline: TaskBaseline = {
@@ -90,7 +91,7 @@ export function syncBaselineWithRup(project: Project): Project {
         if (!isRup) return t;
         const rupDuration = calculateRupDuration(t).duration;
         if (rupDuration === t.baseline.duration) return t;
-        const start = new Date(t.baseline.startDate);
+        const start = parseISODateLocal(t.baseline.startDate);
         const end = new Date(start);
         end.setDate(end.getDate() + rupDuration);
         return {
@@ -122,7 +123,7 @@ export function applyDailyLogsToProject(project: Project): Project {
 
         // Build "current" mirror of baseline by default
         const buildCurrent = (overrides: Partial<NonNullable<Task['current']>> = {}): NonNullable<Task['current']> => {
-          const start = new Date(t.startDate);
+          const start = parseISODateLocal(t.startDate);
           const end = new Date(start);
           end.setDate(end.getDate() + t.duration);
           return {
@@ -166,7 +167,7 @@ export function applyDailyLogsToProject(project: Project): Project {
           ? Math.ceil(remainingQuantity / plannedDailyProduction)
           : 0;
 
-        const validLogs = logs.filter(l => l.date && !isNaN(new Date(l.date).getTime()));
+        const validLogs = logs.filter(l => l.date && !isNaN(parseISODateLocal(l.date).getTime()));
         const sortedLogs = [...validLogs].sort((a, b) => a.date.localeCompare(b.date));
         if (sortedLogs.length === 0) {
           return { ...t, current: buildCurrent() };
@@ -307,12 +308,12 @@ export function generateCurvaS(project: Project): { day: string; planejado: numb
   const tasks = getAllTasks(project);
   if (tasks.length === 0) return [];
 
-  const validTasks = tasks.filter(t => t.startDate && !isNaN(new Date(t.startDate).getTime()));
+  const validTasks = tasks.filter(t => t.startDate && !isNaN(parseISODateLocal(t.startDate).getTime()));
   if (validTasks.length === 0) return [];
 
-  const projectStart = new Date(Math.min(...validTasks.map(t => new Date(t.startDate).getTime())));
+  const projectStart = new Date(Math.min(...validTasks.map(t => parseISODateLocal(t.startDate).getTime())));
   const projectEnd = new Date(Math.max(...validTasks.map(t => {
-    const d = new Date(t.startDate);
+    const d = parseISODateLocal(t.startDate);
     d.setDate(d.getDate() + t.duration);
     return d.getTime();
   })));
@@ -326,7 +327,7 @@ export function generateCurvaS(project: Project): { day: string; planejado: numb
   const actualPerDay = new Array(totalDays).fill(0);
 
   tasks.forEach(t => {
-    const taskStart = Math.ceil((new Date(t.startDate).getTime() - projectStart.getTime()) / 86400000);
+    const taskStart = Math.ceil((parseISODateLocal(t.startDate).getTime() - projectStart.getTime()) / 86400000);
     const weight = t.duration / totalWeight;
     const dailyWeight = weight / t.duration;
 
@@ -442,7 +443,7 @@ export function propagateAllDependencies(
       const succ = taskMap.get(successorId)!;
       if (!pred || !succ) continue;
 
-      const predStart = new Date(pred.startDate);
+      const predStart = parseISODateLocal(pred.startDate);
       const predEnd = addDaysCalc(predStart, pred.duration);
 
       let newStartDate: Date | null = null;
@@ -503,7 +504,7 @@ export function checkDependencyViolation(
     const pred = taskMap.get(dep.taskId);
     if (!pred) continue;
 
-    const predStart = new Date(pred.startDate);
+    const predStart = parseISODateLocal(pred.startDate);
     const predEnd = addDaysCalc(predStart, pred.duration);
     const newStart = new Date(newStartDate);
     const newEnd = addDaysCalc(newStart, task.duration);
