@@ -1056,7 +1056,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const isLate = !!previsto && previsto > endDate;
                                   const prevLine = hasRealData && previsto ? (
                                     <span
-                                      className="text-[9px] font-semibold leading-none"
+                                      className="text-[9px] font-medium leading-none"
                                       style={{
                                         color: isLate ? '#991b1b' : '#166534',
                                         filter: 'drop-shadow(0 0 1px white)',
