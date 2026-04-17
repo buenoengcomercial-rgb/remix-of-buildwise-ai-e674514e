@@ -882,8 +882,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             />
                           </PopoverContent>
                         </Popover>
-                        <span className="text-muted-foreground ml-auto">
-                          <span className="font-medium text-foreground">{diasUteis.dias}d</span> / <span className="font-medium text-foreground">{diasUteis.horas}h</span> úteis
+                        <span className="text-muted-foreground ml-auto flex items-center gap-2">
+                          {(() => {
+                            const items = phase.tasks;
+                            if (items.length === 0) return null;
+                            const totalDur = items.reduce((s, t) => s + Math.max(1, t.duration), 0) || 1;
+                            const weighted = items.reduce((s, t) => s + (t.physicalProgress ?? t.percentComplete ?? 0) * Math.max(1, t.duration), 0);
+                            const pct = Math.round(weighted / totalDur);
+                            return (
+                              <span className="font-bold" style={{ color: pct >= 100 ? '#166534' : '#1e40af' }} title="Percentual concluído do capítulo (média ponderada por duração)">
+                                {pct}%
+                              </span>
+                            );
+                          })()}
+                          <span><span className="font-medium text-foreground">{diasUteis.dias}d</span> / <span className="font-medium text-foreground">{diasUteis.horas}h</span> úteis</span>
                         </span>
                       </div>
                     </div>
