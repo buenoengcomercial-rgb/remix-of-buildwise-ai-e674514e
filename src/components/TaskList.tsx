@@ -871,9 +871,64 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               {expandedDaily === task.id && (
                                 <DailyLogsPanel
                                   task={task}
-                                  onChange={(logs: DailyProductionLog[]) =>
-                                    updateTask(phase.id, task.id, { dailyLogs: logs })
-                                  }
+                                  onChange={(logs: DailyProductionLog[]) => {
+                                    if (logs.length === 0) {
+                                      updateTask(phase.id, task.id, {
+                                        dailyLogs: logs,
+                                        current: undefined,
+                                        executedQuantityTotal: 0,
+                                        remainingQuantity: task.quantity,
+                                        physicalProgress: 0,
+                                        percentComplete: 0,
+                                      });
+                                      return;
+                                    }
+
+                                    const logsComQty = logs.filter(l => (l.actualQuantity ?? 0) > 0);
+                                    if (logsComQty.length === 0) {
+                                      updateTask(phase.id, task.id, { dailyLogs: logs });
+                                      return;
+                                    }
+
+                                    const sorted = [...logsComQty].sort((a, b) => a.date.localeCompare(b.date));
+                                    const realStartDate = sorted[0].date;
+                                    const lastLogDate = sorted[sorted.length - 1].date;
+
+                                    const executedTotal = logsComQty.reduce((s, l) => s + l.actualQuantity, 0);
+                                    const remaining = Math.max(0, (task.quantity || 0) - executedTotal);
+                                    const physicalProgress = task.quantity
+                                      ? Math.min(100, (executedTotal / task.quantity) * 100)
+                                      : 0;
+
+                                    const avgDaily = executedTotal / logsComQty.length;
+                                    const daysRemaining = avgDaily > 0 ? Math.ceil(remaining / avgDaily) : 0;
+
+                                    const [ly, lm, ld] = lastLogDate.split('-').map(Number);
+                                    const forecastDate = new Date(ly, lm - 1, ld + daysRemaining);
+                                    const forecastEndDate = `${forecastDate.getFullYear()}-${String(forecastDate.getMonth() + 1).padStart(2, '0')}-${String(forecastDate.getDate()).padStart(2, '0')}`;
+
+                                    const [ry, rm, rd] = realStartDate.split('-').map(Number);
+                                    const startMs = new Date(ry, rm - 1, rd).getTime();
+                                    const lastMs = new Date(ly, lm - 1, ld).getTime();
+                                    const currentDuration = Math.max(1, Math.round((lastMs - startMs) / 86400000) + 1);
+
+                                    updateTask(phase.id, task.id, {
+                                      dailyLogs: logs,
+                                      executedQuantityTotal: executedTotal,
+                                      remainingQuantity: remaining,
+                                      physicalProgress,
+                                      percentComplete: Math.round(physicalProgress),
+                                      current: {
+                                        startDate: realStartDate,
+                                        duration: currentDuration,
+                                        endDate: lastLogDate,
+                                        forecastEndDate,
+                                        executedQuantityTotal: executedTotal,
+                                        remainingQuantity: remaining,
+                                        physicalProgress,
+                                      },
+                                    });
+                                  }}
                                 />
                               )}
                             </AnimatePresence>
