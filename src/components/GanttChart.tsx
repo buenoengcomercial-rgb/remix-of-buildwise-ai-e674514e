@@ -952,32 +952,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 <p className={`text-[11px] font-medium line-clamp-2 break-words leading-tight ${rowTeamDef ? '' : 'text-foreground'}`}>{task.name}</p>
                               </div>
                               
-                              <div className="text-center">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => toggleDurationMode(task.id)}
-                                      className={`text-[8px] font-bold rounded px-0.5 py-0 transition-colors ${
-                                        rowTeamDef
-                                          ? 'bg-white/20'
-                                          : ((task.durationMode || 'manual') === 'rup'
-                                            ? 'bg-primary/20 text-primary'
-                                            : 'bg-muted text-muted-foreground hover:text-foreground')
-                                      }`}
-                                      title={(task.durationMode || 'manual') === 'rup' ? 'Modo RUP (clique para manual)' : 'Modo Manual (clique para RUP)'}
-                                    >
-                                      {(task.durationMode || 'manual') === 'rup' ? 'R' : 'M'}
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs">
-                                      {(task.durationMode || 'manual') === 'rup'
-                                        ? 'Duração via RUP — clique para editar manualmente'
-                                        : 'Duração manual — clique para calcular via RUP'}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
                               <div className="flex flex-col gap-0.5">
                                 {(() => {
                                   const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
