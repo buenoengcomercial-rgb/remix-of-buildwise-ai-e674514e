@@ -1592,14 +1592,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                           boxShadow: '0 0 0 1px hsl(var(--background))',
                                         }}
                                       />
-                                      {/* Badge % concluído sobre a linha tracejada */}
+                                      {/* Badge % concluído ancorado no fim do último apontamento (Real → Projeção) */}
                                       {(() => {
+                                        const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+                                        if (logs.length === 0) return null;
+                                        const lastLogISO = logs.reduce((max, l) => l.date > max ? l.date : max, logs[0].date);
+                                        const lastLog = parseISODateLocal(lastLogISO);
+                                        const offsetDays = Math.max(0, diffDays(realStart, lastLog));
+                                        const offsetPx = Math.min(width, offsetDays * dayWidth);
                                         const pct = Math.round(task.physicalProgress ?? task.percentComplete ?? 0);
                                         return (
                                           <span
-                                            className="absolute text-[9px] font-bold px-1 rounded leading-none"
+                                            className="absolute text-[9px] font-bold px-1 rounded leading-none whitespace-nowrap"
                                             style={{
-                                              left: '50%',
+                                              left: offsetPx,
                                               top: '50%',
                                               transform: 'translate(-50%, -50%)',
                                               color,
@@ -1607,7 +1613,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                               boxShadow: `0 0 0 1px ${color}`,
                                               filter: 'drop-shadow(0 0 1px white)',
                                             }}
-                                            title={`Concluído: ${pct}%`}
+                                            title={`Concluído: ${pct}% • Último apontamento: ${formatDateFull(lastLogISO)}`}
                                           >
                                             {pct}%
                                           </span>
