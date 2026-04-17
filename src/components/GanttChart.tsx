@@ -1136,7 +1136,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     onProjectChange(updated);
                                   }}
                                 >
-                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: 'inherit' } : undefined}>
+                                  <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
