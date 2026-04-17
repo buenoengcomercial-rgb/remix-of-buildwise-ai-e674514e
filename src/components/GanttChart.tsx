@@ -1486,9 +1486,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                       : (() => {
                                           const teamDef = getTeamDefinition(task.team);
                                           const mode = (task.durationMode || 'manual') === 'rup' ? 'RUP' : 'Manual';
+                                          const barEnd = getEndDate(task.startDate, task.duration);
                                           const parts: string[] = [];
                                           parts.push(`Início: ${formatDateFull(task.startDate)}`);
-                                          parts.push(`Fim: ${formatDateFull(endDate)}`);
+                                          parts.push(`Fim: ${formatDateFull(barEnd)}`);
                                           parts.push(`Duração: ${task.duration} dias`);
                                           parts.push(`Modo: ${mode}`);
                                           if (teamDef) parts.push(`Equipe: ${teamDef.label} (${teamDef.composition})`);
