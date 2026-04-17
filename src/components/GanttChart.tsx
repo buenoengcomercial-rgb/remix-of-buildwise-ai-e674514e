@@ -779,9 +779,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         <div className="flex items-center gap-3 text-[9px] text-muted-foreground flex-wrap">
           <div className="flex items-center gap-2 mr-2 border-r border-border pr-3">
             <span className="font-medium">Elementos:</span>
-            <div className="flex items-center gap-1"><div className="w-4 h-2 rounded" style={{ background: 'hsl(var(--gantt-bar))', opacity: 0.95 }} /> <span>Barra cheia = Planejado corrente</span></div>
-            <div className="flex items-center gap-1"><div className="w-4 h-0" style={{ borderTop: '3px dashed hsl(var(--foreground))' }} /> <span>Pontilhada = Real / Previsto</span></div>
-            <div className="flex items-center gap-1"><div className="w-4 h-[3px] rounded bg-muted-foreground/30" /> <span>Faixa cinza = Baseline original</span></div>
+            <div className="flex items-center gap-1"><div className="w-4 h-2 rounded" style={{ background: 'hsl(var(--gantt-bar))', border: '1px solid hsl(var(--gantt-bar))' }} /> <span>Planejado (cor da equipe)</span></div>
+            <div className="flex items-center gap-1"><div className="w-4 h-0" style={{ borderTop: '2px dashed #6b7280' }} /> <span>Real / Previsto (apontamento)</span></div>
+            <div className="flex items-center gap-1"><div className="w-4 h-[3px] rounded" style={{ background: 'rgba(150,150,150,0.35)' }} /> <span>Baseline original</span></div>
             <div className="flex items-center gap-1">
               <span className="flex gap-0.5">
                 <span className="w-1 h-1.5 rounded-sm bg-emerald-500" />
@@ -791,10 +791,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
               <span>Marcadores diários = Meta vs Realizado</span>
             </div>
           </div>
-          <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-primary opacity-85" /> Normal</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-success opacity-85" /> Concluído</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-destructive opacity-85" /> Atrasado</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full" style={{ background: 'hsl(var(--gantt-critical))' }} /> Crítico</div>
           <div className="flex items-center gap-3 ml-2 border-l border-border pl-3">
             <span className="font-medium">Dep:</span>
             <span style={{ color: '#378ADD' }}>TI</span>
@@ -1487,14 +1483,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     />
                                   );
                                 })}
-                                {/* Faixa fina = baseline original (referência) */}
+                                {/* Faixa baseline = cinza claro, 3px, atrás de tudo */}
                                 {task.baseline && (() => {
                                   const blLeft = diffDays(projectStart, parseISODateLocal(task.baseline.startDate)) * dayWidth;
                                   const blWidth = task.baseline.duration * dayWidth;
                                   return (
                                     <div
-                                      className="absolute rounded bg-muted-foreground/30 pointer-events-none"
-                                      style={{ left: blLeft, width: blWidth, top: 26, height: 3, zIndex: 7 }}
+                                      className="absolute rounded pointer-events-none"
+                                      style={{ left: blLeft, width: blWidth, top: 26, height: 3, background: 'rgba(150, 150, 150, 0.35)', borderRadius: 2, zIndex: 7 }}
                                       title={`Baseline: ${formatDateFull(task.baseline.startDate)} → ${formatDateFull(task.baseline.endDate)} (${task.baseline.duration}d)`}
                                     />
                                   );
@@ -1512,19 +1508,17 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     top: 9,
                                     height: 20,
                                     borderRadius: 6,
-                                    background: bar.isDelayed
-                                      ? 'hsl(var(--gantt-bar-delayed))'
-                                      : bar.isComplete
-                                      ? 'hsl(var(--gantt-bar-complete))'
-                                      : bar.isCritical
-                                      ? 'hsl(var(--gantt-critical))'
-                                      : (() => {
-                                          const teamDef = getTeamDefinition(task.team);
-                                          return teamDef ? teamDef.bgColor : 'hsl(var(--gantt-bar))';
-                                        })(),
+                                    background: (() => {
+                                      const teamDef = getTeamDefinition(task.team);
+                                      if (teamDef) return teamDef.bgColor;
+                                      if (bar.isDelayed) return 'hsl(var(--gantt-bar-delayed))';
+                                      if (bar.isComplete) return 'hsl(var(--gantt-bar-complete))';
+                                      if (bar.isCritical) return 'hsl(var(--gantt-critical))';
+                                      return 'hsl(var(--gantt-bar))';
+                                    })(),
                                     border: (() => {
                                       const teamDef = getTeamDefinition(task.team);
-                                      return teamDef ? `1px solid ${teamDef.borderColor}` : 'none';
+                                      return teamDef ? `1.5px solid ${teamDef.borderColor}` : 'none';
                                     })(),
                                     opacity: isDragPropagated ? 0.85 : 0.95,
                                     transition: (isDragging || isResizing || isDragPropagated) ? 'none' : 'left 0.2s ease, width 0.2s ease',
@@ -1609,26 +1603,25 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                 </div>
                                   );
                                 })()}
-                                {/* Linha pontilhada grossa = Real / Previsto */}
+                                {/* Linha tracejada cinza = apontamento diário (só se tiver logs) */}
                                 {(() => {
-                                  const rpStartIso = task.current?.startDate || task.startDate;
-                                  const rpDuration = task.current?.duration || task.duration;
-                                  if (!rpStartIso || !rpDuration) return null;
-                                  const rpLeft = diffDays(projectStart, parseISODateLocal(rpStartIso)) * dayWidth;
-                                  const rpWidth = rpDuration * dayWidth;
-                                  const rpEndIso = task.current?.forecastEndDate || task.current?.endDate || dateToISO(addDays(parseISODateLocal(rpStartIso), rpDuration));
+                                  const hasLogs = (task.dailyLogs?.length ?? 0) > 0;
+                                  if (!hasLogs || !task.current) return null;
+                                  const realLeft = diffDays(projectStart, parseISODateLocal(task.current.startDate)) * dayWidth;
+                                  const realEnd = task.current.forecastEndDate || task.current.endDate;
+                                  const realWidth = diffDays(parseISODateLocal(task.current.startDate), parseISODateLocal(realEnd)) * dayWidth;
                                   return (
                                     <div
                                       className="absolute pointer-events-none"
                                       style={{
-                                        left: rpLeft,
-                                        width: rpWidth,
-                                        top: 18,
+                                        left: realLeft,
+                                        width: Math.max(realWidth, dayWidth),
+                                        top: 17,
                                         height: 0,
-                                        borderTop: '3px dashed hsl(var(--foreground))',
+                                        borderTop: '2px dashed #6b7280',
                                         zIndex: 11,
                                       }}
-                                      title={`Real/Previsto: ${formatDateFull(rpStartIso)} → ${formatDateFull(rpEndIso)} (${rpDuration}d)`}
+                                      title={`Real/Previsto: ${formatDateFull(task.current.startDate)} → ${formatDateFull(realEnd)} (${task.current.duration}d)`}
                                     />
                                   );
                                 })()}
