@@ -1041,7 +1041,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const endNonUtil = !isDiaUtil(parseISODateLocal(endDate), obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado);
                                   const labelEl = (
                                     <span className={`text-[9px] ${rowTeamDef ? '' : 'text-foreground'} font-medium inline-flex items-center justify-center gap-0.5`}>
-                                      {endNonUtil && <AlertTriangle className="w-2.5 h-2.5 text-warning" aria-label="Fim em dia não útil" />}
+                                      {endNonUtil && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'hsl(35, 90%, 32%)', filter: 'drop-shadow(0 0 1px white)' }} aria-label="Fim em dia não útil" />}
                                       {formatDateFull(endDate)}
                                     </span>
                                   );
