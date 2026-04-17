@@ -926,7 +926,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   className={`w-full text-[10px] font-bold bg-transparent text-center focus:outline-none focus:ring-1 focus:ring-primary rounded ${
                                     rowTeamDef ? '' : ((task.durationMode || 'manual') === 'rup' ? 'text-primary' : 'text-foreground')
                                   }`}
-                                  style={rowTeamDef ? { color: 'inherit' } : undefined}
+                                  style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}
                                   value={editingDurationTaskId === task.id ? localDuration : task.duration}
                                   type="number"
                                   min={1}
