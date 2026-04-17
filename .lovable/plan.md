@@ -1,100 +1,57 @@
 
-## Objetivo
+Objetivo: corrigir a inconsistência entre a data FIM exibida e a geometria da barra no Gantt, sem quebrar CPM/dependências.
 
-Corrigir a propagação de dependências para que sucessoras se movam **em tempo real** junto com a predecessora arrastada — tanto para frente quanto para trás — independente de violação.
+Diagnóstico
+- O problema principal está em `src/components/GanttChart.tsx`: a barra usa hoje `width = (task.duration + 1) * dayWidth`.
+- Isso está errado para a convenção que você aprovou: `fim = startDate + duration - 1`.
+- Exemplo: duração `1` dia deve ocupar exatamente `1` célula no Gantt, não `2`.
+- Além disso, alguns tooltips/cálculos visuais ainda usam `addDays(..., duration)` e continuam pensando no “dia seguinte”, então a UI fica metade em regra antiga e metade em regra nova.
 
-## Diagnóstico
+Plano de correção
+1. Corrigir a largura da barra principal
+- Em `GanttChart.tsx`, voltar a largura para:
+  - `width = task.duration * dayWidth`
+- Essa é a largura correta quando a duração já representa a quantidade de dias trabalhados de forma inclusiva.
 
-### `lib/calculations.ts` — `propagateAllDependencies`
-Hoje só recalcula a sucessora **quando há violação** (`if (succStart < predEnd)` etc). Isso significa:
-- Arrastar predecessora **para frente** → empurra sucessora ✅
-- Arrastar predecessora **para trás** → sucessora fica parada ❌ (gera gap)
-- Arrastar sucessora para perto da predecessora → não "cola" ❌
+2. Unificar todos os cálculos visuais de “data fim” no Gantt
+- Onde o Gantt mostra ou calcula fim visual, usar a convenção inclusiva:
+  - `getEndDate(task.startDate, task.duration)`
+  - ou equivalente a `duration - 1`
+- Ajustar especialmente:
+  - tooltip de drag (`getDragDate`)
+  - preview de resize (`getResizeInfo`)
+  - faixa/alcance visual de capítulos (`getPhaseRange`, `getChapterBarInfo`, e extensão do gráfico se necessário)
 
-### `GanttChart.tsx` — `computeDragPropagation`
-Já existe e é chamada durante o drag, populando `dragTempTasks`. Funciona em conjunto com `propagateAllDependencies`, então herda o mesmo bug: como a função interna só propaga em violação, as sucessoras só "andam" no preview quando empurradas para frente.
+3. Não mexer na lógica de CPM/dependência
+- Manter a lógica interna de precedência/CPM como está hoje para relações TI:
+  - sucessora começa no dia seguinte ao último dia trabalhado da predecessora
+- Ou seja:
+  - visual/exibição usa “último dia trabalhado”
+  - precedência continua com a semântica operacional atual
+- Isso evita quebrar propagação e caminho crítico.
 
-### `handleUp` (commit do drag)
-Chama `runPropagation` que persiste o resultado de `propagateAllDependencies` — herda o mesmo bug.
+4. Revisar entradas manuais de data fim
+- Em `handleDateChange` e edição de baseline, recalcular duração com regra inclusiva:
+  - `newDuration = diffDays(start, end) + 1`
+- Hoje alguns trechos ainda usam `diffDays(start, end)` puro, o que pode recriar o erro ao editar datas manualmente.
 
-## Mudanças
+Arquivos a ajustar
+- `src/components/GanttChart.tsx`
+  - `getBarStyle`
+  - `getDragDate`
+  - `getResizeInfo`
+  - helpers visuais de fase/faixa do gráfico
+  - eventuais cálculos de duração ao editar início/fim
+- Opcionalmente validar coerência com:
+  - `src/components/gantt/utils.ts` (`getEndDate` já está correto)
 
-### A) `src/lib/calculations.ts` — propagação **sempre** (vínculo rígido)
+Resultado esperado
+- Tarefa de 1 dia começa e termina no mesmo dia na coluna FIM e também na barra.
+- A barra de “Furo mecanizado” passa a terminar exatamente no mesmo dia mostrado na coluna lateral.
+- Drag, resize e labels de data deixam de mostrar um dia a mais.
+- CPM e dependências continuam funcionando sem regressão.
 
-Reescrever o `switch` dentro de `propagate()`:
-
-```ts
-switch (type) {
-  case 'TI': newStartDate = predEnd; break;                           // Início = Fim do pred
-  case 'II': newStartDate = predStart; break;                         // Início = Início do pred
-  case 'TT': newStartDate = addDaysCalc(predEnd, -succ.duration); break;  // Fim = Fim do pred
-  case 'IT': newStartDate = addDaysCalc(predStart, -succ.duration); break; // Fim = Início do pred
-}
-```
-
-Remover todas as condições `if (succStart < predEnd)`. A propagação passa a ser **incondicional** (FS rígido / SS rígido / FF rígido / SF rígido), o que dá o comportamento "sucessoras seguem a predecessora em tempo real para frente E para trás".
-
-E o teste de mudança fica:
-
-```ts
-if (newStartDate !== null) {
-  const newISO = dateToISO(newStartDate);
-  if (newISO !== succ.startDate) {
-    taskMap.set(successorId, { ...succ, startDate: newISO });
-    anyChanged = true;
-    adjustedTypes.add(type);
-    propagate(successorId, depth + 1);
-  }
-}
-```
-
-Isso evita loop infinito (só recursa quando a data realmente mudou) mas garante cascata em ambas as direções.
-
-### B) `checkDependencyViolation` — manter
-
-Continua válida para o caso "usuário arrasta a **sucessora** para uma posição inválida em relação à predecessora não arrastada" (toast de aviso). Não mexer.
-
-### C) `GanttChart.tsx` — `computeDragPropagation`
-
-A versão atual já está correta no formato; só precisa ajustar para incluir **todas** as tarefas modificadas (não filtrar por "diferente da original"):
-
-```ts
-const computeDragPropagation = useCallback((taskId: string, newStartDate: string) => {
-  const allTasks = getAllTasks(project).map(t =>
-    t.id === taskId ? { ...t, startDate: newStartDate } : t
-  );
-  const result = propagateAllDependencies(allTasks, taskId);
-  const tempMap = new Map<string, { startDate: string }>();
-  result.tasks.forEach(t => {
-    if (t.id !== taskId) tempMap.set(t.id, { startDate: t.startDate });
-  });
-  return tempMap;
-}, [project]);
-```
-
-### D) Renderização — `currentLeft` quando `isDragPropagated`
-
-Já existe um bloco `else if (isDragPropagated)`. Confirmar (e corrigir se necessário) que usa `parseISODateLocal` em vez de `new Date()` para evitar shift de fuso, e que mantém a largura original:
-
-```ts
-} else if (isDragPropagated) {
-  const tempData = dragTempTasks.get(task.id)!;
-  const tempStart = diffDays(projectStart, parseISODateLocal(tempData.startDate));
-  currentLeft = tempStart * dayWidth;
-  // currentWidth permanece (duração não muda na propagação)
-}
-```
-
-### E) `handleUp` — commit final
-
-Verificar que após o drag, `runPropagation` (ou equivalente) é chamado e **todas** as tarefas alteradas em `result.tasks` são persistidas no `project` — não só as que violaram. Como `propagateAllDependencies` agora sempre retorna o conjunto correto, basta gravar `result.tasks` inteiro de volta no estado.
-
-## Arquivos
-- `src/lib/calculations.ts` — reescrever switch em `propagateAllDependencies`
-- `src/components/GanttChart.tsx` — confirmar `computeDragPropagation`, render de `isDragPropagated` e `handleUp`
-
-## Resultado
-- Arrastar predecessora **para frente**: sucessoras avançam em tempo real
-- Arrastar predecessora **para trás**: sucessoras recuam em tempo real (sem gap)
-- Cascata multi-nível mantida (limite de profundidade 50 preservado)
-- `checkDependencyViolation` continua avisando quando o usuário arrasta sucessora para posição inválida
+Detalhe técnico importante
+- O erro não é “a data não atualizou”; a data já foi corrigida.
+- O que ficou errado foi a geometria do Gantt, porque a barra foi expandida artificialmente em `+1 dayWidth`.
+- Então a correção certa é alinhar toda a camada visual ao mesmo conceito de fim inclusivo, sem tocar na semântica de precedência.
