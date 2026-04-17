@@ -1048,7 +1048,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const previsto = task.current?.forecastEndDate || task.current?.endDate;
                                   const isLate = !!previsto && previsto > endDate;
                                   const prevLine = hasRealData && previsto ? (
-                                    <span className={`text-[8px] font-semibold leading-none ${isLate ? 'text-destructive' : 'text-success'}`}>
+                                    <span
+                                      className="text-[8px] font-semibold leading-none"
+                                      style={{
+                                        color: isLate ? 'hsl(0, 75%, 32%)' : 'hsl(150, 70%, 24%)',
+                                        filter: 'drop-shadow(0 0 1px hsl(var(--background)))',
+                                      }}
+                                    >
                                       Prev: {formatDateFull(previsto)}
                                     </span>
                                   ) : null;
