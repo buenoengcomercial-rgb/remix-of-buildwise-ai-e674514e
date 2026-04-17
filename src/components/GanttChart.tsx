@@ -1109,9 +1109,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     value={depTypes[0].type}
                                     onValueChange={(val) => handleDepTypeChange(task.id, 0, val as DependencyType)}
                                   >
-                                    <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: 'inherit' } : undefined}>
+                                    <SelectTrigger className="h-5 min-h-0 px-1 py-0 text-[9px] border-border/50 bg-transparent" style={rowTeamDef ? { color: rowTeamDef.textColor } : undefined}>
                                        <SelectValue />
-                                    </SelectTrigger>
+                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="TI" className="text-[10px]">TI</SelectItem>
                                       <SelectItem value="II" className="text-[10px]">II</SelectItem>
