@@ -1603,7 +1603,29 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     className="h-full rounded-md opacity-30"
                                     style={{ width: `${task.percentComplete}%`, background: 'white', borderRadius: 6 }}
                                   />
-
+                                  {/* Indicador de ritmo (faixa direita) — só com apontamentos */}
+                                  {(() => {
+                                    const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+                                    if (!logs.length || !task.quantity || !task.duration) return null;
+                                    const planned = task.quantity / task.duration;
+                                    const real = logs.reduce((s, l) => s + (l.actualQuantity || 0), 0) / logs.length;
+                                    const onPace = real >= planned;
+                                    return (
+                                      <div
+                                        className="absolute top-0 right-0 h-full pointer-events-none"
+                                        style={{
+                                          width: 4,
+                                          background: onPace ? '#166534' : '#991b1b',
+                                          opacity: 0.85,
+                                          borderRadius: '0 6px 6px 0',
+                                        }}
+                                        title={onPace
+                                          ? 'Ritmo no prazo'
+                                          : `Ritmo: ${((real / planned) * 100).toFixed(0)}% do planejado`
+                                        }
+                                      />
+                                    );
+                                  })()}
                                 </div>
                                   );
                                 })()}
