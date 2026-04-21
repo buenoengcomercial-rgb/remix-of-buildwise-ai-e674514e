@@ -618,6 +618,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           }
         }
       }
+      // Limpa as transformações DOM antes do React re-renderizar
+      barRefs.current.forEach(el => {
+        el.style.transform = '';
+        el.style.transition = '';
+        el.style.opacity = '';
+        delete el.dataset.origLeft;
+      });
       setDraggingTaskId(null);
       setDragOffset(0);
       setDragTempTasks(new Map());
