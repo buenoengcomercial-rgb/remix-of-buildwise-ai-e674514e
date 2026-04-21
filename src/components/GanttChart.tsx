@@ -1469,6 +1469,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   return (
                                 <div
                                   className={`absolute rounded-md ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
+                                  title={`${formatDateFull(task.startDate)} → ${formatDateFull(getEndDate(task.startDate, task.duration))} | ${task.duration}d — Arraste para mover`}
                                   style={{
                                     left: barLeft,
                                     width: barWidth,
@@ -1493,12 +1494,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     cursor: 'grab',
                                   }}
                                   onMouseDown={(e) => {
-                                    // Check if near edges for resize
                                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                     const relX = e.clientX - rect.left;
-                                    if (relX <= 8 && currentWidth > dayWidth) {
+                                    const barW = rect.width;
+                                    // Em barras pequenas (<=24px), zona de resize = 0 → tudo é drag
+                                    const resizeZone = barW > 24 ? 8 : 0;
+                                    if (resizeZone > 0 && relX <= resizeZone && barW > dayWidth) {
                                       handleResizeMouseDown(e, task.id, 'left');
-                                    } else if (relX >= rect.width - 8) {
+                                    } else if (resizeZone > 0 && relX >= barW - resizeZone) {
                                       handleResizeMouseDown(e, task.id, 'right');
                                     } else {
                                       handleMouseDown(e, task.id, bar.left);
@@ -1507,7 +1510,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   onMouseMove={(e) => {
                                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                     const relX = e.clientX - rect.left;
-                                    if (relX <= 8 || relX >= rect.width - 8) {
+                                    const barW = rect.width;
+                                    const resizeZone = barW > 24 ? 8 : 0;
+                                    if (resizeZone > 0 && (relX <= resizeZone || relX >= barW - resizeZone)) {
                                       (e.currentTarget as HTMLElement).style.cursor = 'col-resize';
                                     } else {
                                       (e.currentTarget as HTMLElement).style.cursor = 'grab';
