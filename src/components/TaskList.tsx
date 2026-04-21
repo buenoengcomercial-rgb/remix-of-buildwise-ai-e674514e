@@ -1070,16 +1070,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       );
                                     })}
 
-                                    {sim && (
-                                      <div className="mt-2 p-2.5 rounded-lg bg-info/10 border border-info/20">
-                                        <p className="text-[11px] text-info font-medium">
-                                          ⚡ Simulação: dobrando a equipe → <strong>{sim.duration} dias</strong> ({Math.round(sim.totalHours)}h)
-                                          {sim.duration < task.duration && (
-                                            <span className="text-success ml-1">(reduz {task.duration - sim.duration} dias!)</span>
-                                          )}
-                                        </p>
-                                      </div>
-                                    )}
+
 
                                     {task.isCritical && (
                                       <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-2">
