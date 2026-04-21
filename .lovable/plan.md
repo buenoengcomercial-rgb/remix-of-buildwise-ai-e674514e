@@ -1,66 +1,64 @@
 
 
-## Plano: numeração editável reordena hierarquia + drag de capítulo realmente funcional
+## Plano: hierarquia real por arrastar e soltar entre capítulos
 
-### Problemas atuais
+### O que existe hoje
+- O drag-and-drop de capítulo já permite "before/after/inside" no header — soltar com `inside` chama `handleMoveChapter` e converte em subcapítulo.
+- Porém: (a) o drop só funciona em cima do **header** (não no corpo aberto do capítulo); (b) não existe drop zone explícita para "tirar" um subcapítulo de volta para raiz; (c) o feedback visual é discreto e não diferencia "vai virar subcapítulo" de "vai reordenar"; (d) a inserção como filho não garante que vá para o **final** com `order` correto.
 
-1. **Numeração editada não reordena**: ao mudar o número do capítulo de "3" para "2", ele apenas grava `customNumber="2"` mas não muda a posição na lista — o capítulo continua exibido na sua ordem anterior, ficando "2" acima de "1".
-2. **Drag com mouse não funciona**: o `draggable` está no header da linha do capítulo, mas todo o conteúdo (incluindo nome, botão de número, ações) tem `onMouseDown={e.stopPropagation()}` ou está ocupando a área. Em alguns navegadores o `cursor-grab` aparece, mas o HTML5 DnD não inicia se o ponteiro estiver sobre filhos com `stopPropagation` ou inputs. Além disso, falta `preventDefault` no `onDragOver` da janela, então o cursor vira "proibido".
-3. **Reordenar via drag não atualiza numeração**: hoje o `reorderChapter` muda o `order`, mas se o capítulo tem `customNumber` definido, a numeração exibida continua a antiga (porque `getChapterNumbering` prioriza `customNumber` sobre a ordem). Resultado: arrastar não muda o número visível.
+### Mudanças em `src/lib/chapters.ts`
 
----
+1. **`moveChapter` — anexar como último filho com `order` correto**
+   - Quando `newParentId` é definido, calcular `order = max(orderDosFilhosExistentes) + 1` para o capítulo movido (em vez de manter o `order` antigo).
+   - Quando `newParentId` é `null` (promoção a raiz), idem: `order = max(rootOrders) + 1` (vira o último capítulo principal).
+   - Garante a regra "anexar como último filho do destino" e numeração correta (ex.: vira `[4.2]` se o pai 4 já tem `[4.1]`).
 
-### Correções (em `src/components/TaskList.tsx` e `src/lib/chapters.ts`)
+2. **Helper `promoteChapterToRoot(project, chapterId)`** — wrapper de `safeMoveChapter(project, id, null)` para clareza.
 
-**1. Numeração editável reordena automaticamente** (`saveChapterNumber` em `TaskList.tsx`)
+### Mudanças em `src/components/TaskList.tsx`
 
-Reescrever para que, ao salvar um número:
-- Se o valor for um inteiro simples (ex.: "2", "3") em capítulo principal: recalcular `order` de todos os capítulos do mesmo nível, inserindo o capítulo editado na posição `(número − 1)` e reindexando os demais sequencialmente.
-- Se o valor for hierárquico (ex.: "1.2") em subcapítulo: extrair o segundo segmento como índice e reordenar entre os irmãos do mesmo `parentId`.
-- Se o valor for hierárquico em capítulo principal (ex.: "1.3" digitado num root): converter automaticamente em subcapítulo do capítulo "1" via `safeMoveChapter` + reposicionar.
-- Limpar `customNumber` (deixar `undefined`) após reordenar — assim a numeração automática reflete a nova posição imediatamente, sem conflito.
-- Manter `customNumber` apenas quando o usuário digitar algo não-numérico (ex.: "1A", "Anexo") — nesses casos só preserva o rótulo customizado.
+1. **Drop no corpo do capítulo (não só no header)**
+   - Envolver o `motion.div` inteiro do cartão (header + AnimatePresence) com `onDragOver`/`onDrop` apontando para `phase.id`.
+   - Lógica em `handleChapterDragOver`: se o evento vem do header, calcular `before/inside/after` por terços (como já faz). Se vem do corpo expandido, **forçar `dropPosition = 'inside'`** — soltar em qualquer parte do corpo aberto vira subcapítulo.
+   - Para diferenciar, marcar o container do corpo com `data-chapter-body` e checar `e.target.closest('[data-chapter-body]')` no handler.
 
-Adicionar helper em `src/lib/chapters.ts`:
-```ts
-export function reorderChapterByNumber(
-  project: Project,
-  chapterId: string,
-  desiredNumber: string,
-): Project
-```
-Que aplica a lógica acima e devolve um novo `Project` com `order` recalculado e `customNumber` limpo quando aplicável.
+2. **Drop zone "Promover a capítulo principal"**
+   - Quando `dragChapterId` aponta para um **subcapítulo** (tem `parentId`), renderizar no topo da lista uma faixa tracejada `"⬆ Soltar aqui para promover a capítulo principal"` com `onDrop={() => handleMoveChapter(dragChapterId, null)}`.
+   - Faixa só aparece durante o drag, animada (fade-in).
 
-**2. Drag-and-drop com mouse realmente funcional**
+3. **Feedback visual aprimorado**
+   - `inside` (vai virar subcapítulo): `ring-4 ring-primary` + overlay azul translúcido com texto absoluto `"➜ Virará subcapítulo de [N] Nome"` no canto superior direito do cartão alvo.
+   - `before`/`after` (reordenar mesmo nível): linha azul de 2px (já existe) + tooltip pequeno `"Reordenar"` no cursor.
+   - Cursor durante drag: `cursor-grabbing` global via classe no `<body>` aplicada em `dragstart` e removida em `dragend`.
+   - Capítulo arrastado: `opacity-40` + `scale-[0.98]` (já tem `opacity-50`, refinar).
 
-- Trocar o handler do header: o `draggable` continua no container do header, mas remover `onClick={togglePhase}` desse mesmo div (mover o toggle para o ícone `Chevron` apenas) — clicar e arrastar conflitavam.
-- Adicionar listener global `onDragOver={e => e.preventDefault()}` no container raiz do `TaskList` para que o cursor permaneça "grab" durante o arrasto sobre áreas neutras.
-- Garantir `e.dataTransfer.setData('text/plain', chapterId)` (alguns browsers exigem `text/plain` para iniciar o drag) além do tipo customizado.
-- Remover `onMouseDown={stopPropagation}` desnecessários do botão de numeração e nome — manter `stopPropagation` apenas no modo de edição (input ativo).
-- Aumentar a área de drop: o `onDragOver`/`onDrop` deve estar no card inteiro (não só no header), para facilitar soltar entre capítulos.
-- Adicionar uma "drop zone" no FINAL da lista de capítulos (linha tracejada) para permitir mover um capítulo para a última posição.
+4. **Auto-expandir destino ao soltar como subcapítulo**
+   - Já existe (`setExpandedPhases(prev => new Set([...prev, newParentId]))`). Garantir que também acontece quando a soltura é feita pelo corpo do capítulo aberto.
 
-**3. Drag de reposicionamento atualiza numeração visível**
+5. **Persistência**
+   - Já é automática via `onProjectChange` → `localStorage` (memória core do projeto). Nenhuma mudança extra necessária.
 
-Modificar `handleChapterDrop` em `TaskList.tsx`:
-- Ao chamar `reorderChapter`, também limpar o `customNumber` do capítulo arrastado (e dos irmãos do mesmo nível) para que `getChapterNumbering` use a nova ordem automaticamente.
-- Resultado: arrastar o capítulo "3" para o topo o renumera visualmente para "1", e os demais descem para "2", "3", etc.
+6. **Suporte a múltiplos níveis (>2)**
+   - `getChapterTree` hoje só monta 2 níveis (root + filhos diretos). Estender para recursão real:
+     - `ChapterNode` ganha `children: ChapterNode[]` (em vez de `Phase[]`).
+     - Renderização em `TaskList.tsx` vira recursiva: `renderChapterNode(node, depth)` — indenta `ml-6 * depth`.
+     - `getChapterNumbering` recursivo: `1`, `1.1`, `1.1.1`, etc.
+     - `flattenPhasesByChapter` adaptado (DFS).
+   - Mantém compatibilidade: phases sem `parentId` continuam raízes.
 
-**4. Feedback visual durante o drag**
+7. **Não-ciclo**
+   - `isDescendant` já protege. Reforçar no `handleChapterDragOver`: se `targetId` é descendente de `dragChapterId`, ignorar (não setar `dropChapterTargetId`, não mostrar highlight).
 
-- Manter as linhas indicadoras (`before:`/`after:`) já existentes.
-- Adicionar destaque azul mais forte (`ring-2 ring-primary`) no card alvo quando `dropPosition === 'inside'` para deixar claro que será nested.
-- Mudar o cursor do header para `cursor-move` (mais universal que `grab`).
-
----
+### Critérios de aceite cobertos
+1. ✅ Arrastar com botão esquerdo no handle do cartão.
+2. ✅ Soltar no header de outro capítulo → vira subcapítulo (`inside`).
+3. ✅ Soltar dentro do corpo aberto de outro capítulo → vira subcapítulo (novo).
+4. ✅ Numeração recalculada via `getChapterNumbering` (já usa `order`).
+5. ✅ Persistência via localStorage.
+6. ✅ Conversão real (atualiza `parentId` + `order`).
+7. ✅ Drop zone no topo para promover subcapítulo a raiz.
 
 ### Arquivos afetados
-- `src/lib/chapters.ts` — adicionar `reorderChapterByNumber`.
-- `src/components/TaskList.tsx` — reescrever `saveChapterNumber`, ajustar handlers de drag, mover `onClick` do toggle para o ícone Chevron, adicionar drop zone final.
-
-### Resultado esperado
-- Editar a numeração de um capítulo o move instantaneamente para a posição correta, e os demais são renumerados.
-- Segurar com botão esquerdo no header de qualquer capítulo e arrastar para cima/baixo funciona em todos os navegadores.
-- Ao soltar, a numeração visível reflete a nova ordem (sem precisar editar manualmente).
-- Editar nome, número ou clicar em ações continua funcionando sem disparar drag acidental.
+- `src/lib/chapters.ts` — `moveChapter` ajusta `order`; `getChapterTree`/`getChapterNumbering`/`flattenPhasesByChapter` recursivos para suportar N níveis.
+- `src/components/TaskList.tsx` — drop no corpo do cartão, drop zone de promoção, feedback visual reforçado, render recursivo de subcapítulos.
 
