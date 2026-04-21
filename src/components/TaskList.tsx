@@ -1137,6 +1137,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                           </div>
                         );
                       })}
+                      </div>
                     </div>
                   </motion.div>
                 )}
