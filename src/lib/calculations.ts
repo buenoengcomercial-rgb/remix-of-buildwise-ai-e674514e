@@ -563,7 +563,9 @@ export function checkDependencyViolation(
   newStartDate: string,
   allTasks: Task[],
 ): { predName: string; predId: string; type: DependencyType } | null {
-  const details = task.dependencyDetails || [];
+  const details = (task.dependencyDetails && task.dependencyDetails.length)
+    ? task.dependencyDetails
+    : (task.dependencies || []).map(id => ({ taskId: id, type: 'TI' as DependencyType }));
   const taskMap = new Map(allTasks.map(t => [t.id, t]));
 
   for (const dep of details) {
