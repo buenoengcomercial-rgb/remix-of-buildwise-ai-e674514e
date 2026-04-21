@@ -1148,10 +1148,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                       })}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
-            </motion.div>
+              </div>
             </div>
           );
         };
@@ -1160,9 +1159,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           <div className="space-y-3">
             {/* Drop zone para promover a capítulo principal (apenas para subcapítulos) */}
             {dragChapterId && project.phases.find(p => p.id === dragChapterId)?.parentId && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDropChapterTargetId('__root__'); }}
                 onDrop={e => handleChapterDrop(e, null)}
                 className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
@@ -1173,7 +1170,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               >
                 <ArrowUpFromLine className="w-3.5 h-3.5 inline mr-1" />
                 ⬆ Soltar aqui para promover a Capítulo Principal
-              </motion.div>
+              </div>
             )}
 
             {(() => {
