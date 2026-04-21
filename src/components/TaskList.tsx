@@ -669,12 +669,13 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               <AnimatePresence>
                 {isExpanded && (
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                    <div className="border-t border-border">
-                      <div className="grid gap-2 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr' }}>
+                    <div className="border-t border-border overflow-x-auto">
+                      <div className="min-w-[1240px]">
+                      <div className="grid gap-2 px-4 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '32px 220px 90px 90px 110px 70px 60px 95px 50px 110px 130px 95px 110px' }}>
                         <div>Eq.</div>
                         <div>Tarefa</div>
                         <div>Qtd.</div>
-                        <div className="text-center">Prod. Diária</div>
+                        <div className="text-center">Prod./dia</div>
                         <div>Responsável</div>
                         <div>Duração</div>
                         <div>Horas</div>
