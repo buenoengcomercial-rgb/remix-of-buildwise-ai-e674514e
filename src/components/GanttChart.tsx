@@ -522,22 +522,33 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setDragOffset(0);
     setDragTempTasks(new Map());
 
-    const handleMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - dragStartX.current;
-      setDragOffset(dx);
+    lastDragDays.current = null;
+    dragRafPending.current = false;
 
-      // Real-time propagation preview
-      const daysMoved = Math.round(dx / dayWidth);
-      const task = tasks.find(t => t.id === taskId);
-      if (task) {
-        const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
-        const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
-        setDragTempTasks(tempMap);
-      }
+    const handleMove = (ev: MouseEvent) => {
+      lastDragDx.current = ev.clientX - dragStartX.current;
+      if (dragRafPending.current) return;
+      dragRafPending.current = true;
+      requestAnimationFrame(() => {
+        dragRafPending.current = false;
+        const dx = lastDragDx.current;
+        setDragOffset(dx);
+        const daysMoved = Math.round(dx / dayWidth);
+        if (daysMoved !== lastDragDays.current) {
+          lastDragDays.current = daysMoved;
+          const task = tasks.find(t => t.id === taskId);
+          if (task) {
+            const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
+            const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
+            setDragTempTasks(tempMap);
+          }
+        }
+      });
     };
     const handleUp = (ev: MouseEvent) => {
       document.removeEventListener('mousemove', handleMove);
       document.removeEventListener('mouseup', handleUp);
+      dragRafPending.current = false;
       const dx = ev.clientX - dragStartX.current;
       const daysMoved = Math.round(dx / dayWidth);
       if (daysMoved !== 0) {
