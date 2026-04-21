@@ -983,6 +983,12 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                   className="overflow-hidden border-t border-border bg-muted/20"
                                 >
                                   <div className="px-8 py-3 space-y-3">
+                                    <div className="grid grid-cols-4 gap-2 mb-1 p-2 bg-muted/30 rounded text-[10px]">
+                                      <div><span className="text-muted-foreground">Responsável:</span> {task.responsible || '—'}</div>
+                                      <div><span className="text-muted-foreground">Horas:</span> {Math.round(task.totalHours || task.duration * DAILY_HOURS)}h</div>
+                                      <div><span className="text-muted-foreground">Folga:</span> {task.float !== undefined ? `${task.float}d` : '—'}</div>
+                                      <div><span className="text-muted-foreground">Desvio:</span> {task.baseline ? `${task.duration - task.baseline.duration > 0 ? '+' : ''}${task.duration - task.baseline.duration}d` : '—'}</div>
+                                    </div>
                                     <div className="flex items-center justify-between flex-wrap gap-2">
                                       <h4 className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
                                         <Zap className="w-3.5 h-3.5 text-warning" />
