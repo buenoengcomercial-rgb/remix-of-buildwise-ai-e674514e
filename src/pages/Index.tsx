@@ -6,7 +6,7 @@ import GanttChart from '@/components/GanttChart';
 import TaskList from '@/components/TaskList';
 import Purchases from '@/components/Purchases';
 import { Menu, X } from 'lucide-react';
-import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup } from '@/lib/calculations';
+import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
 import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject } from '@/lib/projectStorage';
 
 export default function Index() {
@@ -24,9 +24,11 @@ export default function Index() {
 
   const project = useMemo(
     () => calculateCPM(
-      applyDailyLogsToProject(
-        syncBaselineWithRup(
-          applyRupToProject(captureBaseline(deferredRawProject))
+      settleAllDependencies(
+        applyDailyLogsToProject(
+          syncBaselineWithRup(
+            applyRupToProject(captureBaseline(deferredRawProject))
+          )
         )
       )
     ),

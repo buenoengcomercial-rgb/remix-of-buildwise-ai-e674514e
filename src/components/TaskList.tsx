@@ -432,6 +432,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       startDate: lastEnd.toISOString().split('T')[0],
       duration: 5,
       dependencies: lastTask ? [lastTask.id] : [],
+      // TI por padrão para que a propagação automática alinhe a nova tarefa ao fim da anterior.
+      dependencyDetails: lastTask ? [{ taskId: lastTask.id, type: 'TI' }] : [],
       responsible: '',
       percentComplete: 0,
       level: 0,

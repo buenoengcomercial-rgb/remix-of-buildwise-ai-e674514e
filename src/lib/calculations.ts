@@ -446,7 +446,10 @@ export function propagateAllDependencies(
   // Build successor index: predId -> [{successorId, type}]
   const successorIndex = new Map<string, { successorId: string; type: DependencyType }[]>();
   tasks.forEach(t => {
-    const details = t.dependencyDetails || [];
+    const details = (t.dependencyDetails && t.dependencyDetails.length)
+      ? t.dependencyDetails
+      // Backfill: tarefas com `dependencies` mas sem `dependencyDetails` são tratadas como TI por padrão.
+      : (t.dependencies || []).map(id => ({ taskId: id, type: 'TI' as DependencyType }));
     details.forEach(dep => {
       if (!successorIndex.has(dep.taskId)) successorIndex.set(dep.taskId, []);
       successorIndex.get(dep.taskId)!.push({ successorId: t.id, type: dep.type });
@@ -466,14 +469,16 @@ export function propagateAllDependencies(
       if (!pred || !succ) continue;
 
       const predStart = parseISODateLocal(pred.startDate);
-      const predEnd = addDaysCalc(predStart, pred.duration);
+      // Fim = último dia trabalhado = start + (duration − 1).
+      // O dia seguinte (start + duration) é o "predEndExclusive" usado para TI.
+      const predEndExclusive = addDaysCalc(predStart, pred.duration);
 
       let newStartDate: Date | null = null;
 
       switch (type) {
         case 'TI':
-          // Início da sucessora = Fim da predecessora (vínculo rígido)
-          newStartDate = predEnd;
+          // Início da sucessora = dia seguinte ao último dia da predecessora
+          newStartDate = predEndExclusive;
           break;
         case 'II':
           // Início da sucessora = Início da predecessora
@@ -481,10 +486,12 @@ export function propagateAllDependencies(
           break;
         case 'TT':
           // Fim da sucessora = Fim da predecessora
-          newStartDate = addDaysCalc(predEnd, -succ.duration);
+          // succEndExclusive = succStart + succ.duration  → succStart = predEndExclusive − succ.duration
+          newStartDate = addDaysCalc(predEndExclusive, -succ.duration);
           break;
         case 'IT':
           // Fim da sucessora = Início da predecessora
+          // succEndExclusive = predStart  → succStart = predStart − succ.duration
           newStartDate = addDaysCalc(predStart, -succ.duration);
           break;
       }
@@ -511,6 +518,43 @@ export function propagateAllDependencies(
 }
 
 /**
+ * Settle ALL dependency relationships in the project.
+ * Iteratively propagates from every task until no more changes occur (or safety cap).
+ * Use this after bulk edits (RUP recompute, baseline sync, daily logs) to ensure
+ * every TI/II/TT/IT link is honored regardless of edit origin.
+ */
+export function settleAllDependencies(project: Project): Project {
+  let allTasks = getAllTasks(project);
+  if (allTasks.length === 0) return project;
+
+  // Topologically order so predecessors are propagated before successors when possible.
+  const order = allTasks.map(t => t.id);
+
+  let safety = 0;
+  let changedAny = true;
+  while (changedAny && safety < 10) {
+    safety++;
+    changedAny = false;
+    for (const id of order) {
+      const result = propagateAllDependencies(allTasks, id);
+      if (result.changed) {
+        allTasks = result.tasks;
+        changedAny = true;
+      }
+    }
+  }
+
+  const byId = new Map(allTasks.map(t => [t.id, t]));
+  return {
+    ...project,
+    phases: project.phases.map(p => ({
+      ...p,
+      tasks: p.tasks.map(t => byId.get(t.id) || t),
+    })),
+  };
+}
+
+/**
  * Check if dragging a successor to a position violates its dependency.
  * Returns the violated dependency info or null.
  */
@@ -519,7 +563,9 @@ export function checkDependencyViolation(
   newStartDate: string,
   allTasks: Task[],
 ): { predName: string; predId: string; type: DependencyType } | null {
-  const details = task.dependencyDetails || [];
+  const details = (task.dependencyDetails && task.dependencyDetails.length)
+    ? task.dependencyDetails
+    : (task.dependencies || []).map(id => ({ taskId: id, type: 'TI' as DependencyType }));
   const taskMap = new Map(allTasks.map(t => [t.id, t]));
 
   for (const dep of details) {
