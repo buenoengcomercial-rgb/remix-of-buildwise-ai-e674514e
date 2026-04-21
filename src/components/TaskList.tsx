@@ -247,9 +247,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     e.dataTransfer.effectAllowed = 'move';
     try {
       e.dataTransfer.setData('application/x-chapter-id', chapterId);
-      // Alguns browsers (Firefox) exigem text/plain para iniciar o drag.
       e.dataTransfer.setData('text/plain', chapterId);
     } catch { /* noop */ }
+    document.body.classList.add('cursor-grabbing');
   }, []);
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
