@@ -16,43 +16,49 @@ import { checkDependencyViolation } from '@/lib/calculations';
 
 export interface ChapterNode {
   phase: Phase;
-  children: Phase[]; // subcapítulos diretos
+  children: ChapterNode[]; // subcapítulos diretos (recursivo)
 }
 
-/** Agrupa as phases do projeto em árvore (capítulo → subcapítulos). */
+/** Agrupa as phases do projeto em árvore recursiva (N níveis). */
 export function getChapterTree(project: Project): ChapterNode[] {
   const phases = [...project.phases];
   const sortFn = (a: Phase, b: Phase) =>
     (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER);
 
-  const roots = phases.filter(p => !p.parentId).sort(sortFn);
   const childrenByParent = new Map<string, Phase[]>();
   phases.forEach(p => {
-    if (p.parentId) {
-      if (!childrenByParent.has(p.parentId)) childrenByParent.set(p.parentId, []);
-      childrenByParent.get(p.parentId)!.push(p);
-    }
+    const key = p.parentId ?? '__root__';
+    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
+    childrenByParent.get(key)!.push(p);
   });
   childrenByParent.forEach(arr => arr.sort(sortFn));
 
-  return roots.map(root => ({
-    phase: root,
-    children: childrenByParent.get(root.id) ?? [],
-  }));
+  const visited = new Set<string>();
+  const buildNode = (phase: Phase): ChapterNode => {
+    visited.add(phase.id);
+    const childPhases = childrenByParent.get(phase.id) ?? [];
+    return {
+      phase,
+      children: childPhases.filter(c => !visited.has(c.id)).map(buildNode),
+    };
+  };
+
+  const roots = childrenByParent.get('__root__') ?? [];
+  return roots.map(buildNode);
 }
 
 /**
- * Reordena `project.phases` para que cada capítulo principal apareça
- * imediatamente seguido por seus subcapítulos. Mantém compatibilidade
- * com componentes que iteram `project.phases` linearmente (Gantt).
+ * Achata recursivamente em DFS para que cada capítulo apareça seguido
+ * por todos os seus descendentes em ordem de árvore.
  */
 export function flattenPhasesByChapter(project: Project): Phase[] {
   const tree = getChapterTree(project);
   const out: Phase[] = [];
-  tree.forEach(node => {
+  const walk = (node: ChapterNode) => {
     out.push(node.phase);
-    node.children.forEach(child => out.push(child));
-  });
+    node.children.forEach(walk);
+  };
+  tree.forEach(walk);
   // Inclui phases órfãs (parentId apontando para alguém inexistente)
   const ids = new Set(out.map(p => p.id));
   project.phases.forEach(p => {
