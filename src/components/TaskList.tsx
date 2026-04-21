@@ -539,11 +539,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           return (
             <div
               key={phase.id}
-              draggable
-              onDragStart={e => handleChapterDragStart(e, phase.id)}
-              onDragOver={e => handleChapterDragOver(e, phase.id)}
-              onDrop={e => handleChapterDrop(e, phase.id)}
-              onDragEnd={handleChapterDragEnd}
               className={isSub ? 'ml-6' : ''}
             >
             <motion.div
@@ -554,12 +549,25 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
               } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-center">
+              <div
+                className="flex items-center"
+                onDragOver={e => handleChapterDragOver(e, phase.id)}
+                onDrop={e => handleChapterDrop(e, phase.id)}
+              >
                 <button
                   onClick={() => togglePhase(phase.id)}
                   className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
                 >
-                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab" />
+                  <span
+                    draggable
+                    onDragStart={e => handleChapterDragStart(e, phase.id)}
+                    onDragEnd={handleChapterDragEnd}
+                    onClick={e => e.stopPropagation()}
+                    className="cursor-grab active:cursor-grabbing"
+                    title="Arraste para mover este capítulo"
+                  >
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  </span>
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
                   <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{num}</span>
