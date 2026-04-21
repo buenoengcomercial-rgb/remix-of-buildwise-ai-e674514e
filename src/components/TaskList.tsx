@@ -1033,8 +1033,53 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               </AnimatePresence>
             </motion.div>
           );
-        })}
-      </div>
+        };
+
+        return (
+          <div className="space-y-3">
+            {/* Drop zone para promover a capítulo principal */}
+            {dragChapterId && (
+              <div
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDropChapterTargetId('__root__'); }}
+                onDrop={e => handleChapterDrop(e, null)}
+                className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
+                  dropChapterTargetId === '__root__'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground'
+                }`}
+              >
+                <ArrowUpFromLine className="w-3.5 h-3.5 inline mr-1" />
+                Soltar aqui para promover a Capítulo Principal
+              </div>
+            )}
+
+            {tree.map((node, idx) => (
+              <div key={node.phase.id} className="space-y-2">
+                {renderPhaseCard(node.phase, idx, false)}
+                {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
+                  renderPhaseCard(child, idx * 100 + cIdx, true),
+                )}
+                {/* Atalho para criar subcapítulo */}
+                {expandedPhases.has(node.phase.id) && (
+                  <div className="ml-6">
+                    <button
+                      onClick={() => addPhase(node.phase.id)}
+                      className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
+                    >
+                      <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Phases órfãs (parentId apontando para um capítulo inexistente) */}
+            {project.phases
+              .filter(p => p.parentId && !project.phases.some(c => c.id === p.parentId))
+              .map((p, i) => renderPhaseCard(p, tree.length + i, false))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
