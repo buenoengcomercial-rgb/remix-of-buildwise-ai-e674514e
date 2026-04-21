@@ -276,11 +276,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const taskYPositions = useMemo(() => {
     const map = new Map<string, number>();
     const PHASE_HEADER_HEIGHT = ROW_HEIGHT + 20;
+    const SUBHEADER_HEIGHT = 18;
     let y = 0;
     displayPhases.forEach(phase => {
       // Header do capítulo é sempre renderizado (botão + linha de datas)
       y += PHASE_HEADER_HEIGHT;
       if (!collapsedPhases.has(phase.id)) {
+        if (phase.tasks.length > 0) y += SUBHEADER_HEIGHT;
         phase.tasks
           .filter(t => !showCriticalOnly || t.isCritical)
           .forEach(task => {
@@ -864,7 +866,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   }, [obraConfig]);
 
   const sidebarCols = '24px 1fr 88px 88px 44px 22px 60px 60px 52px 48px 56px';
-  const sidebarWidth = 646;
+  const sidebarWidth = 760;
 
   // Toggle duration mode and recalculate if switching to RUP
   const toggleDurationMode = (taskId: string) => {
@@ -1181,6 +1183,24 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </span>
                       </div>
                     </div>
+                    {!collapsedPhases.has(phase.id) && phase.tasks.length > 0 && (
+                      <div
+                        className="border-b border-border bg-secondary/30 grid items-center px-1"
+                        style={{ height: 18, gridTemplateColumns: sidebarCols }}
+                      >
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">#</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider pl-1">Descrição</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Início</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Fim</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Duração em dias">Dur.</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Percentual concluído">% Concl.</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Produção diária planejada vs realizada">Prod/Dia</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Dep</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Tipo</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Equipe</span>
+                      </div>
+                    )}
                     {!collapsedPhases.has(phase.id) &&
                       phase.tasks
                         .filter(t => !showCriticalOnly || t.isCritical)
@@ -1729,6 +1749,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           );
                         })()}
                       </div>
+                      {!collapsedPhases.has(phase.id) && phase.tasks.length > 0 && (
+                        <div className="border-b border-border bg-secondary/30" style={{ height: 18 }} />
+                      )}
                       {!collapsedPhases.has(phase.id) &&
                         phase.tasks
                           .filter(t => !showCriticalOnly || t.isCritical)
