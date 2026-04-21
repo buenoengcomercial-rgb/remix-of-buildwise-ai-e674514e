@@ -479,10 +479,59 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         })}
       </div>
 
+  // Memoiza árvore/numeração para evitar recomputação a cada toggle.
+  const chapterTree = useMemo(() => getChapterTree(project), [project.phases]);
+  const chapterNumbering = useMemo(() => getChapterNumbering(project), [project.phases]);
+  const mainChapters = useMemo(() => project.phases.filter(p => !p.parentId), [project.phases]);
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Estrutura Analítica (EAP)</h2>
+          <p className="text-sm text-muted-foreground mt-1">Tarefas com cálculo RUP e composição de mão de obra</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Upload className="w-4 h-4" /> Importar PDF/Excel
+          </button>
+          <button
+            onClick={() => addPhase()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border bg-card text-foreground font-medium text-sm hover:bg-muted/50 transition-colors shadow-sm"
+          >
+            <FolderPlus className="w-4 h-4" /> Novo Capítulo
+          </button>
+        </div>
+      </div>
+
+      <ImportTasksDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        project={project}
+        onProjectChange={onProjectChange}
+      />
+
+      {/* Legenda de equipes */}
+      <div className="flex flex-wrap items-center gap-3 px-2 py-2 bg-card rounded-lg border border-border">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Equipes:</span>
+        {TEAM_CODES.map(code => {
+          const def = getTeamDefinition(code)!;
+          return (
+            <div key={code} className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+              <span className="text-[10px] font-medium text-foreground">{def.label}</span>
+              <span className="text-[9px] text-muted-foreground">({def.composition})</span>
+            </div>
+          );
+        })}
+      </div>
+
       {(() => {
-        const tree = getChapterTree(project);
-        const numbering = getChapterNumbering(project);
-        const mainChapters = project.phases.filter(p => !p.parentId);
+        const tree = chapterTree;
+        const numbering = chapterNumbering;
 
         const renderActionButtons = (phase: Phase, isSub: boolean) => (
           <>
