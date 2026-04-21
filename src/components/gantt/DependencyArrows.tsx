@@ -1,6 +1,6 @@
 import { Task, DependencyType } from '@/types/project';
 import { DEP_COLORS } from './types';
-import { diffDays, addDays } from './utils';
+import { diffDays, parseISODateLocal } from './utils';
 
 interface TaskYPosition {
   taskId: string;
