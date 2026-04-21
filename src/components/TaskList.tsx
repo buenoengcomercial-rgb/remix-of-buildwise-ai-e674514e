@@ -676,16 +676,35 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                     </button>
                   )}
                   {editingPhase === phase.id ? (
-                    <input
-                      autoFocus
-                      value={phaseNameDraft}
-                      onChange={e => setPhaseNameDraft(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
-                      onClick={e => e.stopPropagation()}
-                      onMouseDown={e => e.stopPropagation()}
-                      onDragStart={e => e.preventDefault()}
-                      className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
-                    />
+                    <div className="flex items-center gap-2 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
+                      <input
+                        autoFocus
+                        value={phaseNameDraft}
+                        onChange={e => setPhaseNameDraft(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
+                        onMouseDown={e => e.stopPropagation()}
+                        onDragStart={e => e.preventDefault()}
+                        className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
+                      />
+                      <select
+                        value={phase.parentId ?? ''}
+                        onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
+                        className="max-w-[10rem] truncate text-[10px] h-7 px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
+                        title="Mover para outro capítulo"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <option value="">— Capítulo principal —</option>
+                        {orderedMainChapters.filter(c => c.id !== phase.id).map(c => {
+                          const cnum = numbering.get(c.id) ?? '';
+                          const shortLabel = `${cnum} - ${truncateWords(c.name, 3)}`.trim();
+                          return (
+                            <option key={c.id} value={c.id} title={`${cnum} - ${c.name}`}>
+                              {shortLabel}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
                   ) : (
                     <span className="text-sm font-bold text-foreground truncate">{phase.name}</span>
                   )}
