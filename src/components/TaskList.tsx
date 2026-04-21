@@ -616,11 +616,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: pi * 0.04 }}
-              className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
-                isDropTarget && dropPosition === 'inside' ? 'border-primary ring-2 ring-primary' :
+              onDragOver={e => handleChapterDragOver(e, phase.id)}
+              onDrop={e => handleChapterDrop(e, phase.id)}
+              className={`relative bg-card rounded-xl border shadow-sm overflow-hidden transition-all ${
+                isDropTarget && dropPosition === 'inside' ? 'border-primary ring-4 ring-primary' :
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
-              } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
+              } ${dragChapterId === phase.id ? 'opacity-40 scale-[0.98]' : ''}`}
             >
+              {isDropTarget && dropPosition === 'inside' && (
+                <div className="absolute top-1 right-2 z-10 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-md pointer-events-none">
+                  ➜ Virará subcapítulo de [{num}] {truncateWords(phase.name, 3)}
+                </div>
+              )}
               <div
                 className={`flex items-center relative ${
                   isDropTarget && dropPosition === 'before' ? 'before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-primary' : ''
