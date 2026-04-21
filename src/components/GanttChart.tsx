@@ -25,9 +25,26 @@ interface GanttChartProps {
 
 export default function GanttChart({ project, onProjectChange }: GanttChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('weeks');
-  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
+  // Estado de capítulos minimizados — inicializa com a persistência do projeto.
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
+    () => new Set(project.uiState?.ganttCollapsedPhaseIds ?? [])
+  );
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [obraConfig, setObraConfig] = useState<ObraConfig>(loadObraConfig);
+
+  // Persiste no projeto sempre que o conjunto de minimizados mudar (com guard de igualdade).
+  useEffect(() => {
+    if (!onProjectChange) return;
+    const now = [...collapsedPhases].sort();
+    const prev = [...(project.uiState?.ganttCollapsedPhaseIds ?? [])].sort();
+    const same = now.length === prev.length && now.every((id, i) => id === prev[i]);
+    if (same) return;
+    onProjectChange({
+      ...project,
+      uiState: { ...(project.uiState ?? {}), ganttCollapsedPhaseIds: now },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsedPhases]);
 
   // Drag state
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
