@@ -72,22 +72,39 @@ export function isMainChapter(phase: Phase): boolean {
   return !phase.parentId;
 }
 
-/** Move uma phase para virar subcapítulo de outra (ou promove a capítulo principal). */
+/** Move uma phase para virar subcapítulo de outra (ou promove a capítulo principal).
+ *  Anexa SEMPRE como último filho, recalculando `order` baseado nos irmãos atuais. */
 export function moveChapter(
   project: Project,
   chapterId: string,
   newParentId: string | null,
 ): Project {
   if (chapterId === newParentId) return project;
-  // Impede ciclo: não pode virar filho de um descendente próprio.
   if (newParentId && isDescendant(project, newParentId, chapterId)) return project;
+
+  const targetParent = newParentId ?? null;
+  const siblings = project.phases.filter(
+    p => (p.parentId ?? null) === targetParent && p.id !== chapterId,
+  );
+  const maxOrder = siblings.reduce(
+    (m, s) => Math.max(m, s.order ?? -1),
+    -1,
+  );
+  const newOrder = maxOrder + 1;
 
   return {
     ...project,
     phases: project.phases.map(p =>
-      p.id === chapterId ? { ...p, parentId: newParentId ?? undefined } : p,
+      p.id === chapterId
+        ? { ...p, parentId: newParentId ?? undefined, order: newOrder, customNumber: undefined }
+        : p,
     ),
   };
+}
+
+/** Promove um subcapítulo a capítulo principal (último na lista de raízes). */
+export function promoteChapterToRoot(project: Project, chapterId: string): Project {
+  return moveChapter(project, chapterId, null);
 }
 
 /**
