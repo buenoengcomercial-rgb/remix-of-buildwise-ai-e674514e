@@ -807,12 +807,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setResizeDelta(0);
     resizeStartX.current = e.clientX;
 
-    // Captura largura/posição original da barra para mutar diretamente o DOM
+    // Captura largura/posição original da barra
     const barEl = barRefs.current.get(taskId);
     const origWidth = barEl ? barEl.getBoundingClientRect().width : 0;
-    const origLeftStr = barEl?.style.left || '0';
-    const origLeftPx = parseFloat(origLeftStr) || 0;
+    const origLeftPx = barEl ? (parseFloat(barEl.style.left || '0') || 0) : 0;
     const minWidth = dayWidth;
+
+    // Sessão owna left + width + transition (não toca em transform/opacity etc.)
+    const session = beginBarMutation(barEl, ['left', 'width', 'transition']);
 
     let resizeRafPending = false;
     let lastResizeDx = 0;
@@ -822,55 +824,67 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       resizeRafPending = true;
       requestAnimationFrame(() => {
         resizeRafPending = false;
-        if (!barEl) return;
+        if (!session) return;
         const dx = lastResizeDx;
+        setTransition(session, 'none');
         if (side === 'right') {
-          const newW = Math.max(minWidth, origWidth + dx);
-          barEl.style.width = `${newW}px`;
+          setWidthPx(session, Math.max(minWidth, origWidth + dx));
         } else {
           const delta = Math.min(dx, origWidth - minWidth);
-          barEl.style.left = `${origLeftPx + delta}px`;
-          barEl.style.width = `${origWidth - delta}px`;
+          setLeftPx(session, origLeftPx + delta);
+          setWidthPx(session, origWidth - delta);
         }
-        barEl.style.transition = 'none';
       });
     };
-    const handleUp = (ev: MouseEvent) => {
+
+    const finalize = (commitDx: number | null) => {
       document.removeEventListener('mousemove', handleMove);
       document.removeEventListener('mouseup', handleUp);
-      const dx = ev.clientX - resizeStartX.current;
-      const daysDelta = Math.round(dx / dayWidth);
-      const task = tasks.find(t => t.id === taskId);
-      if (task && daysDelta !== 0) {
-        let updates: Partial<Task>;
-        if (side === 'right') {
-          const newDuration = Math.max(1, task.duration + daysDelta);
-          updates = { duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
-        } else {
-          const newDuration = Math.max(1, task.duration - daysDelta);
-          const newStart = addDays(parseISODateLocal(task.startDate), daysDelta);
-          updates = { startDate: dateToISO(newStart), duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
+      window.removeEventListener('blur', handleCancel);
+      document.removeEventListener('keydown', handleKey);
+      resizeRafPending = false;
+
+      if (commitDx !== null) {
+        const daysDelta = Math.round(commitDx / dayWidth);
+        const task = tasks.find(t => t.id === taskId);
+        if (task && daysDelta !== 0) {
+          let updates: Partial<Task>;
+          if (side === 'right') {
+            const newDuration = Math.max(1, task.duration + daysDelta);
+            updates = { duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
+          } else {
+            const newDuration = Math.max(1, task.duration - daysDelta);
+            const newStart = addDays(parseISODateLocal(task.startDate), daysDelta);
+            updates = { startDate: dateToISO(newStart), duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
+          }
+          const updatedProject = {
+            ...project,
+            phases: project.phases.map(phase => ({
+              ...phase,
+              tasks: phase.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+            })),
+          };
+          onProjectChange?.(updatedProject);
+          setTimeout(() => runPropagation(taskId, updatedProject), 0);
         }
-        const updatedProject = {
-          ...project,
-          phases: project.phases.map(phase => ({
-            ...phase,
-            tasks: phase.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
-          })),
-        };
-        onProjectChange?.(updatedProject);
-        setTimeout(() => runPropagation(taskId, updatedProject), 0);
       }
-      // Limpa estilos inline para o React reassumir o controle
-      if (barEl) {
-        barEl.style.transition = '';
-      }
+      // Restaura APENAS as propriedades que tocamos (left/width/transition)
+      endBarMutation(session);
       setResizingTaskId(null);
       setResizeSide(null);
       setResizeDelta(0);
     };
+
+    const handleUp = (ev: MouseEvent) => finalize(ev.clientX - resizeStartX.current);
+    const handleCancel = () => finalize(null);
+    const handleKey = (kev: KeyboardEvent) => {
+      if (kev.key === 'Escape') handleCancel();
+    };
+
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleUp);
+    window.addEventListener('blur', handleCancel);
+    document.addEventListener('keydown', handleKey);
   };
 
   // Helper: get 3 first words of a name
