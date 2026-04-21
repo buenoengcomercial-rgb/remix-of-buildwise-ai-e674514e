@@ -1181,6 +1181,24 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </span>
                       </div>
                     </div>
+                    {!collapsedPhases.has(phase.id) && phase.tasks.length > 0 && (
+                      <div
+                        className="border-b border-border bg-secondary/30 grid items-center px-1"
+                        style={{ height: 18, gridTemplateColumns: sidebarCols }}
+                      >
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">#</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider pl-1">Descrição</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Início</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Fim</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Duração em dias">Dur.</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Percentual concluído">% Concl.</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center" title="Produção diária planejada vs realizada">Prod/Dia</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Dep</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Tipo</span>
+                        <span className="text-[8px] font-semibold text-muted-foreground/80 uppercase tracking-wider text-center">Equipe</span>
+                      </div>
+                    )}
                     {!collapsedPhases.has(phase.id) &&
                       phase.tasks
                         .filter(t => !showCriticalOnly || t.isCritical)
