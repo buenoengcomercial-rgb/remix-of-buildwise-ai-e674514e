@@ -196,15 +196,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     });
   };
 
-  /** Salva numeração customizada do capítulo. */
+  /** Salva numeração customizada do capítulo. Reordena automaticamente quando numérico. */
   const saveChapterNumber = useCallback((phaseId: string) => {
     const v = numberDraft.trim();
-    onProjectChange({
-      ...project,
-      phases: project.phases.map(p =>
-        p.id === phaseId ? { ...p, customNumber: v || undefined } : p,
-      ),
-    });
+    onProjectChange(reorderChapterByNumber(project, phaseId, v));
     setEditingNumberId(null);
   }, [numberDraft, project, onProjectChange]);
 
