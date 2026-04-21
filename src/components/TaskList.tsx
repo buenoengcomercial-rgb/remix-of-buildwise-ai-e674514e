@@ -602,7 +602,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
+                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
                   onClick={() => togglePhase(phase.id)}
                   title="Arraste para mover/reordenar este capítulo"
                 >
