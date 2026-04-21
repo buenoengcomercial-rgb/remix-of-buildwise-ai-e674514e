@@ -502,6 +502,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const chapterTree = useMemo(() => getChapterTree(project), [project.phases]);
   const chapterNumbering = useMemo(() => getChapterNumbering(project), [project.phases]);
   const mainChapters = useMemo(() => project.phases.filter(p => !p.parentId), [project.phases]);
+  const orderedMainChapters = useMemo(() => {
+    const mains = project.phases
+      .map((p, idx) => ({ p, idx }))
+      .filter(({ p }) => !p.parentId);
+    return mains
+      .sort((a, b) => {
+        const ao = a.p.order ?? a.idx;
+        const bo = b.p.order ?? b.idx;
+        if (ao !== bo) return ao - bo;
+        return a.idx - b.idx;
+      })
+      .map(({ p }) => p);
+  }, [project.phases]);
 
   return (
     <div
