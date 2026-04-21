@@ -1165,14 +1165,65 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const color = !hasData
                                     ? '#6b7280'
                                     : pct >= expected ? '#166534' : '#991b1b';
+                                  const delay = calcForecastDelay(task);
                                   return (
-                                    <span
-                                      className="text-[10px] font-bold"
-                                      style={{ color, filter: 'drop-shadow(0 0 1px white)' }}
-                                      title={`Concluído: ${pct}% • Esperado: ${expected}%`}
-                                    >
-                                      {pct}%
-                                    </span>
+                                    <div className="flex flex-col items-center gap-0 leading-none">
+                                      <span
+                                        className="text-[10px] font-bold"
+                                        style={{ color, filter: 'drop-shadow(0 0 1px white)' }}
+                                        title={`Concluído: ${pct}% • Esperado: ${expected}%`}
+                                      >
+                                        {pct}%
+                                      </span>
+                                      {delay !== null && delay !== 0 && (
+                                        <span
+                                          className={`text-[8px] font-bold px-1 rounded leading-none mt-0.5 ${
+                                            delay > 0
+                                              ? 'bg-destructive/15 text-destructive'
+                                              : 'bg-success/15 text-success'
+                                          }`}
+                                          title={delay > 0
+                                            ? `Previsão: +${delay} dias de atraso com ritmo atual`
+                                            : `Previsão: ${Math.abs(delay)} dias adiantado`
+                                          }
+                                        >
+                                          {delay > 0 ? `+${delay}d` : `${delay}d`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                              {/* Prod./Dia (planejado vs realizado) */}
+                              <div className="text-center">
+                                {(() => {
+                                  const plannedDaily = task.quantity && task.duration > 0
+                                    ? task.quantity / task.duration
+                                    : null;
+                                  const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+                                  const realDaily = logs.length > 0
+                                    ? logs.reduce((s, l) => s + (l.actualQuantity || 0), 0) / logs.length
+                                    : null;
+                                  if (!plannedDaily) {
+                                    return <span className="text-[9px] text-muted-foreground">—</span>;
+                                  }
+                                  const unit = task.unit || 'un';
+                                  const realColor = realDaily === null
+                                    ? 'text-muted-foreground'
+                                    : realDaily >= plannedDaily
+                                      ? 'text-success'
+                                      : 'text-destructive';
+                                  return (
+                                    <div className="flex flex-col items-center gap-0 leading-none">
+                                      <span className="text-[9px] text-muted-foreground leading-none">
+                                        {plannedDaily.toFixed(1)}{unit}/d
+                                      </span>
+                                      {realDaily !== null && (
+                                        <span className={`text-[9px] font-bold leading-none ${realColor}`}>
+                                          {realDaily.toFixed(1)}{unit}/d
+                                        </span>
+                                      )}
+                                    </div>
                                   );
                                 })()}
                               </div>
