@@ -1,59 +1,51 @@
 
 
-## Plano: sistema de múltiplos projetos (obras) no ObraPlanner
+## Plano: corrigir setas de dependência e drag em barras pequenas
 
-### Objetivo
-Permitir que o usuário gerencie várias obras independentes no mesmo navegador, alternando entre elas pelo sidebar e criando novas a qualquer momento. Cada projeto tem seu próprio armazenamento isolado no `localStorage`.
+### Arquivos
+- `src/components/GanttChart.tsx`
+- `src/components/gantt/DependencyArrows.tsx`
 
-### Arquivos afetados
-- **NOVO** `src/lib/projectStorage.ts` — camada de persistência multi-projeto.
-- `src/pages/Index.tsx` — substituir `loadProject`/`STORAGE_KEY` pelo novo storage.
-- `src/components/AppSidebar.tsx` — adicionar seletor de projetos com criar/trocar.
+### 1. `taskYPositions` — somar altura do header do capítulo (GanttChart.tsx, linhas 152–167)
 
----
+Hoje o `useMemo` declara `PHASE_HEADER_HEIGHT` mas **nunca incrementa `y` por ele**, então as setas saem deslocadas para cima a cada capítulo. Corrigir para acumular `y += PHASE_HEADER_HEIGHT` no início de cada `phase` (independente de estar colapsada — o header sempre é renderizado).
 
-### 1. `src/lib/projectStorage.ts` (novo)
+```ts
+const PHASE_HEADER_HEIGHT = ROW_HEIGHT + 20;
+let y = 0;
+displayPhases.forEach(phase => {
+  y += PHASE_HEADER_HEIGHT;
+  if (!collapsedPhases.has(phase.id)) {
+    phase.tasks.filter(...).forEach(task => {
+      map.set(task.id, y + ROW_HEIGHT / 2);
+      y += ROW_HEIGHT;
+    });
+  }
+});
+```
 
-API exportada:
-- `ProjectMeta` — `{ id, name, createdAt, updatedAt }`.
-- `listProjects()` — lê o índice (`obraplanner-projects-index`).
-- `loadProject(id)` — lê `obraplanner-project-<id>`.
-- `saveProject(project)` — grava o projeto e atualiza o índice (insere ou atualiza meta + `updatedAt`).
-- `deleteProject(id)` — remove projeto e seu meta.
-- `getActiveProjectId()` / `setActiveProjectId(id)` — chave `obraplanner-active-project`.
-- `createNewProject(name)` — cria projeto vazio (`phases: []`, `totalBudget: 0`, `startDate`/`endDate` = hoje), salva e devolve.
-- `initProjects()` — inicializa:
-  - Se índice vazio: migra a chave antiga `obra-project-data` (do `Index.tsx` atual). Se não houver, usa `sampleProject`. Garante `id`.
-  - Carrega projeto ativo; fallback para o primeiro do índice.
+### 2. `DependencyArrows.tsx` — fórmula de X explícita por tipo
 
-Migração: na primeira execução pós-deploy, o projeto que já está em `obra-project-data` é convertido em entrada do novo índice — nenhum dado é perdido.
+O arquivo atual já cobre os 4 tipos (TI/II/TT/IT) e usa `diffDays`/`dayWidth` corretos, mas vamos padronizar com nomes claros (`xPredLeft/xPredRight/xSuccLeft/xSuccRight`) e remover o import não usado de `addDays`. Garante que origem/destino seguem exatamente a lateral correta da barra (mesma fórmula que o `barLeft`/`barWidth` usa em `GanttChart.tsx`).
 
-### 2. `src/pages/Index.tsx`
+### 3. Drag em barras de 1 dia (GanttChart.tsx, `onMouseDown` linha 1493)
 
-- Remover `STORAGE_KEY` e a função `loadProject` local.
-- `useState<Project>(() => initProjects())`.
-- `useEffect` passa a chamar `saveProject(rawProject)` (que também atualiza o meta).
-- Adicionar handlers:
-  - `handleSwitchProject(id)` — `loadProject` + `setActiveProjectId` + `setRawProject`.
-  - `handleCreateProject(name)` — `createNewProject` + ativar + setar como atual.
-- Passar `onSwitchProject`, `onCreateProject`, `activeProjectId={rawProject.id}` ao `AppSidebar`.
+Atualmente, com barra de largura `dayWidth` (~24px no modo dias), as duas zonas de resize de 8px ocupam quase tudo e o drag só dispara num pixel central — frequentemente falha. Mudar para zona de resize **adaptativa**:
 
-### 3. `src/components/AppSidebar.tsx`
+- Se `barW <= 24px`: zona de resize = 0 (toda a barra é drag).
+- Caso contrário: 8px de cada lado, mas o resize esquerdo só dispara se `barW > dayWidth`.
 
-- Estender props: `onSwitchProject`, `onCreateProject`, `activeProjectId`.
-- Adicionar bloco "Seletor de projetos" logo abaixo do header do logo:
-  - Botão expandível (ícone `FolderOpen` + nome do projeto atual + chevron). Quando colapsado (sidebar mini), mostra só o ícone com `title`.
-  - Lista de obras (`listProjects()`): item ativo destacado em `bg-primary text-primary-foreground`; demais com hover. Clique troca de projeto e fecha o painel.
-  - Linha "Nova obra" (`Plus`) → entra em modo edição inline com `<input>` + botão OK. `Enter` confirma, `Esc` cancela.
-- Atualizar a lista local após criar (`setProjects(listProjects())`) e ao abrir o painel.
+### 4. Cursor coerente (`onMouseMove` linha 1505)
 
-### Comportamento esperado
-- Ao trocar de obra, todas as views (Dashboard, Gantt, EAP, Compras) re-renderizam com os dados da obra selecionada — `useMemo` em `Index.tsx` recalcula CPM/RUP/baseline automaticamente porque `rawProject` muda.
-- Persistência total no `localStorage`: refresh da página mantém a obra ativa e os dados intactos.
-- Memória existente (`Persistência automática no localStorage`) continua válida — agora multi-projeto.
+Aplicar a mesma regra: barras pequenas mostram sempre `grab`; barras maiores mostram `col-resize` apenas nas zonas de 8px.
 
-### Não incluído nesta entrega
-- Exclusão de projeto pela UI (a função existe no storage, mas não há botão — pode ser próxima iteração).
-- Renomear obra a partir do sidebar (continua editável dentro de `ConfiguracaoObra`).
-- Sincronização entre abas do navegador (`storage` event listener).
+### 5. Tooltip nativo na barra
+
+Adicionar `title={"<inicio> → <fim> | <duracao>d — Arraste para mover"}` no `<div>` da barra (linha ~1469), usando `formatDateFull` + `getEndDate`. Útil principalmente em barras estreitas onde o label não cabe.
+
+### Resultado esperado
+- Setas de dependência partem e chegam exatamente no meio vertical das barras corretas, mesmo com vários capítulos abertos/fechados.
+- Origem/destino horizontal das setas alinham com as bordas reais das barras conforme o tipo (TI/II/TT/IT).
+- Em barras de 1 dia o usuário consegue arrastar normalmente e vê tooltip com datas.
+- Resize continua funcionando intacto em barras maiores.
 
