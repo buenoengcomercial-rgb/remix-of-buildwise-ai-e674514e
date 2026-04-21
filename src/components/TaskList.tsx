@@ -733,17 +733,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
-                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px' }}>
-                        <div>Eq.</div>
-                        <div>Tarefa</div>
-                        <div>Qtd.</div>
-                        <div className="text-center">Prod./dia</div>
-                        <div>Duração</div>
-                        <div>Gargalo</div>
-                        <div>Depend.</div>
-                        <div>Progresso</div>
-                        <div>Ações</div>
-                      </div>
+                       {phase.tasks.length > 0 && (
+                         <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px' }}>
+                           <div>Eq.</div>
+                           <div>Tarefa</div>
+                           <div>Qtd.</div>
+                           <div className="text-center">Prod./dia</div>
+                           <div>Duração</div>
+                           <div>Gargalo</div>
+                           <div>Depend.</div>
+                           <div>Progresso</div>
+                           <div>Ações</div>
+                         </div>
+                       )}
 
                       {phase.tasks.map(task => {
                         const endDate = new Date(task.startDate);
