@@ -136,7 +136,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   }, [taskNumbering]);
 
   // Phases ordenadas: capítulo principal seguido de seus subcapítulos
-  const displayPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const allPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const displayPhases = useMemo(
+    () => allPhases.filter(p => !p.parentId || !collapsedPhases.has(p.parentId)),
+    [allPhases, collapsedPhases]
+  );
   const chapterNumbering = useMemo(() => getChapterNumbering(project), [project]);
 
   const flatTasks = useMemo(() => {
