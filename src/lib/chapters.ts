@@ -131,6 +131,112 @@ export function reorderChapter(
   };
 }
 
+/**
+ * Reordena um capítulo a partir de um número desejado digitado pelo usuário.
+ * - "2" em capítulo principal → move para a 2ª posição entre as raízes.
+ * - "1.3" em subcapítulo → move para a 3ª posição entre os irmãos do mesmo pai.
+ * - "1.3" digitado num capítulo principal → vira subcapítulo do capítulo "1"
+ *   na 3ª posição.
+ * - Texto não numérico (ex.: "1A", "Anexo") → preserva como `customNumber`
+ *   e não reordena.
+ * Sempre limpa `customNumber` quando aplica reordenação numérica para que
+ * `getChapterNumbering` reflita imediatamente a nova posição.
+ */
+export function reorderChapterByNumber(
+  project: Project,
+  chapterId: string,
+  desiredNumber: string,
+): Project {
+  const raw = (desiredNumber || '').trim();
+  if (!raw) {
+    // Limpa customNumber
+    return {
+      ...project,
+      phases: project.phases.map(p =>
+        p.id === chapterId ? { ...p, customNumber: undefined } : p,
+      ),
+    };
+  }
+
+  const chapter = project.phases.find(p => p.id === chapterId);
+  if (!chapter) return project;
+
+  const segments = raw.split('.').map(s => s.trim());
+  const allNumeric = segments.every(s => /^\d+$/.test(s) && Number(s) >= 1);
+
+  // Não numérico → mantém apenas como rótulo customizado
+  if (!allNumeric) {
+    return {
+      ...project,
+      phases: project.phases.map(p =>
+        p.id === chapterId ? { ...p, customNumber: raw } : p,
+      ),
+    };
+  }
+
+  // Determina destino (parentId) e índice (1-based → 0-based)
+  let targetParentId: string | undefined;
+  let desiredIndex: number;
+
+  if (segments.length === 1) {
+    // Capítulo principal
+    targetParentId = undefined;
+    desiredIndex = Number(segments[0]) - 1;
+  } else {
+    // Hierárquico: usa primeiro segmento para identificar pai entre as raízes (por número atual)
+    const tree = getChapterTree(project);
+    const rootIdx = Number(segments[0]) - 1;
+    const parentNode = tree[rootIdx];
+    if (!parentNode) {
+      // Pai inexistente → fallback: trata como capítulo principal usando o último segmento
+      targetParentId = undefined;
+      desiredIndex = Number(segments[segments.length - 1]) - 1;
+    } else {
+      targetParentId = parentNode.phase.id;
+      desiredIndex = Number(segments[segments.length - 1]) - 1;
+    }
+  }
+
+  if (desiredIndex < 0) desiredIndex = 0;
+
+  // Impede ciclo se mudar de pai
+  if (targetParentId && (targetParentId === chapterId || isDescendant(project, targetParentId, chapterId))) {
+    return project;
+  }
+
+  // Atualiza parentId do capítulo arrastado
+  const movedChapter: Phase = {
+    ...chapter,
+    parentId: targetParentId,
+    customNumber: undefined,
+  };
+
+  // Coleta irmãos do nível destino (excluindo o próprio)
+  const siblings = project.phases
+    .filter(p => (p.parentId ?? null) === (targetParentId ?? null) && p.id !== chapterId)
+    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+
+  const insertAt = Math.min(desiredIndex, siblings.length);
+  siblings.splice(insertAt, 0, movedChapter);
+
+  // Reatribui order sequencial e limpa customNumber dos irmãos para evitar conflito
+  const orderMap = new Map<string, number>();
+  siblings.forEach((s, i) => orderMap.set(s.id, i));
+
+  return {
+    ...project,
+    phases: project.phases.map(p => {
+      if (p.id === chapterId) {
+        return { ...movedChapter, order: orderMap.get(chapterId) ?? 0 };
+      }
+      if ((p.parentId ?? null) === (targetParentId ?? null) && orderMap.has(p.id)) {
+        return { ...p, order: orderMap.get(p.id)!, customNumber: undefined };
+      }
+      return p;
+    }),
+  };
+}
+
 /** Verifica se `candidateId` é descendente de `ancestorId` na árvore atual. */
 function isDescendant(project: Project, candidateId: string, ancestorId: string): boolean {
   const map = new Map(project.phases.map(p => [p.id, p] as const));

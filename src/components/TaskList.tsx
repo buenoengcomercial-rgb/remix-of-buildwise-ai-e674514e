@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
 import { formatISODateBR } from '@/components/gantt/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter, reorderChapter } from '@/lib/chapters';
+import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter, reorderChapter, reorderChapterByNumber } from '@/lib/chapters';
 import { toast } from 'sonner';
 
 /** Encurta o nome da tarefa para no máximo `maxWords` palavras, adicionando "…" no final. */
@@ -196,15 +196,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     });
   };
 
-  /** Salva numeração customizada do capítulo. */
+  /** Salva numeração customizada do capítulo. Reordena automaticamente quando numérico. */
   const saveChapterNumber = useCallback((phaseId: string) => {
     const v = numberDraft.trim();
-    onProjectChange({
-      ...project,
-      phases: project.phases.map(p =>
-        p.id === phaseId ? { ...p, customNumber: v || undefined } : p,
-      ),
-    });
+    onProjectChange(reorderChapterByNumber(project, phaseId, v));
     setEditingNumberId(null);
   }, [numberDraft, project, onProjectChange]);
 
@@ -250,13 +245,15 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
     setDragChapterId(chapterId);
     e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('application/x-chapter-id', chapterId); } catch { /* noop */ }
+    try {
+      e.dataTransfer.setData('application/x-chapter-id', chapterId);
+      // Alguns browsers (Firefox) exigem text/plain para iniciar o drag.
+      e.dataTransfer.setData('text/plain', chapterId);
+    } catch { /* noop */ }
   }, []);
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
-    const types = Array.from(e.dataTransfer.types || []);
-    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     // Determina posição baseada no Y do mouse dentro do header (terços)
@@ -273,8 +270,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
     if (!dragChapterId) return;
-    const types = Array.from(e.dataTransfer.types || []);
-    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     if (dragChapterId !== targetId) {
       if (targetId === null) {
@@ -284,9 +279,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         // Vira subcapítulo do alvo
         handleMoveChapter(dragChapterId, targetId);
       } else {
-        // Reordena no mesmo nível do alvo (antes/depois)
-        const next = reorderChapter(project, dragChapterId, targetId, dropPosition);
-        onProjectChange(next);
+        // Reordena no mesmo nível do alvo (antes/depois) e limpa customNumber
+        // dos irmãos para que a numeração visual reflita a nova ordem.
+        const reordered = reorderChapter(project, dragChapterId, targetId, dropPosition);
+        const target = reordered.phases.find(p => p.id === targetId);
+        const levelParent = target?.parentId ?? null;
+        const cleaned = {
+          ...reordered,
+          phases: reordered.phases.map(p =>
+            (p.parentId ?? null) === levelParent ? { ...p, customNumber: undefined } : p,
+          ),
+        };
+        onProjectChange(cleaned);
       }
     }
     setDragChapterId(null);
@@ -475,7 +479,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const mainChapters = useMemo(() => project.phases.filter(p => !p.parentId), [project.phases]);
 
   return (
-    <div className="p-6 space-y-4 overflow-x-hidden w-full max-w-full">
+    <div
+      className="p-6 space-y-4 overflow-x-hidden w-full max-w-full"
+      onDragOver={e => { if (dragChapterId) e.preventDefault(); }}
+    >
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Estrutura Analítica (EAP)</h2>
@@ -586,6 +593,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: pi * 0.04 }}
               className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
+                isDropTarget && dropPosition === 'inside' ? 'border-primary ring-2 ring-primary' :
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
               } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
@@ -602,12 +610,20 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
-                  onClick={() => togglePhase(phase.id)}
+                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-move"
                   title="Arraste para mover/reordenar este capítulo"
                 >
                   <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
-                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                  <button
+                    onClick={e => { e.stopPropagation(); togglePhase(phase.id); }}
+                    onMouseDown={e => e.stopPropagation()}
+                    onDragStart={e => e.preventDefault()}
+                    draggable={false}
+                    className="flex-shrink-0 hover:text-primary transition-colors"
+                    title={isExpanded ? 'Recolher' : 'Expandir'}
+                  >
+                    {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                  </button>
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: phase.color }} />
                   {editingNumberId === phase.id ? (
                     <input
@@ -1201,6 +1217,45 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
             {project.phases
               .filter(p => p.parentId && !project.phases.some(c => c.id === p.parentId))
               .map((p, i) => renderPhaseCard(p, tree.length + i, false))}
+
+            {/* Drop zone final: solta um capítulo aqui para enviá-lo ao fim da lista. */}
+            {dragChapterId && tree.length > 0 && (() => {
+              const lastRoot = tree[tree.length - 1].phase;
+              const isActive = dropChapterTargetId === '__end__';
+              return (
+                <div
+                  onDragOver={e => {
+                    if (!dragChapterId || dragChapterId === lastRoot.id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDropPosition('after');
+                    setDropChapterTargetId('__end__');
+                  }}
+                  onDrop={e => {
+                    if (!dragChapterId) return;
+                    e.preventDefault();
+                    if (dragChapterId !== lastRoot.id) {
+                      const reordered = reorderChapter(project, dragChapterId, lastRoot.id, 'after');
+                      const cleaned = {
+                        ...reordered,
+                        phases: reordered.phases.map(p =>
+                          !p.parentId ? { ...p, customNumber: undefined } : p,
+                        ),
+                      };
+                      onProjectChange(cleaned);
+                    }
+                    setDragChapterId(null);
+                    setDropChapterTargetId(null);
+                    setDropPosition('inside');
+                  }}
+                  className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
+                    isActive ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+                  }`}
+                >
+                  Soltar aqui para mover ao final da lista
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
