@@ -34,6 +34,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const dragStartX = useRef(0);
   const dragStartLeft = useRef(0);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  // Refs para throttle do drag (rAF) — evita re-render por pixel
+  const dragRafPending = useRef(false);
+  const lastDragDx = useRef(0);
+  const lastDragDays = useRef<number | null>(null);
 
   // Resize state
   const [resizingTaskId, setResizingTaskId] = useState<string | null>(null);
