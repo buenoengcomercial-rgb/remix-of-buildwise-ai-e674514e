@@ -158,9 +158,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       }
     });
     return map;
-  }, [project, collapsedPhases, showCriticalOnly]);
-
-  // Compute violation map for dependency arrows
+  }, [displayPhases, collapsedPhases, showCriticalOnly]);
   const violationMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
     tasks.forEach(task => {
