@@ -72,7 +72,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   // Holiday map for the project range
   const feriadoMap = useMemo(() => {
     return getFeriadosMap(projectStart, projectEnd, obraConfig.uf, obraConfig.municipio);
-  }, [projectStart, projectEnd, obraConfig.uf, obraConfig.municipio]);
+  }, [projectStart.getTime(), projectEnd.getTime(), obraConfig.uf, obraConfig.municipio]);
 
   // Day info for visual highlighting
   const dayInfos = useMemo(() => {
