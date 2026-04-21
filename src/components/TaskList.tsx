@@ -416,7 +416,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
             <Upload className="w-4 h-4" /> Importar PDF/Excel
           </button>
           <button
-            onClick={addPhase}
+            onClick={() => addPhase()}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border bg-card text-foreground font-medium text-sm hover:bg-muted/50 transition-colors shadow-sm"
           >
             <FolderPlus className="w-4 h-4" /> Novo Capítulo
