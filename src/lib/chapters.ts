@@ -1,4 +1,5 @@
-import { Phase, Project, Task } from '@/types/project';
+import { Phase, Project, Task, DependencyType } from '@/types/project';
+import { checkDependencyViolation } from '@/lib/calculations';
 
 /**
  * Hierarquia de capítulos
