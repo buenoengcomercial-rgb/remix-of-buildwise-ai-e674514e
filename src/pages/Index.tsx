@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { AppView, Project } from '@/types/project';
-import { sampleProject } from '@/data/sampleProject';
 import AppSidebar from '@/components/AppSidebar';
 import Dashboard from '@/components/Dashboard';
 import GanttChart from '@/components/GanttChart';
@@ -8,25 +7,16 @@ import TaskList from '@/components/TaskList';
 import Purchases from '@/components/Purchases';
 import { Menu, X } from 'lucide-react';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup } from '@/lib/calculations';
-
-const STORAGE_KEY = 'obra-project-data';
-
-function loadProject(): Project {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return sampleProject;
-}
+import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject } from '@/lib/projectStorage';
 
 export default function Index() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
-  const [rawProject, setRawProject] = useState<Project>(loadProject);
+  const [rawProject, setRawProject] = useState<Project>(() => initProjects());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rawProject));
+    saveProject(rawProject);
   }, [rawProject]);
 
   const project = useMemo(
@@ -39,6 +29,20 @@ export default function Index() {
     ),
     [rawProject]
   );
+
+  const handleSwitchProject = (id: string) => {
+    const proj = loadProject(id);
+    if (proj) {
+      setActiveProjectId(id);
+      setRawProject(proj);
+    }
+  };
+
+  const handleCreateProject = (name: string) => {
+    const newProj = createNewProject(name);
+    setActiveProjectId(newProj.id);
+    setRawProject(newProj);
+  };
 
   const renderView = () => {
     switch (currentView) {
@@ -73,6 +77,9 @@ export default function Index() {
           projectName={project.name}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+          onSwitchProject={handleSwitchProject}
+          onCreateProject={handleCreateProject}
+          activeProjectId={rawProject.id}
         />
       </div>
 
