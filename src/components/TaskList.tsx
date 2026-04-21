@@ -711,9 +711,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
                   <span className="text-xs text-muted-foreground ml-1 flex-shrink-0">({phase.tasks.length})</span>
                   <div className="ml-auto flex items-center gap-3 flex-shrink-0">
-                    <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${phaseProgress}%` }} />
-                    </div>
                     <span className="text-xs font-bold text-muted-foreground w-8 text-right">{phaseProgress}%</span>
                   </div>
                 </div>
