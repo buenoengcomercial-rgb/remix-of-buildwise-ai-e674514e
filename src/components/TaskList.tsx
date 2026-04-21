@@ -1,6 +1,6 @@
 import { Project, Task, LaborComposition, DailyProductionLog, Phase } from '@/types/project';
 import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import DailyLogsPanel from '@/components/DailyLogsPanel';
@@ -88,7 +88,32 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
 }
 
 export default function TaskList({ project, onProjectChange }: TaskListProps) {
-  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(project.phases.map(p => p.id)));
+  // Estado inicial respeita a persistência (uiState.collapsedPhaseIds).
+  // Se não houver registro, todos os capítulos começam expandidos.
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(() => {
+    const collapsed = new Set(project.uiState?.collapsedPhaseIds ?? []);
+    return new Set(project.phases.filter(p => !collapsed.has(p.id)).map(p => p.id));
+  });
+
+  // Persiste no projeto sempre que o conjunto de capítulos minimizados mudar.
+  // Compara antes de propagar para evitar loop com onProjectChange → re-render.
+  useEffect(() => {
+    const collapsedNow = project.phases
+      .filter(p => !expandedPhases.has(p.id))
+      .map(p => p.id)
+      .sort();
+    const collapsedPrev = [...(project.uiState?.collapsedPhaseIds ?? [])].sort();
+    const same =
+      collapsedPrev.length === collapsedNow.length &&
+      collapsedPrev.every((id, i) => id === collapsedNow[i]);
+    if (same) return;
+    onProjectChange({
+      ...project,
+      uiState: { ...(project.uiState ?? {}), collapsedPhaseIds: collapsedNow },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedPhases, project.phases]);
+
   const [expandedRup, setExpandedRup] = useState<string | null>(null);
   const [expandedDaily, setExpandedDaily] = useState<string | null>(null);
   const [simulating, setSimulating] = useState<string | null>(null);
@@ -292,14 +317,26 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       return;
     }
 
-    // Caso contrário (header), calcula por terços
+    // Caso contrário (header), calcula a posição.
+    const dragged = project.phases.find(p => p.id === dragChapterId);
+    const target = project.phases.find(p => p.id === targetId);
+    const sameLevel =
+      !!dragged && !!target && (dragged.parentId ?? null) === (target.parentId ?? null);
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
-    const third = rect.height / 3;
     let pos: 'before' | 'after' | 'inside';
-    if (offsetY < third) pos = 'before';
-    else if (offsetY > rect.height - third) pos = 'after';
-    else pos = 'inside';
+    if (sameLevel) {
+      // Reordenação no mesmo nível (inclui subcapítulos): apenas before/after
+      // pela metade — facilita acertar e nunca tenta "virar filho do irmão".
+      pos = offsetY < rect.height / 2 ? 'before' : 'after';
+    } else {
+      // Níveis diferentes: terços (before/inside/after) — permite virar subcapítulo.
+      const third = rect.height / 3;
+      if (offsetY < third) pos = 'before';
+      else if (offsetY > rect.height - third) pos = 'after';
+      else pos = 'inside';
+    }
     setDropPosition(pos);
     setDropChapterTargetId(targetId);
   }, [dragChapterId, project.phases]);
