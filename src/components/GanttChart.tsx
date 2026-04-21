@@ -737,8 +737,16 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setResizeDelta(0);
     resizeStartX.current = e.clientX;
 
+    let resizeRafPending = false;
+    let lastResizeDx = 0;
     const handleMove = (ev: MouseEvent) => {
-      setResizeDelta(ev.clientX - resizeStartX.current);
+      lastResizeDx = ev.clientX - resizeStartX.current;
+      if (resizeRafPending) return;
+      resizeRafPending = true;
+      requestAnimationFrame(() => {
+        resizeRafPending = false;
+        setResizeDelta(lastResizeDx);
+      });
     };
     const handleUp = (ev: MouseEvent) => {
       document.removeEventListener('mousemove', handleMove);
