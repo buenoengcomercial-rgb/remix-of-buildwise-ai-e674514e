@@ -590,6 +590,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: pi * 0.04 }}
               className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
+                isDropTarget && dropPosition === 'inside' ? 'border-primary ring-2 ring-primary' :
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
               } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
@@ -606,12 +607,20 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
-                  onClick={() => togglePhase(phase.id)}
+                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-move"
                   title="Arraste para mover/reordenar este capítulo"
                 >
                   <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
-                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                  <button
+                    onClick={e => { e.stopPropagation(); togglePhase(phase.id); }}
+                    onMouseDown={e => e.stopPropagation()}
+                    onDragStart={e => e.preventDefault()}
+                    draggable={false}
+                    className="flex-shrink-0 hover:text-primary transition-colors"
+                    title={isExpanded ? 'Recolher' : 'Expandir'}
+                  >
+                    {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                  </button>
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: phase.color }} />
                   {editingNumberId === phase.id ? (
                     <input
