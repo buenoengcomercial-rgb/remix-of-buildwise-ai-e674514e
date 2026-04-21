@@ -658,7 +658,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 mr-2" onMouseDown={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1 mr-2 flex-shrink-0 min-w-0 max-w-[260px]" onMouseDown={e => e.stopPropagation()}>
                   {renderActionButtons(phase, isSub)}
                 </div>
                 <button
