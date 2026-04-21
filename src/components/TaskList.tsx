@@ -479,7 +479,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const mainChapters = useMemo(() => project.phases.filter(p => !p.parentId), [project.phases]);
 
   return (
-    <div className="p-6 space-y-4 overflow-x-hidden w-full max-w-full">
+    <div
+      className="p-6 space-y-4 overflow-x-hidden w-full max-w-full"
+      onDragOver={e => { if (dragChapterId) e.preventDefault(); }}
+    >
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Estrutura Analítica (EAP)</h2>
