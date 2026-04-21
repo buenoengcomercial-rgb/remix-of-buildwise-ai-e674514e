@@ -77,6 +77,82 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   // Real-time drag propagation: temporary task overrides during drag
   const [dragTempTasks, setDragTempTasks] = useState<Map<string, { startDate: string }>>(new Map());
 
+  // Reorder state (drag de linhas da sidebar para reordenar tarefas)
+  const [reorderDragPhaseId, setReorderDragPhaseId] = useState<string | null>(null);
+  const [reorderDragTaskId, setReorderDragTaskId] = useState<string | null>(null);
+  const [reorderDropTargetId, setReorderDropTargetId] = useState<string | null>(null);
+  const [reorderDropPos, setReorderDropPos] = useState<'before' | 'after' | null>(null);
+
+  const handleRowDragStart = useCallback((e: React.DragEvent, phaseId: string, taskId: string) => {
+    setReorderDragPhaseId(phaseId);
+    setReorderDragTaskId(taskId);
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', taskId);
+    } catch {}
+  }, []);
+
+  const handleRowDragOver = useCallback((e: React.DragEvent, targetTaskId: string) => {
+    if (!reorderDragTaskId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const pos: 'before' | 'after' = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after';
+    setReorderDropTargetId(targetTaskId);
+    setReorderDropPos(pos);
+  }, [reorderDragTaskId]);
+
+  const handleRowDrop = useCallback((e: React.DragEvent, targetPhaseId: string, targetTaskId: string) => {
+    if (!reorderDragPhaseId || !reorderDragTaskId || !onProjectChange) {
+      setReorderDragPhaseId(null);
+      setReorderDragTaskId(null);
+      setReorderDropTargetId(null);
+      setReorderDropPos(null);
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const pos = reorderDropPos ?? 'before';
+
+    if (reorderDragTaskId === targetTaskId) {
+      setReorderDragPhaseId(null);
+      setReorderDragTaskId(null);
+      setReorderDropTargetId(null);
+      setReorderDropPos(null);
+      return;
+    }
+
+    const newPhases = project.phases.map(p => ({ ...p, tasks: [...p.tasks] }));
+    const srcPhase = newPhases.find(p => p.id === reorderDragPhaseId);
+    const dstPhase = newPhases.find(p => p.id === targetPhaseId);
+    if (!srcPhase || !dstPhase) return;
+
+    const srcIdx = srcPhase.tasks.findIndex(t => t.id === reorderDragTaskId);
+    if (srcIdx === -1) return;
+    const [moved] = srcPhase.tasks.splice(srcIdx, 1);
+
+    let dstIdx = dstPhase.tasks.findIndex(t => t.id === targetTaskId);
+    if (dstIdx === -1) {
+      dstPhase.tasks.push(moved);
+    } else {
+      if (pos === 'after') dstIdx += 1;
+      dstPhase.tasks.splice(dstIdx, 0, moved);
+    }
+
+    onProjectChange({ ...project, phases: newPhases });
+    setReorderDragPhaseId(null);
+    setReorderDragTaskId(null);
+    setReorderDropTargetId(null);
+    setReorderDropPos(null);
+  }, [reorderDragPhaseId, reorderDragTaskId, reorderDropPos, project, onProjectChange]);
+
+  const handleRowDragEnd = useCallback(() => {
+    setReorderDragPhaseId(null);
+    setReorderDragTaskId(null);
+    setReorderDropTargetId(null);
+    setReorderDropPos(null);
+  }, []);
+
   const tasks = useMemo(() => getAllTasks(project), [project]);
   const criticalCount = useMemo(() => tasks.filter(t => t.isCritical).length, [tasks]);
   const projectStart = useMemo(
@@ -1118,12 +1194,26 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           const noWorkDays = hasNoWorkingDays(task);
 
                           const rowTeamDef = getTeamDefinition(task.team);
+                          const isReorderDragging = reorderDragTaskId === task.id;
+                          const isReorderTarget = reorderDropTargetId === task.id && reorderDragTaskId && reorderDragTaskId !== task.id;
                           return (
                             <div
                               key={task.id}
-                              className={`grid items-center gap-0.5 px-1 border-b border-border hover:brightness-110 transition-colors ${
+                              draggable
+                              onDragStart={(e) => handleRowDragStart(e, phase.id, task.id)}
+                              onDragOver={(e) => handleRowDragOver(e, task.id)}
+                              onDrop={(e) => handleRowDrop(e, phase.id, task.id)}
+                              onDragEnd={handleRowDragEnd}
+                              title="Arraste para reordenar a tarefa"
+                              className={`grid items-center gap-0.5 px-1 border-b border-border hover:brightness-110 transition-colors cursor-grab active:cursor-grabbing ${
                                 !rowTeamDef ? (idx % 2 === 0 ? 'bg-card' : 'bg-muted/10') : ''
-                              } ${task.isCritical && !rowTeamDef ? 'bg-destructive/5' : ''} ${noWorkDays && !rowTeamDef ? 'bg-warning/10' : ''}`}
+                              } ${task.isCritical && !rowTeamDef ? 'bg-destructive/5' : ''} ${noWorkDays && !rowTeamDef ? 'bg-warning/10' : ''} ${
+                                isReorderDragging ? 'opacity-40' : ''
+                              } ${
+                                isReorderTarget && reorderDropPos === 'before' ? 'border-t-2 border-t-primary' : ''
+                              } ${
+                                isReorderTarget && reorderDropPos === 'after' ? 'border-b-2 border-b-primary' : ''
+                              }`}
                               style={{
                                 height: ROW_HEIGHT,
                                 gridTemplateColumns: sidebarCols,
