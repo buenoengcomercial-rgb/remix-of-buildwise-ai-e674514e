@@ -1035,6 +1035,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 )}
               </AnimatePresence>
             </motion.div>
+            </div>
           );
         };
 
