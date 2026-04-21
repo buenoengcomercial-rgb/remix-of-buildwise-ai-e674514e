@@ -851,6 +851,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
               {/* Rows */}
               {displayPhases.map(phase => {
+                const phaseRange = getPhaseRange(phase);
                 const diasUteis = getChapterDiasUteis(phase);
 
                 return (
