@@ -247,16 +247,40 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     e.dataTransfer.effectAllowed = 'move';
     try {
       e.dataTransfer.setData('application/x-chapter-id', chapterId);
-      // Alguns browsers (Firefox) exigem text/plain para iniciar o drag.
       e.dataTransfer.setData('text/plain', chapterId);
     } catch { /* noop */ }
+    document.body.classList.add('cursor-grabbing');
   }, []);
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
+    // Bloqueia ciclo: se o alvo é descendente do arrastado, ignora
+    const isDescendantOfDragged = (() => {
+      let current = project.phases.find(p => p.id === targetId);
+      const visited = new Set<string>();
+      while (current?.parentId) {
+        if (visited.has(current.id)) return false;
+        visited.add(current.id);
+        if (current.parentId === dragChapterId) return true;
+        current = project.phases.find(p => p.id === current!.parentId);
+      }
+      return false;
+    })();
+    if (isDescendantOfDragged) return;
+
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    // Determina posição baseada no Y do mouse dentro do header (terços)
+
+    // Se a origem do evento é o corpo expandido do capítulo, força "inside"
+    const overBody = !!(e.target as HTMLElement)?.closest?.('[data-chapter-body]');
+    if (overBody) {
+      setDropPosition('inside');
+      setDropChapterTargetId(targetId);
+      return;
+    }
+
+    // Caso contrário (header), calcula por terços
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
     const third = rect.height / 3;
@@ -266,7 +290,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     else pos = 'inside';
     setDropPosition(pos);
     setDropChapterTargetId(targetId);
-  }, [dragChapterId]);
+  }, [dragChapterId, project.phases]);
 
   const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
     if (!dragChapterId) return;
@@ -302,6 +326,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     setDragChapterId(null);
     setDropChapterTargetId(null);
     setDropPosition('inside');
+    document.body.classList.remove('cursor-grabbing');
   }, []);
 
   const togglePhase = (id: string) => {
@@ -592,11 +617,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: pi * 0.04 }}
-              className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
-                isDropTarget && dropPosition === 'inside' ? 'border-primary ring-2 ring-primary' :
+              onDragOver={e => handleChapterDragOver(e, phase.id)}
+              onDrop={e => handleChapterDrop(e, phase.id)}
+              className={`relative bg-card rounded-xl border shadow-sm overflow-hidden transition-all ${
+                isDropTarget && dropPosition === 'inside' ? 'border-primary ring-4 ring-primary' :
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
-              } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
+              } ${dragChapterId === phase.id ? 'opacity-40 scale-[0.98]' : ''}`}
             >
+              {isDropTarget && dropPosition === 'inside' && (
+                <div className="absolute top-1 right-2 z-10 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-md pointer-events-none">
+                  ➜ Virará subcapítulo de [{num}] {truncateWords(phase.name, 3)}
+                </div>
+              )}
               <div
                 className={`flex items-center relative ${
                   isDropTarget && dropPosition === 'before' ? 'before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-primary' : ''
@@ -689,7 +721,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
               <AnimatePresence>
                 {isExpanded && (
-                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
                        <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px' }}>
@@ -1177,9 +1209,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
         return (
           <div className="space-y-3">
-            {/* Drop zone para promover a capítulo principal */}
-            {dragChapterId && (
-              <div
+            {/* Drop zone para promover a capítulo principal (apenas para subcapítulos) */}
+            {dragChapterId && project.phases.find(p => p.id === dragChapterId)?.parentId && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
                 onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDropChapterTargetId('__root__'); }}
                 onDrop={e => handleChapterDrop(e, null)}
                 className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
@@ -1189,29 +1223,31 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 }`}
               >
                 <ArrowUpFromLine className="w-3.5 h-3.5 inline mr-1" />
-                Soltar aqui para promover a Capítulo Principal
-              </div>
+                ⬆ Soltar aqui para promover a Capítulo Principal
+              </motion.div>
             )}
 
-            {tree.map((node, idx) => (
-              <div key={node.phase.id} className="space-y-2">
-                {renderPhaseCard(node.phase, idx, false)}
-                {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
-                  renderPhaseCard(child, idx * 100 + cIdx, true),
-                )}
-                {/* Atalho para criar subcapítulo */}
-                {expandedPhases.has(node.phase.id) && (
-                  <div className="ml-6">
-                    <button
-                      onClick={() => addPhase(node.phase.id)}
-                      className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
-                    >
-                      <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+            {(() => {
+              const renderNode = (node: import('@/lib/chapters').ChapterNode, idx: number, depth: number): JSX.Element => (
+                <div key={node.phase.id} className="space-y-2" style={{ marginLeft: depth > 0 ? `${depth * 1.5}rem` : undefined }}>
+                  {renderPhaseCard(node.phase, idx, depth > 0)}
+                  {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
+                    renderNode(child, idx * 100 + cIdx, depth + 1),
+                  )}
+                  {expandedPhases.has(node.phase.id) && (
+                    <div>
+                      <button
+                        onClick={() => addPhase(node.phase.id)}
+                        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
+                      >
+                        <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+              return tree.map((node, idx) => renderNode(node, idx, 0));
+            })()}
 
             {/* Phases órfãs (parentId apontando para um capítulo inexistente) */}
             {project.phases
