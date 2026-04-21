@@ -1,7 +1,7 @@
 import { Project, Task, LaborComposition, DailyProductionLog, Phase } from '@/types/project';
 import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
+import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import DailyLogsPanel from '@/components/DailyLogsPanel';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -570,27 +570,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
         const renderActionButtons = (phase: Phase, isSub: boolean) => (
           <>
-            {/* Mover para capítulo (dropdown) */}
-            <div className="relative w-32 max-w-[8rem] flex-shrink-0">
-              <select
-                value={phase.parentId ?? ''}
-                onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
-                className="w-full max-w-[8rem] truncate overflow-hidden text-ellipsis text-[10px] h-7 px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
-                title={isSub ? 'Mover para outro capítulo' : 'Transformar em subcapítulo'}
-                onClick={e => e.stopPropagation()}
-              >
-                <option value="">— Capítulo principal —</option>
-                {orderedMainChapters.filter(c => c.id !== phase.id).map(c => {
-                  const num = numbering.get(c.id) ?? '';
-                  const shortLabel = `${num} - ${truncateWords(c.name, 3)}`.trim();
-                  return (
-                    <option key={c.id} value={c.id} title={`${num} - ${c.name}`}>
-                      {shortLabel}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
             {editingPhase === phase.id ? (
               <button onClick={() => renamePhase(phase.id)} className="h-7 w-7 flex items-center justify-center rounded hover:bg-success/20 text-success transition-colors flex-shrink-0" title="Salvar nome">
                 <Check className="w-3.5 h-3.5" />
@@ -656,7 +635,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-move"
+                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-2.5 hover:bg-muted/30 transition-colors cursor-move"
                   title="Arraste para mover/reordenar este capítulo"
                 >
                   <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
@@ -697,25 +676,41 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                     </button>
                   )}
                   {editingPhase === phase.id ? (
-                    <input
-                      autoFocus
-                      value={phaseNameDraft}
-                      onChange={e => setPhaseNameDraft(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
-                      onClick={e => e.stopPropagation()}
-                      onMouseDown={e => e.stopPropagation()}
-                      onDragStart={e => e.preventDefault()}
-                      className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
-                    />
+                    <div className="flex items-center gap-2 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
+                      <input
+                        autoFocus
+                        value={phaseNameDraft}
+                        onChange={e => setPhaseNameDraft(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
+                        onMouseDown={e => e.stopPropagation()}
+                        onDragStart={e => e.preventDefault()}
+                        className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
+                      />
+                      <select
+                        value={phase.parentId ?? ''}
+                        onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
+                        className="max-w-[10rem] truncate text-[10px] h-7 px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
+                        title="Mover para outro capítulo"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <option value="">— Capítulo principal —</option>
+                        {orderedMainChapters.filter(c => c.id !== phase.id).map(c => {
+                          const cnum = numbering.get(c.id) ?? '';
+                          const shortLabel = `${cnum} - ${truncateWords(c.name, 3)}`.trim();
+                          return (
+                            <option key={c.id} value={c.id} title={`${cnum} - ${c.name}`}>
+                              {shortLabel}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
                   ) : (
                     <span className="text-sm font-bold text-foreground truncate">{phase.name}</span>
                   )}
                   {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
                   <span className="text-xs text-muted-foreground ml-1 flex-shrink-0">({phase.tasks.length})</span>
                   <div className="ml-auto flex items-center gap-3 flex-shrink-0">
-                    <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${phaseProgress}%` }} />
-                    </div>
                     <span className="text-xs font-bold text-muted-foreground w-8 text-right">{phaseProgress}%</span>
                   </div>
                 </div>
@@ -738,19 +733,15 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
-                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px' }}>
+                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 2.5fr 90px 100px 80px 90px 80px 120px 80px' }}>
                         <div>Eq.</div>
                         <div>Tarefa</div>
                         <div>Qtd.</div>
                         <div className="text-center">Prod./dia</div>
-                        <div>Responsável</div>
                         <div>Duração</div>
-                        <div>Horas</div>
                         <div>Gargalo</div>
-                        <div>Folga</div>
                         <div>Depend.</div>
                         <div>Progresso</div>
-                        <div>Status</div>
                         <div>Ações</div>
                       </div>
 
@@ -777,10 +768,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               const rowTeam = getTeamDefinition(task.team);
                               return (
                             <div
-                              className={`grid gap-1.5 px-3 py-2.5 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '36px 2.5fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
@@ -802,7 +793,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
                               {/* Nome */}
                               <div className="flex items-center gap-1 min-w-0">
-                                <GripVertical className={`w-3.5 h-3.5 cursor-grab active:cursor-grabbing flex-shrink-0 ${rowTeam ? 'opacity-50' : 'text-muted-foreground/50'}`} />
                                 {task.isCritical && <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0" />}
                                 {isEditing ? (
                                   <InlineInput
@@ -851,59 +841,39 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 {getDailyProduction(task)}
                               </div>
 
-                              {/* Responsável */}
-                              <div className="">
-                                {isEditing ? (
-                                  <InlineInput
-                                    value={task.responsible}
-                                    onChange={v => updateTask(phase.id, task.id, { responsible: v })}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  <div className={`flex items-center gap-1 text-[10px] truncate ${rowTeam ? 'opacity-80' : 'text-muted-foreground'}`}>
-                                    <User className="w-3 h-3 flex-shrink-0" />
-                                    {task.responsible || '—'}
-                                  </div>
-                                )}
-                              </div>
-
                               {/* Duração (auto) */}
-                              <div className={`col-span-1 text-[10px] font-bold flex items-center gap-1 ${rowTeam ? '' : 'text-foreground'}`}>
-                                <span>{task.duration}d</span>
-                                <span className={`text-[8px] ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>🔒</span>
-                                {task.baseline && task.baseline.duration !== task.duration && (() => {
-                                  const dev = task.duration - task.baseline.duration;
-                                  const cls = dev <= 0
-                                    ? 'bg-success/15 text-success'
-                                    : dev <= 2
-                                      ? 'bg-warning/15 text-warning'
-                                      : 'bg-destructive/15 text-destructive';
+                              <div className={`text-[10px] font-bold flex items-center gap-1 ${rowTeam ? '' : 'text-foreground'}`}>
+                                {(() => {
+                                  const dev = task.baseline ? task.duration - task.baseline.duration : 0;
+                                  const showAlert = !!task.baseline && Math.abs(dev) > 2;
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${cls}`}>
-                                          Δ {dev > 0 ? '+' : ''}{dev}d
+                                        <span className="cursor-help flex items-center gap-1">
+                                          <span>{task.duration}d</span>
+                                          {showAlert && <AlertTriangle className={`w-3 h-3 ${dev > 0 ? 'text-destructive' : 'text-success'}`} />}
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent side="top" className="text-[10px] space-y-0.5">
-                                        <div><strong>Base:</strong> {formatISODateBR(task.baseline.startDate)} → {formatISODateBR(task.baseline.endDate)} ({task.baseline.duration}d)</div>
-                                        <div><strong>Previsto:</strong> {formatISODateBR(task.current?.startDate ?? task.startDate)} → {formatISODateBR(task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate)} ({task.current?.duration ?? task.duration}d)</div>
-                                        <div><strong>Desvio:</strong> {dev > 0 ? '+' : ''}{dev} dias</div>
-                                        {task.accumulatedDelayQuantity !== undefined && (
-                                          <div><strong>Saldo acumulado:</strong> {task.accumulatedDelayQuantity.toFixed(1)} {task.unit || 'un'}</div>
-                                        )}
-                                        {task.executedQuantityTotal !== undefined && (
-                                          <div><strong>Executado:</strong> {task.executedQuantityTotal.toFixed(1)} {task.unit || 'un'}</div>
+                                        {task.baseline ? (
+                                          <>
+                                            <div><strong>Base:</strong> {formatISODateBR(task.baseline.startDate)} → {formatISODateBR(task.baseline.endDate)} ({task.baseline.duration}d)</div>
+                                            <div><strong>Previsto:</strong> {formatISODateBR(task.current?.startDate ?? task.startDate)} → {formatISODateBR(task.current?.forecastEndDate ?? task.current?.endDate ?? task.startDate)} ({task.current?.duration ?? task.duration}d)</div>
+                                            <div><strong>Desvio:</strong> {dev > 0 ? '+' : ''}{dev} dias</div>
+                                            {task.accumulatedDelayQuantity !== undefined && (
+                                              <div><strong>Saldo acumulado:</strong> {task.accumulatedDelayQuantity.toFixed(1)} {task.unit || 'un'}</div>
+                                            )}
+                                            {task.executedQuantityTotal !== undefined && (
+                                              <div><strong>Executado:</strong> {task.executedQuantityTotal.toFixed(1)} {task.unit || 'un'}</div>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <div>Duração: {task.duration} dias</div>
                                         )}
                                       </TooltipContent>
                                     </Tooltip>
                                   );
                                 })()}
-                              </div>
-
-                              {/* Horas (auto) */}
-                              <div className={`col-span-1 text-[10px] ${rowTeam ? 'opacity-80' : 'text-muted-foreground'}`}>
-                                {task.totalHours ? `${Math.round(task.totalHours)}h` : `${task.duration * DAILY_HOURS}h`}
                               </div>
 
                               {/* Gargalo */}
@@ -916,13 +886,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     {abbreviateRole(task.bottleneckRole)}
                                   </span>
                                 ) : <span className={`text-[10px] ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>}
-                              </div>
-
-                              {/* Folga */}
-                              <div className="">
-                                <span className={`text-[10px] font-bold ${rowTeam ? '' : (task.float === 0 ? 'text-destructive' : 'text-success')}`}>
-                                  {task.float !== undefined ? `${task.float}d` : '—'}
-                                </span>
                               </div>
 
                               {/* Dependências */}
@@ -979,22 +942,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 </div>
                               </div>
 
-                              {/* Status (auto) */}
-                              <div className="">
-                                <StatusBadge percent={task.percentComplete} />
-                              </div>
-
                               {/* Ações */}
                               <div className="flex items-center gap-1">
-                                {isEditing ? (
-                                  <button onClick={() => setEditingTask(null)} className="p-1 rounded hover:bg-success/20 text-success transition-colors" title="Salvar">
-                                    <Check className="w-3 h-3" />
-                                  </button>
-                                ) : (
-                                  <button onClick={() => { setEditingTask(task.id); setExpandedRup(task.id); }} className="p-1 rounded hover:bg-primary/20 text-primary transition-colors" title="Editar">
-                                    <Edit3 className="w-3 h-3" />
-                                  </button>
-                                )}
                                 <button
                                   onClick={() => setExpandedDaily(expandedDaily === task.id ? null : task.id)}
                                   className={`p-1 rounded transition-colors ${expandedDaily === task.id ? 'bg-info/30 text-info' : 'hover:bg-info/20 text-info'}`}
@@ -1002,12 +951,23 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                 >
                                   <ClipboardList className="w-3 h-3" />
                                 </button>
-                                <button onClick={() => duplicateTask(phase.id, task)} className="p-1 rounded hover:bg-info/20 text-info transition-colors" title="Duplicar">
-                                  <Copy className="w-3 h-3" />
-                                </button>
                                 <button onClick={() => deleteTask(phase.id, task.id)} className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors" title="Excluir">
                                   <Trash2 className="w-3 h-3" />
                                 </button>
+                                <div className="hidden group-hover:flex items-center gap-1">
+                                  {isEditing ? (
+                                    <button onClick={() => setEditingTask(null)} className="p-1 rounded hover:bg-success/20 text-success transition-colors" title="Salvar">
+                                      <Check className="w-3 h-3" />
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => { setEditingTask(task.id); setExpandedRup(task.id); }} className="p-1 rounded hover:bg-primary/20 text-primary transition-colors" title="Editar">
+                                      <Edit3 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                  <button onClick={() => duplicateTask(phase.id, task)} className="p-1 rounded hover:bg-info/20 text-info transition-colors" title="Duplicar">
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                               );
@@ -1023,6 +983,12 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                   className="overflow-hidden border-t border-border bg-muted/20"
                                 >
                                   <div className="px-8 py-3 space-y-3">
+                                    <div className="grid grid-cols-4 gap-2 mb-1 p-2 bg-muted/30 rounded text-[10px]">
+                                      <div><span className="text-muted-foreground">Responsável:</span> {task.responsible || '—'}</div>
+                                      <div><span className="text-muted-foreground">Horas:</span> {Math.round(task.totalHours || task.duration * DAILY_HOURS)}h</div>
+                                      <div><span className="text-muted-foreground">Folga:</span> {task.float !== undefined ? `${task.float}d` : '—'}</div>
+                                      <div><span className="text-muted-foreground">Desvio:</span> {task.baseline ? `${task.duration - task.baseline.duration > 0 ? '+' : ''}${task.duration - task.baseline.duration}d` : '—'}</div>
+                                    </div>
                                     <div className="flex items-center justify-between flex-wrap gap-2">
                                       <h4 className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
                                         <Zap className="w-3.5 h-3.5 text-warning" />
