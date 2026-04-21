@@ -45,6 +45,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const [resizeDelta, setResizeDelta] = useState(0);
   const resizeStartX = useRef(0);
 
+  // Refs DOM por tarefa para mutação direta durante drag/resize (evita re-render)
+  const barRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const setBarRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
+    if (el) barRefs.current.set(id, el);
+    else barRefs.current.delete(id);
+  }, []);
+
   // Local duration edit state
   const [editingDurationTaskId, setEditingDurationTaskId] = useState<string | null>(null);
   const [localDuration, setLocalDuration] = useState<string>('');
@@ -532,7 +539,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       requestAnimationFrame(() => {
         dragRafPending.current = false;
         const dx = lastDragDx.current;
-        setDragOffset(dx);
+        // Mutação DOM direta — sem setState → sem re-render durante o drag
+        const el = barRefs.current.get(taskId);
+        if (el) {
+          el.style.transform = `translateX(${dx}px)`;
+          el.style.transition = 'none';
+        }
         const daysMoved = Math.round(dx / dayWidth);
         if (daysMoved !== lastDragDays.current) {
           lastDragDays.current = daysMoved;
@@ -540,7 +552,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           if (task) {
             const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
             const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
-            setDragTempTasks(tempMap);
+            // Propagar visualmente nos sucessores via DOM (sem state)
+            tempMap.forEach((data, sid) => {
+              const sEl = barRefs.current.get(sid);
+              if (!sEl) return;
+              const tempStart = diffDays(projectStart, parseISODateLocal(data.startDate));
+              const targetLeft = tempStart * dayWidth;
+              const origLeft = parseFloat(sEl.dataset.origLeft || sEl.style.left || '0');
+              if (!sEl.dataset.origLeft) sEl.dataset.origLeft = String(origLeft);
+              sEl.style.transform = `translateX(${targetLeft - origLeft}px)`;
+              sEl.style.transition = 'none';
+              sEl.style.opacity = '0.85';
+            });
           }
         }
       });
@@ -595,6 +618,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           }
         }
       }
+      // Limpa as transformações DOM antes do React re-renderizar
+      barRefs.current.forEach(el => {
+        el.style.transform = '';
+        el.style.transition = '';
+        el.style.opacity = '';
+        delete el.dataset.origLeft;
+      });
       setDraggingTaskId(null);
       setDragOffset(0);
       setDragTempTasks(new Map());
@@ -737,6 +767,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setResizeDelta(0);
     resizeStartX.current = e.clientX;
 
+    // Captura largura/posição original da barra para mutar diretamente o DOM
+    const barEl = barRefs.current.get(taskId);
+    const origWidth = barEl ? barEl.getBoundingClientRect().width : 0;
+    const origLeftStr = barEl?.style.left || '0';
+    const origLeftPx = parseFloat(origLeftStr) || 0;
+    const minWidth = dayWidth;
+
     let resizeRafPending = false;
     let lastResizeDx = 0;
     const handleMove = (ev: MouseEvent) => {
@@ -745,7 +782,17 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       resizeRafPending = true;
       requestAnimationFrame(() => {
         resizeRafPending = false;
-        setResizeDelta(lastResizeDx);
+        if (!barEl) return;
+        const dx = lastResizeDx;
+        if (side === 'right') {
+          const newW = Math.max(minWidth, origWidth + dx);
+          barEl.style.width = `${newW}px`;
+        } else {
+          const delta = Math.min(dx, origWidth - minWidth);
+          barEl.style.left = `${origLeftPx + delta}px`;
+          barEl.style.width = `${origWidth - delta}px`;
+        }
+        barEl.style.transition = 'none';
       });
     };
     const handleUp = (ev: MouseEvent) => {
@@ -773,6 +820,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         };
         onProjectChange?.(updatedProject);
         setTimeout(() => runPropagation(taskId, updatedProject), 0);
+      }
+      // Limpa estilos inline para o React reassumir o controle
+      if (barEl) {
+        barEl.style.transition = '';
       }
       setResizingTaskId(null);
       setResizeSide(null);
@@ -1570,6 +1621,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const barWidth = currentWidth;
                                   return (
                                 <div
+                                  ref={setBarRef(task.id)}
                                   className={`absolute rounded-md ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   title={`${formatDateFull(task.startDate)} → ${formatDateFull(getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado))} | ${task.duration}d — Arraste para mover`}
                                   style={{
