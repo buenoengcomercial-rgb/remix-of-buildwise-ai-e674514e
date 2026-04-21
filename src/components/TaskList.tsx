@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
 import { formatISODateBR } from '@/components/gantt/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter, reorderChapter } from '@/lib/chapters';
+import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter, reorderChapter, reorderChapterByNumber } from '@/lib/chapters';
 import { toast } from 'sonner';
 
 /** Encurta o nome da tarefa para no máximo `maxWords` palavras, adicionando "…" no final. */
