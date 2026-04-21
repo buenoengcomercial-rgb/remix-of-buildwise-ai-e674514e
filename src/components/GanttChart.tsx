@@ -880,11 +880,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 return (
                   <div key={phase.id}>
                     {/* Phase header with dates */}
-                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/40' : 'bg-muted/70'}`}>
+                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/30' : 'bg-muted/70'}`}>
                       <button
                         onClick={() => togglePhase(phase.id)}
                         className="w-full flex items-center gap-1.5 px-2 hover:bg-muted transition-colors"
-                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 18 : 8 }}
+                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 24 : 8 }}
                       >
                         {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                         <span className="text-[9px] font-mono text-muted-foreground tabular-nums">{chapterNumbering.get(phase.id)}</span>
