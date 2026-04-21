@@ -130,6 +130,11 @@ export interface Phase {
   customNumber?: string;
 }
 
+export interface ProjectUiState {
+  /** IDs de capítulos/subcapítulos atualmente recolhidos na aba Tarefas (EAP). */
+  collapsedPhaseIds?: string[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -137,6 +142,8 @@ export interface Project {
   endDate: string;
   phases: Phase[];
   totalBudget: number;
+  /** Estado visual persistido da UI (ex.: capítulos minimizados na EAP). */
+  uiState?: ProjectUiState;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
