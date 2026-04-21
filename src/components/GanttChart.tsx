@@ -1749,6 +1749,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           );
                         })()}
                       </div>
+                      {!collapsedPhases.has(phase.id) && phase.tasks.length > 0 && (
+                        <div className="border-b border-border bg-secondary/30" style={{ height: 18 }} />
+                      )}
                       {!collapsedPhases.has(phase.id) &&
                         phase.tasks
                           .filter(t => !showCriticalOnly || t.isCritical)
