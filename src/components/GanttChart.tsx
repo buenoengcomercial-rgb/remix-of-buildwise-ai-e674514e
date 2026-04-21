@@ -121,10 +121,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return map;
   }, [taskNumbering]);
 
+  // Phases ordenadas: capítulo principal seguido de seus subcapítulos
+  const displayPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const chapterNumbering = useMemo(() => getChapterNumbering(project), [project]);
+
   const flatTasks = useMemo(() => {
     const result: FlatTask[] = [];
     let rowIdx = 0;
-    project.phases.forEach(phase => {
+    displayPhases.forEach(phase => {
       rowIdx++;
       if (!collapsedPhases.has(phase.id)) {
         phase.tasks
@@ -136,7 +140,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       }
     });
     return result;
-  }, [project, collapsedPhases, showCriticalOnly]);
+  }, [displayPhases, collapsedPhases, showCriticalOnly]);
 
   // Compute Y positions for dependency arrows (relative to bars area)
   const taskYPositions = useMemo(() => {
