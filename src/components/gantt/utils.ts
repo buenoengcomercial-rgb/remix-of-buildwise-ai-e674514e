@@ -72,9 +72,51 @@ export function formatDateShort(d: string) {
   return formatISODateShortBR(d);
 }
 
-/** Data fim = último dia trabalhado = startDate + duration − 1.
- *  Convenção MS Project: tarefa de 1 dia começa e termina no mesmo dia. */
-export function getEndDate(startDate: string, duration: number): string {
+/** Data fim respeitando calendário de trabalho (sábado = 0.5, domingo = 0).
+ *  Tarefa de 1 dia começa e termina no mesmo dia. */
+export function getWorkEndDate(
+  startDateISO: string,
+  duration: number,
+  trabalhaSabado: boolean = false
+): string {
+  const start = parseISODateLocal(startDateISO);
+  if (duration <= 1) return toISODateLocal(start);
+  let end = addWorkDays(start, duration - 1, trabalhaSabado);
+  // Defensivo: se cair em domingo, avança para segunda
+  if (end.getDay() === 0) {
+    end = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+  }
+  return toISODateLocal(end);
+}
+
+/** Conta dias úteis entre duas datas (inclusive). Sábado = 0.5, domingo = 0. */
+export function countWorkDays(
+  startDate: Date,
+  endDate: Date,
+  trabalhaSabado: boolean = false
+): number {
+  let count = 0;
+  let current = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  while (current <= end) {
+    const dow = current.getDay();
+    if (dow === 6) {
+      if (trabalhaSabado) count += 0.5;
+    } else if (dow !== 0) {
+      count += 1;
+    }
+    current = new Date(current.getFullYear(), current.getMonth(), current.getDate() + 1);
+  }
+  return count;
+}
+
+/** Data fim = último dia trabalhado. Wrapper de compatibilidade.
+ *  Se `trabalhaSabado` for fornecido, respeita o calendário de trabalho.
+ *  Caso contrário, mantém o comportamento legado (dias corridos). */
+export function getEndDate(startDate: string, duration: number, trabalhaSabado?: boolean): string {
+  if (trabalhaSabado !== undefined) {
+    return getWorkEndDate(startDate, duration, trabalhaSabado);
+  }
   const d = parseISODateLocal(startDate);
   const offset = Math.max(0, duration - 1);
   d.setDate(d.getDate() + offset);
