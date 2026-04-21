@@ -111,17 +111,18 @@ export function getChapterNumbering(project: Project): Map<string, string> {
   const tree = getChapterTree(project);
   const map = new Map<string, string>();
   tree.forEach((node, idx) => {
-    const chapterNum = String(idx + 1);
+    const chapterNum = node.phase.customNumber?.trim() || String(idx + 1);
     map.set(node.phase.id, chapterNum);
     node.children.forEach((child, cIdx) => {
-      map.set(child.id, `${chapterNum}.${cIdx + 1}`);
+      const childNum = child.customNumber?.trim() || `${chapterNum}.${cIdx + 1}`;
+      map.set(child.id, childNum);
     });
   });
   // Phases legadas não enumeradas: numera na sequência
   let next = tree.length + 1;
   project.phases.forEach(p => {
     if (!map.has(p.id)) {
-      map.set(p.id, String(next++));
+      map.set(p.id, p.customNumber?.trim() || String(next++));
     }
   });
   return map;
