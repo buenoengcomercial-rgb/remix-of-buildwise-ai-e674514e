@@ -1622,6 +1622,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   return (
                                 <div
                                   ref={setBarRef(task.id)}
+                                  className={`absolute rounded-md ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
                                   title={`${formatDateFull(task.startDate)} → ${formatDateFull(getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado))} | ${task.duration}d — Arraste para mover`}
                                   style={{
                                     left: barLeft,
