@@ -475,7 +475,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const mainChapters = useMemo(() => project.phases.filter(p => !p.parentId), [project.phases]);
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-4 overflow-x-hidden w-full max-w-full">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Estrutura Analítica (EAP)</h2>
@@ -669,9 +669,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               <AnimatePresence>
                 {isExpanded && (
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                    <div className="border-t border-border overflow-x-auto">
-                      <div className="min-w-[1240px]">
-                      <div className="grid gap-2 px-4 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '32px 220px 90px 90px 110px 70px 60px 95px 50px 110px 130px 95px 110px' }}>
+                     <div className="border-t border-border overflow-x-hidden">
+                       <div className="w-full">
+                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px' }}>
                         <div>Eq.</div>
                         <div>Tarefa</div>
                         <div>Qtd.</div>
@@ -710,10 +710,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               const rowTeam = getTeamDefinition(task.team);
                               return (
                             <div
-                              className={`grid gap-2 px-4 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              className={`grid gap-1.5 px-3 py-2.5 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '32px 220px 90px 90px 110px 70px 60px 95px 50px 110px 130px 95px 110px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
@@ -859,7 +859,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Dependências */}
-                              <div className="">
+                              <div className="min-w-0">
                                 {isEditing ? (
                                   <select
                                     multiple
@@ -875,12 +875,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       <option key={t.id} value={t.id}>{t.name}</option>
                                     ))}
                                   </select>
+                                ) : task.dependencies.length > 0 ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold cursor-help ${rowTeam ? 'bg-white/20' : 'bg-muted text-muted-foreground'}`}>
+                                        {task.dependencies.length} dep
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs whitespace-normal">
+                                      {task.dependencies.map(d => allTasks.find(t => t.id === d)?.name || d).join(' • ')}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 ) : (
-                                  <span className={`text-[9px] ${rowTeam ? 'opacity-70' : 'text-muted-foreground'}`}>
-                                    {task.dependencies.length > 0
-                                      ? task.dependencies.map(d => allTasks.find(t => t.id === d)?.name?.slice(0, 8) || d).join(', ')
-                                      : '—'}
-                                  </span>
+                                  <span className={`text-[9px] ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>
                                 )}
                               </div>
 
