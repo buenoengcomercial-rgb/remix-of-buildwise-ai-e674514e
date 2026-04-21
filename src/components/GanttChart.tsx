@@ -104,7 +104,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const togglePhase = (id: string) => {
     setCollapsedPhases(prev => {
       const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
+      const isCollapsing = !n.has(id);
+      const childIds = allPhases.filter(p => p.parentId === id).map(p => p.id);
+      if (isCollapsing) {
+        n.add(id);
+        childIds.forEach(c => n.add(c));
+      } else {
+        n.delete(id);
+        childIds.forEach(c => n.delete(c));
+      }
       return n;
     });
   };
