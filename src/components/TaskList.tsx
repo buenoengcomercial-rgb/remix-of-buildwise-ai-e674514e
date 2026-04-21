@@ -1078,8 +1078,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                             )}
 
                             {/* Daily production log panel */}
-                            <AnimatePresence>
-                              {expandedDaily === task.id && (
+                            {expandedDaily === task.id && (
                                 <DailyLogsPanel
                                   task={task}
                                   onChange={(logs: DailyProductionLog[]) => {
@@ -1141,8 +1140,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     });
                                   }}
                                 />
-                              )}
-                            </AnimatePresence>
+                            )}
                           </div>
                         );
                       })}
