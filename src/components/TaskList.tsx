@@ -733,7 +733,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
-                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 2.5fr 90px 100px 80px 90px 80px 120px 80px' }}>
+                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px' }}>
                         <div>Eq.</div>
                         <div>Tarefa</div>
                         <div>Qtd.</div>
@@ -771,7 +771,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '36px 2.5fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
@@ -804,7 +804,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
-                                        {truncateWords(task.name, 4)}
+                                        {truncateWords(task.name, 8)}
                                       </button>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="max-w-md whitespace-normal break-words">
