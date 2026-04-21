@@ -245,6 +245,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   // Assim não conflita com o drag de tarefas filhas nem trava cliques.
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropChapterTargetId, setDropChapterTargetId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('inside');
 
   const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
     setDragChapterId(chapterId);
@@ -254,11 +255,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
-    // Só intercepta drops de capítulo (não de tarefas)
     const types = Array.from(e.dataTransfer.types || []);
     if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    // Determina posição baseada no Y do mouse dentro do header (terços)
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const third = rect.height / 3;
+    let pos: 'before' | 'after' | 'inside';
+    if (offsetY < third) pos = 'before';
+    else if (offsetY > rect.height - third) pos = 'after';
+    else pos = 'inside';
+    setDropPosition(pos);
     setDropChapterTargetId(targetId);
   }, [dragChapterId]);
 
@@ -268,15 +277,27 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     if (dragChapterId !== targetId) {
-      handleMoveChapter(dragChapterId, targetId);
+      if (targetId === null) {
+        // Promove a principal (root)
+        handleMoveChapter(dragChapterId, null);
+      } else if (dropPosition === 'inside') {
+        // Vira subcapítulo do alvo
+        handleMoveChapter(dragChapterId, targetId);
+      } else {
+        // Reordena no mesmo nível do alvo (antes/depois)
+        const next = reorderChapter(project, dragChapterId, targetId, dropPosition);
+        onProjectChange(next);
+      }
     }
     setDragChapterId(null);
     setDropChapterTargetId(null);
-  }, [dragChapterId, handleMoveChapter]);
+    setDropPosition('inside');
+  }, [dragChapterId, dropPosition, handleMoveChapter, project, onProjectChange]);
 
   const handleChapterDragEnd = useCallback(() => {
     setDragChapterId(null);
     setDropChapterTargetId(null);
+    setDropPosition('inside');
   }, []);
 
   const togglePhase = (id: string) => {
