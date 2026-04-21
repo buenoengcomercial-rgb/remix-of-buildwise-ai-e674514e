@@ -254,9 +254,33 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
+    // Bloqueia ciclo: se o alvo é descendente do arrastado, ignora
+    const isDescendantOfDragged = (() => {
+      let current = project.phases.find(p => p.id === targetId);
+      const visited = new Set<string>();
+      while (current?.parentId) {
+        if (visited.has(current.id)) return false;
+        visited.add(current.id);
+        if (current.parentId === dragChapterId) return true;
+        current = project.phases.find(p => p.id === current!.parentId);
+      }
+      return false;
+    })();
+    if (isDescendantOfDragged) return;
+
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    // Determina posição baseada no Y do mouse dentro do header (terços)
+
+    // Se a origem do evento é o corpo expandido do capítulo, força "inside"
+    const overBody = !!(e.target as HTMLElement)?.closest?.('[data-chapter-body]');
+    if (overBody) {
+      setDropPosition('inside');
+      setDropChapterTargetId(targetId);
+      return;
+    }
+
+    // Caso contrário (header), calcula por terços
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
     const third = rect.height / 3;
@@ -266,7 +290,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     else pos = 'inside';
     setDropPosition(pos);
     setDropChapterTargetId(targetId);
-  }, [dragChapterId]);
+  }, [dragChapterId, project.phases]);
 
   const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
     if (!dragChapterId) return;
