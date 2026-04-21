@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
 import { formatISODateBR } from '@/components/gantt/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter } from '@/lib/chapters';
+import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter, reorderChapter } from '@/lib/chapters';
 import { toast } from 'sonner';
 
 /** Encurta o nome da tarefa para no máximo `maxWords` palavras, adicionando "…" no final. */
@@ -95,6 +95,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const [importOpen, setImportOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<string | null>(null);
   const [phaseNameDraft, setPhaseNameDraft] = useState('');
+  const [editingNumberId, setEditingNumberId] = useState<string | null>(null);
+  const [numberDraft, setNumberDraft] = useState('');
 
   // Drag-and-drop state
   const [dragPhaseId, setDragPhaseId] = useState<string | null>(null);
@@ -194,6 +196,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     });
   };
 
+  /** Salva numeração customizada do capítulo. */
+  const saveChapterNumber = useCallback((phaseId: string) => {
+    const v = numberDraft.trim();
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p =>
+        p.id === phaseId ? { ...p, customNumber: v || undefined } : p,
+      ),
+    });
+    setEditingNumberId(null);
+  }, [numberDraft, project, onProjectChange]);
+
   /** Move um capítulo/subcapítulo para outro pai (ou promove a principal se newParentId === null). */
   const handleMoveChapter = useCallback((chapterId: string, newParentId: string | null) => {
     const { project: nextProject, validation, applied } = safeMoveChapter(project, chapterId, newParentId);
@@ -231,6 +245,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   // Assim não conflita com o drag de tarefas filhas nem trava cliques.
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropChapterTargetId, setDropChapterTargetId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('inside');
 
   const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
     setDragChapterId(chapterId);
@@ -240,11 +255,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
-    // Só intercepta drops de capítulo (não de tarefas)
     const types = Array.from(e.dataTransfer.types || []);
     if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    // Determina posição baseada no Y do mouse dentro do header (terços)
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const third = rect.height / 3;
+    let pos: 'before' | 'after' | 'inside';
+    if (offsetY < third) pos = 'before';
+    else if (offsetY > rect.height - third) pos = 'after';
+    else pos = 'inside';
+    setDropPosition(pos);
     setDropChapterTargetId(targetId);
   }, [dragChapterId]);
 
@@ -254,15 +277,27 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     if (dragChapterId !== targetId) {
-      handleMoveChapter(dragChapterId, targetId);
+      if (targetId === null) {
+        // Promove a principal (root)
+        handleMoveChapter(dragChapterId, null);
+      } else if (dropPosition === 'inside') {
+        // Vira subcapítulo do alvo
+        handleMoveChapter(dragChapterId, targetId);
+      } else {
+        // Reordena no mesmo nível do alvo (antes/depois)
+        const next = reorderChapter(project, dragChapterId, targetId, dropPosition);
+        onProjectChange(next);
+      }
     }
     setDragChapterId(null);
     setDropChapterTargetId(null);
-  }, [dragChapterId, handleMoveChapter]);
+    setDropPosition('inside');
+  }, [dragChapterId, dropPosition, handleMoveChapter, project, onProjectChange]);
 
   const handleChapterDragEnd = useCallback(() => {
     setDragChapterId(null);
     setDropChapterTargetId(null);
+    setDropPosition('inside');
   }, []);
 
   const togglePhase = (id: string) => {
@@ -550,27 +585,50 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
               <div
-                className="flex items-center"
+                className={`flex items-center relative ${
+                  isDropTarget && dropPosition === 'before' ? 'before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-primary' : ''
+                } ${
+                  isDropTarget && dropPosition === 'after' ? 'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary' : ''
+                }`}
                 onDragOver={e => handleChapterDragOver(e, phase.id)}
                 onDrop={e => handleChapterDrop(e, phase.id)}
               >
-                <button
+                <div
+                  draggable
+                  onDragStart={e => handleChapterDragStart(e, phase.id)}
+                  onDragEnd={handleChapterDragEnd}
+                  className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
                   onClick={() => togglePhase(phase.id)}
-                  className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
+                  title="Arraste para mover/reordenar este capítulo"
                 >
-                  <span
-                    draggable
-                    onDragStart={e => handleChapterDragStart(e, phase.id)}
-                    onDragEnd={handleChapterDragEnd}
-                    onClick={e => e.stopPropagation()}
-                    className="cursor-grab active:cursor-grabbing"
-                    title="Arraste para mover este capítulo"
-                  >
-                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50" />
-                  </span>
-                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                  <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
-                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{num}</span>
+                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: phase.color }} />
+                  {editingNumberId === phase.id ? (
+                    <input
+                      autoFocus
+                      value={numberDraft}
+                      onChange={e => setNumberDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveChapterNumber(phase.id); if (e.key === 'Escape') setEditingNumberId(null); }}
+                      onBlur={() => saveChapterNumber(phase.id)}
+                      onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                      onDragStart={e => e.preventDefault()}
+                      className="text-[11px] font-bold text-foreground bg-transparent border border-primary rounded px-1 py-0 w-14 tabular-nums focus:outline-none"
+                      placeholder={String(pi + 1)}
+                    />
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); setEditingNumberId(phase.id); setNumberDraft(phase.customNumber ?? num); }}
+                      onMouseDown={e => e.stopPropagation()}
+                      onDragStart={e => e.preventDefault()}
+                      draggable={false}
+                      className="text-[11px] font-bold text-muted-foreground tabular-nums hover:text-primary hover:bg-primary/10 rounded px-1 py-0.5 transition-colors"
+                      title="Clique para editar a numeração"
+                    >
+                      {num}
+                    </button>
+                  )}
                   {editingPhase === phase.id ? (
                     <input
                       autoFocus
@@ -578,26 +636,29 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                       onChange={e => setPhaseNameDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
                       onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                      onDragStart={e => e.preventDefault()}
                       className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
                     />
                   ) : (
-                    <span className="text-sm font-bold text-foreground">{phase.name}</span>
+                    <span className="text-sm font-bold text-foreground truncate">{phase.name}</span>
                   )}
-                  {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive" />}
-                  <span className="text-xs text-muted-foreground ml-1">({phase.tasks.length} tarefas)</span>
-                  <div className="ml-auto flex items-center gap-3">
+                  {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
+                  <span className="text-xs text-muted-foreground ml-1 flex-shrink-0">({phase.tasks.length})</span>
+                  <div className="ml-auto flex items-center gap-3 flex-shrink-0">
                     <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${phaseProgress}%` }} />
                     </div>
                     <span className="text-xs font-bold text-muted-foreground w-8 text-right">{phaseProgress}%</span>
                   </div>
-                </button>
+                </div>
 
-                <div className="flex items-center gap-1 mr-2">
+                <div className="flex items-center gap-1 mr-2" onMouseDown={e => e.stopPropagation()}>
                   {renderActionButtons(phase, isSub)}
                 </div>
                 <button
                   onClick={() => addTask(phase.id)}
+                  onMouseDown={e => e.stopPropagation()}
                   className="mr-4 flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors"
                   title="Adicionar tarefa"
                 >
@@ -608,12 +669,13 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               <AnimatePresence>
                 {isExpanded && (
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                    <div className="border-t border-border">
-                      <div className="grid gap-2 px-5 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr' }}>
+                    <div className="border-t border-border overflow-x-auto">
+                      <div className="min-w-[1240px]">
+                      <div className="grid gap-2 px-4 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '32px 220px 90px 90px 110px 70px 60px 95px 50px 110px 130px 95px 110px' }}>
                         <div>Eq.</div>
                         <div>Tarefa</div>
                         <div>Qtd.</div>
-                        <div className="text-center">Prod. Diária</div>
+                        <div className="text-center">Prod./dia</div>
                         <div>Responsável</div>
                         <div>Duração</div>
                         <div>Horas</div>
@@ -648,10 +710,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               const rowTeam = getTeamDefinition(task.team);
                               return (
                             <div
-                              className={`grid gap-2 px-5 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              className={`grid gap-2 px-4 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '36px 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '32px 220px 90px 90px 110px 70px 60px 95px 50px 110px 130px 95px 110px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
@@ -1075,6 +1137,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                           </div>
                         );
                       })}
+                      </div>
                     </div>
                   </motion.div>
                 )}
