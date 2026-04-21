@@ -1208,9 +1208,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
         return (
           <div className="space-y-3">
-            {/* Drop zone para promover a capítulo principal */}
-            {dragChapterId && (
-              <div
+            {/* Drop zone para promover a capítulo principal (apenas para subcapítulos) */}
+            {dragChapterId && project.phases.find(p => p.id === dragChapterId)?.parentId && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
                 onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDropChapterTargetId('__root__'); }}
                 onDrop={e => handleChapterDrop(e, null)}
                 className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
@@ -1220,29 +1222,31 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 }`}
               >
                 <ArrowUpFromLine className="w-3.5 h-3.5 inline mr-1" />
-                Soltar aqui para promover a Capítulo Principal
-              </div>
+                ⬆ Soltar aqui para promover a Capítulo Principal
+              </motion.div>
             )}
 
-            {tree.map((node, idx) => (
-              <div key={node.phase.id} className="space-y-2">
-                {renderPhaseCard(node.phase, idx, false)}
-                {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
-                  renderPhaseCard(child, idx * 100 + cIdx, true),
-                )}
-                {/* Atalho para criar subcapítulo */}
-                {expandedPhases.has(node.phase.id) && (
-                  <div className="ml-6">
-                    <button
-                      onClick={() => addPhase(node.phase.id)}
-                      className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
-                    >
-                      <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+            {(() => {
+              const renderNode = (node: import('@/lib/chapters').ChapterNode, idx: number, depth: number): JSX.Element => (
+                <div key={node.phase.id} className="space-y-2" style={{ marginLeft: depth > 0 ? `${depth * 1.5}rem` : undefined }}>
+                  {renderPhaseCard(node.phase, idx, depth > 0)}
+                  {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
+                    renderNode(child, idx * 100 + cIdx, depth + 1),
+                  )}
+                  {expandedPhases.has(node.phase.id) && (
+                    <div>
+                      <button
+                        onClick={() => addPhase(node.phase.id)}
+                        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
+                      >
+                        <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+              return tree.map((node, idx) => renderNode(node, idx, 0));
+            })()}
 
             {/* Phases órfãs (parentId apontando para um capítulo inexistente) */}
             {project.phases
