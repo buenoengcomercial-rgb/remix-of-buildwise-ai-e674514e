@@ -767,6 +767,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setResizeDelta(0);
     resizeStartX.current = e.clientX;
 
+    // Captura largura/posição original da barra para mutar diretamente o DOM
+    const barEl = barRefs.current.get(taskId);
+    const origWidth = barEl ? barEl.getBoundingClientRect().width : 0;
+    const origLeftStr = barEl?.style.left || '0';
+    const origLeftPx = parseFloat(origLeftStr) || 0;
+    const minWidth = dayWidth;
+
     let resizeRafPending = false;
     let lastResizeDx = 0;
     const handleMove = (ev: MouseEvent) => {
@@ -775,7 +782,17 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       resizeRafPending = true;
       requestAnimationFrame(() => {
         resizeRafPending = false;
-        setResizeDelta(lastResizeDx);
+        if (!barEl) return;
+        const dx = lastResizeDx;
+        if (side === 'right') {
+          const newW = Math.max(minWidth, origWidth + dx);
+          barEl.style.width = `${newW}px`;
+        } else {
+          const delta = Math.min(dx, origWidth - minWidth);
+          barEl.style.left = `${origLeftPx + delta}px`;
+          barEl.style.width = `${origWidth - delta}px`;
+        }
+        barEl.style.transition = 'none';
       });
     };
     const handleUp = (ev: MouseEvent) => {
@@ -803,6 +820,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
         };
         onProjectChange?.(updatedProject);
         setTimeout(() => runPropagation(taskId, updatedProject), 0);
+      }
+      // Limpa estilos inline para o React reassumir o controle
+      if (barEl) {
+        barEl.style.transition = '';
       }
       setResizingTaskId(null);
       setResizeSide(null);
