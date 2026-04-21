@@ -317,14 +317,26 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       return;
     }
 
-    // Caso contrário (header), calcula por terços
+    // Caso contrário (header), calcula a posição.
+    const dragged = project.phases.find(p => p.id === dragChapterId);
+    const target = project.phases.find(p => p.id === targetId);
+    const sameLevel =
+      !!dragged && !!target && (dragged.parentId ?? null) === (target.parentId ?? null);
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
-    const third = rect.height / 3;
     let pos: 'before' | 'after' | 'inside';
-    if (offsetY < third) pos = 'before';
-    else if (offsetY > rect.height - third) pos = 'after';
-    else pos = 'inside';
+    if (sameLevel) {
+      // Reordenação no mesmo nível (inclui subcapítulos): apenas before/after
+      // pela metade — facilita acertar e nunca tenta "virar filho do irmão".
+      pos = offsetY < rect.height / 2 ? 'before' : 'after';
+    } else {
+      // Níveis diferentes: terços (before/inside/after) — permite virar subcapítulo.
+      const third = rect.height / 3;
+      if (offsetY < third) pos = 'before';
+      else if (offsetY > rect.height - third) pos = 'after';
+      else pos = 'inside';
+    }
     setDropPosition(pos);
     setDropChapterTargetId(targetId);
   }, [dragChapterId, project.phases]);
