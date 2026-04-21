@@ -95,12 +95,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     return new Set(project.phases.filter(p => !collapsed.has(p.id)).map(p => p.id));
   });
 
-  // Sincroniza o estado expandido → uiState.collapsedPhaseIds no projeto,
-  // disparando onProjectChange (que persiste no localStorage). Evita loop
-  // comparando com o snapshot atual antes de propagar.
-  const syncCollapsedToProject = useCallback((nextExpanded: Set<string>) => {
+  // Persiste no projeto sempre que o conjunto de capítulos minimizados mudar.
+  // Compara antes de propagar para evitar loop com onProjectChange → re-render.
+  useEffect(() => {
     const collapsedNow = project.phases
-      .filter(p => !nextExpanded.has(p.id))
+      .filter(p => !expandedPhases.has(p.id))
       .map(p => p.id)
       .sort();
     const collapsedPrev = [...(project.uiState?.collapsedPhaseIds ?? [])].sort();
@@ -112,7 +111,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       ...project,
       uiState: { ...(project.uiState ?? {}), collapsedPhaseIds: collapsedNow },
     });
-  }, [project, onProjectChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedPhases, project.phases]);
 
   const [expandedRup, setExpandedRup] = useState<string | null>(null);
   const [expandedDaily, setExpandedDaily] = useState<string | null>(null);
