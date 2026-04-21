@@ -110,20 +110,27 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return infos;
   }, [projectStart, totalDays, feriadoMap]);
 
+  // Coleta tarefas do capítulo: se for capítulo principal, inclui as dos subcapítulos.
+  const getEffectiveChapterTasks = useCallback((phase: typeof project.phases[0]) => {
+    return getChapterTasks(project, phase.id);
+  }, [project]);
+
   // Chapter business days
   const getChapterDiasUteis = useCallback((phase: typeof project.phases[0]) => {
-    if (phase.tasks.length === 0) return { dias: 0, horas: 0 };
-    const starts = phase.tasks.map(t => parseISODateLocal(t.startDate).getTime());
-    const ends = phase.tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime());
+    const items = getEffectiveChapterTasks(phase);
+    if (items.length === 0) return { dias: 0, horas: 0 };
+    const starts = items.map(t => parseISODateLocal(t.startDate).getTime());
+    const ends = items.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime());
     const inicio = new Date(Math.min(...starts));
     const fim = new Date(Math.max(...ends));
     return calcularDiasUteis(inicio, fim, obraConfig.uf, obraConfig.municipio, obraConfig.trabalhaSabado, obraConfig.jornadaDiaria);
-  }, [obraConfig]);
+  }, [obraConfig, getEffectiveChapterTasks]);
 
   const getPhaseRange = (phase: typeof project.phases[0]) => {
-    if (phase.tasks.length === 0) return { start: '', end: '' };
-    const starts = phase.tasks.map(t => parseISODateLocal(t.startDate).getTime());
-    const ends = phase.tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime());
+    const items = getEffectiveChapterTasks(phase);
+    if (items.length === 0) return { start: '', end: '' };
+    const starts = items.map(t => parseISODateLocal(t.startDate).getTime());
+    const ends = items.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime());
     return {
       start: dateToISO(new Date(Math.min(...starts))),
       end: dateToISO(new Date(Math.max(...ends))),
