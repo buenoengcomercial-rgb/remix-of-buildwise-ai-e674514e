@@ -1051,6 +1051,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                               type="number"
                                               min={1}
                                               value={comp.workerCount}
+                                              onFocus={e => e.currentTarget.select()}
                                               onChange={e => updateLaborComp(phase.id, task.id, comp.id, { workerCount: Math.max(1, Number(e.target.value)) })}
                                               className="w-12 text-center bg-transparent border border-border rounded px-1 py-0.5 text-[11px]"
                                             />
