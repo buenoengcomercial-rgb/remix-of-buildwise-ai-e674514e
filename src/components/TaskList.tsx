@@ -607,10 +607,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               key={phase.id}
               className={isSub ? 'ml-6' : ''}
             >
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: pi * 0.04 }}
+            <div
               onDragOver={e => handleChapterDragOver(e, phase.id)}
               onDrop={e => handleChapterDrop(e, phase.id)}
               className={`relative bg-card rounded-xl border shadow-sm overflow-hidden transition-all ${
@@ -729,9 +726,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 </button>
               </div>
 
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
+              {isExpanded && (
+                <div className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
                        {phase.tasks.length > 0 && (
@@ -976,14 +972,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                             })()}
 
                             {/* RUP detail panel */}
-                            <AnimatePresence>
-                              {showRup && task.laborCompositions?.length !== undefined && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden border-t border-border bg-muted/20"
-                                >
+                            {showRup && task.laborCompositions?.length !== undefined && (
+                              <div className="overflow-hidden border-t border-border bg-muted/20">
                                   <div className="px-8 py-3 space-y-3">
                                     <div className="grid grid-cols-4 gap-2 mb-1 p-2 bg-muted/30 rounded text-[10px]">
                                       <div><span className="text-muted-foreground">Responsável:</span> {task.responsible || '—'}</div>
@@ -1084,9 +1074,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       </div>
                                     )}
                                   </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                              </div>
+                            )}
 
                             {/* Daily production log panel */}
                             <AnimatePresence>
