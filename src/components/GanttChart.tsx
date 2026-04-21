@@ -866,6 +866,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Duração em dias">Dur.</span>
                 <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Percentual concluído">% Concl.</span>
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Produção diária planejada vs realizada">Prod/Dia</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dep</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tipo</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Equipe</span>
