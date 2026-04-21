@@ -1189,16 +1189,65 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
                     renderNode(child, idx * 100 + cIdx, depth + 1),
                   )}
-                  {expandedPhases.has(node.phase.id) && (
-                    <div>
-                      <button
-                        onClick={() => addPhase(node.phase.id)}
-                        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
-                      >
-                        <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
-                      </button>
-                    </div>
-                  )}
+                  {expandedPhases.has(node.phase.id) && (() => {
+                    const isAddDropActive =
+                      dragChapterId &&
+                      dragChapterId !== node.phase.id &&
+                      dropChapterTargetId === `__addsub__:${node.phase.id}`;
+                    // Bloqueia drop se o alvo for descendente do arrastado (evita ciclos)
+                    const isDescendantOfDragged = (() => {
+                      if (!dragChapterId) return false;
+                      let current: Phase | undefined = node.phase;
+                      const visited = new Set<string>();
+                      while (current?.parentId) {
+                        if (visited.has(current.id)) return false;
+                        visited.add(current.id);
+                        if (current.parentId === dragChapterId) return true;
+                        current = project.phases.find(p => p.id === current!.parentId);
+                      }
+                      return current?.id === dragChapterId;
+                    })();
+                    return (
+                      <div>
+                        <button
+                          onClick={() => addPhase(node.phase.id)}
+                          onDragOver={e => {
+                            if (!dragChapterId || dragChapterId === node.phase.id || isDescendantOfDragged) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.dataTransfer.dropEffect = 'move';
+                            setDropChapterTargetId(`__addsub__:${node.phase.id}`);
+                            setDropPosition('inside');
+                          }}
+                          onDragLeave={() => {
+                            if (dropChapterTargetId === `__addsub__:${node.phase.id}`) {
+                              setDropChapterTargetId(null);
+                            }
+                          }}
+                          onDrop={e => {
+                            if (!dragChapterId || dragChapterId === node.phase.id || isDescendantOfDragged) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleMoveChapter(dragChapterId, node.phase.id);
+                            setDragChapterId(null);
+                            setDropChapterTargetId(null);
+                            setDropPosition('inside');
+                          }}
+                          className={`flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded-md border border-dashed transition-colors ${
+                            isAddDropActive
+                              ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/40'
+                              : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+                          }`}
+                          title={dragChapterId ? 'Solte aqui para virar subcapítulo deste capítulo' : undefined}
+                        >
+                          <FolderPlus className="w-3 h-3" />
+                          {isAddDropActive
+                            ? `➜ Soltar para virar subcapítulo de ${truncateWords(node.phase.name, 4)}`
+                            : `Adicionar subcapítulo a ${node.phase.name}`}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
               return tree.map((node, idx) => renderNode(node, idx, 0));
