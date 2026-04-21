@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import DependencyArrows from './gantt/DependencyArrows';
 import ConfiguracaoObra, { ObraConfig, loadObraConfig } from './ConfiguracaoObra';
 import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
-import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, MONTH_NAMES_PT, dateToISO, toISODateLocal, parseISODateLocal } from './gantt/utils';
+import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, getWorkEndDate, MONTH_NAMES_PT, dateToISO, toISODateLocal, parseISODateLocal } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis, isDiaUtil } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
 import { flattenPhasesByChapter, getChapterNumbering } from '@/lib/chapters';
@@ -261,7 +261,9 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
   const getBarStyle = (task: Task) => {
     const start = diffDays(projectStart, parseISODateLocal(task.startDate));
-    const width = task.duration * dayWidth;
+    const endISO = getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado);
+    const endOffset = diffDays(projectStart, parseISODateLocal(endISO));
+    const width = (endOffset - start + 1) * dayWidth;
     const isDelayed = addDays(parseISODateLocal(task.startDate), Math.max(0, task.duration - 1)) < today && task.percentComplete < 100;
     const isCritical = !!task.isCritical && !isDelayed && task.percentComplete < 100;
     const isComplete = task.percentComplete === 100;
@@ -929,7 +931,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                       phase.tasks
                         .filter(t => !showCriticalOnly || t.isCritical)
                         .map((task, idx) => {
-                          const endDate = getEndDate(task.startDate, task.duration);
+                          const endDate = getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado);
                           const taskNum = taskNumbering.get(task.id) || 0;
                           const violations = getViolations(task);
                           const hasViolation = violations.length > 0;
@@ -1469,7 +1471,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   return (
                                 <div
                                   className={`absolute rounded-md ${hasViolation ? 'animate-pulse ring-2 ring-destructive' : ''} ${noWorkDays ? 'ring-2 ring-warning' : ''}`}
-                                  title={`${formatDateFull(task.startDate)} → ${formatDateFull(getEndDate(task.startDate, task.duration))} | ${task.duration}d — Arraste para mover`}
+                                  title={`${formatDateFull(task.startDate)} → ${formatDateFull(getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado))} | ${task.duration}d — Arraste para mover`}
                                   style={{
                                     left: barLeft,
                                     width: barWidth,
