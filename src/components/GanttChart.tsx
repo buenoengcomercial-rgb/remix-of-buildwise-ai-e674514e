@@ -147,8 +147,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const map = new Map<string, number>();
     const PHASE_HEADER_HEIGHT = ROW_HEIGHT + 20;
     let y = 0;
-    project.phases.forEach(phase => {
-      y += PHASE_HEADER_HEIGHT;
+    displayPhases.forEach(phase => {
       if (!collapsedPhases.has(phase.id)) {
         phase.tasks
           .filter(t => !showCriticalOnly || t.isCritical)
