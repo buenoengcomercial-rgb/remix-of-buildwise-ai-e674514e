@@ -500,19 +500,22 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           const isDropTarget = dropChapterTargetId === phase.id && dragChapterId !== phase.id;
 
           return (
-            <motion.div
+            <div
               key={phase.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: pi * 0.04 }}
               draggable
               onDragStart={e => handleChapterDragStart(e, phase.id)}
               onDragOver={e => handleChapterDragOver(e, phase.id)}
               onDrop={e => handleChapterDrop(e, phase.id)}
               onDragEnd={handleChapterDragEnd}
+              className={isSub ? 'ml-6' : ''}
+            >
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: pi * 0.04 }}
               className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
-              } ${dragChapterId === phase.id ? 'opacity-50' : ''} ${isSub ? 'ml-6' : ''}`}
+              } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
               <div className="flex items-center">
                 <button
