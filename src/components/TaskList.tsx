@@ -150,16 +150,28 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     'hsl(280, 50%, 55%)', 'hsl(160, 50%, 45%)',
   ];
 
-  const addPhase = () => {
+  const addPhase = (parentId?: string) => {
     const newId = `phase-${Date.now()}`;
     const colorIdx = project.phases.length % PHASE_COLORS.length;
+    const siblings = project.phases.filter(p => (p.parentId ?? null) === (parentId ?? null));
+    const order = siblings.length;
     onProjectChange({
       ...project,
-      phases: [...project.phases, { id: newId, name: 'Novo Capítulo', color: PHASE_COLORS[colorIdx], tasks: [] }],
+      phases: [
+        ...project.phases,
+        {
+          id: newId,
+          name: parentId ? 'Novo Subcapítulo' : 'Novo Capítulo',
+          color: PHASE_COLORS[colorIdx],
+          tasks: [],
+          parentId,
+          order,
+        },
+      ],
     });
-    setExpandedPhases(prev => new Set([...prev, newId]));
+    setExpandedPhases(prev => new Set([...prev, newId, ...(parentId ? [parentId] : [])]));
     setEditingPhase(newId);
-    setPhaseNameDraft('Novo Capítulo');
+    setPhaseNameDraft(parentId ? 'Novo Subcapítulo' : 'Novo Capítulo');
   };
 
   const renamePhase = (phaseId: string) => {
@@ -172,11 +184,53 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   };
 
   const deletePhase = (phaseId: string) => {
+    // Ao excluir um capítulo principal, promove os subcapítulos para principais
     onProjectChange({
       ...project,
-      phases: project.phases.filter(p => p.id !== phaseId),
+      phases: project.phases
+        .filter(p => p.id !== phaseId)
+        .map(p => p.parentId === phaseId ? { ...p, parentId: undefined } : p),
     });
   };
+
+  /** Move um capítulo/subcapítulo para outro pai (ou promove a principal se newParentId === null). */
+  const handleMoveChapter = useCallback((chapterId: string, newParentId: string | null) => {
+    onProjectChange(moveChapter(project, chapterId, newParentId));
+    if (newParentId) setExpandedPhases(prev => new Set([...prev, newParentId]));
+  }, [project, onProjectChange]);
+
+  // Drag-and-drop de capítulos (mover/transformar em subcapítulo)
+  const [dragChapterId, setDragChapterId] = useState<string | null>(null);
+  const [dropChapterTargetId, setDropChapterTargetId] = useState<string | null>(null);
+
+  const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
+    e.stopPropagation();
+    setDragChapterId(chapterId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
+    if (!dragChapterId || dragChapterId === targetId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setDropChapterTargetId(targetId);
+  }, [dragChapterId]);
+
+  const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragChapterId && dragChapterId !== targetId) {
+      handleMoveChapter(dragChapterId, targetId);
+    }
+    setDragChapterId(null);
+    setDropChapterTargetId(null);
+  }, [dragChapterId, handleMoveChapter]);
+
+  const handleChapterDragEnd = useCallback(() => {
+    setDragChapterId(null);
+    setDropChapterTargetId(null);
+  }, []);
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => {
