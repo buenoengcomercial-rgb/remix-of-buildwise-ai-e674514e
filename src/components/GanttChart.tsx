@@ -539,7 +539,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       requestAnimationFrame(() => {
         dragRafPending.current = false;
         const dx = lastDragDx.current;
-        setDragOffset(dx);
+        // Mutação DOM direta — sem setState → sem re-render durante o drag
+        const el = barRefs.current.get(taskId);
+        if (el) {
+          el.style.transform = `translateX(${dx}px)`;
+          el.style.transition = 'none';
+        }
         const daysMoved = Math.round(dx / dayWidth);
         if (daysMoved !== lastDragDays.current) {
           lastDragDays.current = daysMoved;
@@ -547,7 +552,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           if (task) {
             const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
             const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
-            setDragTempTasks(tempMap);
+            // Propagar visualmente nos sucessores via DOM (sem state)
+            tempMap.forEach((data, sid) => {
+              const sEl = barRefs.current.get(sid);
+              if (!sEl) return;
+              const tempStart = diffDays(projectStart, parseISODateLocal(data.startDate));
+              const targetLeft = tempStart * dayWidth;
+              const origLeft = parseFloat(sEl.dataset.origLeft || sEl.style.left || '0');
+              if (!sEl.dataset.origLeft) sEl.dataset.origLeft = String(origLeft);
+              sEl.style.transform = `translateX(${targetLeft - origLeft}px)`;
+              sEl.style.transition = 'none';
+              sEl.style.opacity = '0.85';
+            });
           }
         }
       });
