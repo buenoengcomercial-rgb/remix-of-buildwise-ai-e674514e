@@ -938,6 +938,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     min={0}
                                     max={100}
                                     value={task.percentComplete}
+                                    onFocus={e => e.currentTarget.select()}
                                     onChange={e => updateTask(phase.id, task.id, { percentComplete: Math.min(100, Math.max(0, Number(e.target.value))) })}
                                     className={`w-9 text-[10px] font-bold text-center bg-transparent border rounded px-0.5 py-0.5 ${rowTeam ? 'border-current/30' : 'border-border'}`}
                                     style={rowTeam ? { color: 'inherit' } : undefined}
