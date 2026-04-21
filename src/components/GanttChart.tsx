@@ -654,7 +654,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const daysMoved = Math.round(dragOffset / dayWidth);
     const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
     const newEnd = addDays(newStart, Math.max(0, task.duration - 1));
-    return { start: formatDateFull(dateToISO(newStart)), end: formatDateFull(dateToISO(newEnd)) };
+  };
+
+  // Forecast delay (em dias) baseado no ritmo médio dos apontamentos
+  const calcForecastDelay = (task: Task): number | null => {
+    const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+    if (logs.length === 0 || !task.quantity || !task.duration) return null;
+    const executed = logs.reduce((s, l) => s + (l.actualQuantity || 0), 0);
+    const remaining = task.quantity - executed;
+    if (remaining <= 0) return 0;
+    const avgDaily = executed / logs.length;
+    if (avgDaily <= 0) return null;
+    const daysNeeded = Math.ceil(remaining / avgDaily);
+    const plannedRemaining = task.duration - logs.length;
+    return daysNeeded - plannedRemaining;
   };
 
   // Check if task has zero working days
