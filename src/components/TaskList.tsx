@@ -570,27 +570,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
         const renderActionButtons = (phase: Phase, isSub: boolean) => (
           <>
-            {/* Mover para capítulo (dropdown) */}
-            <div className="relative w-32 max-w-[8rem] flex-shrink-0">
-              <select
-                value={phase.parentId ?? ''}
-                onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
-                className="w-full max-w-[8rem] truncate overflow-hidden text-ellipsis text-[10px] h-7 px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
-                title={isSub ? 'Mover para outro capítulo' : 'Transformar em subcapítulo'}
-                onClick={e => e.stopPropagation()}
-              >
-                <option value="">— Capítulo principal —</option>
-                {orderedMainChapters.filter(c => c.id !== phase.id).map(c => {
-                  const num = numbering.get(c.id) ?? '';
-                  const shortLabel = `${num} - ${truncateWords(c.name, 3)}`.trim();
-                  return (
-                    <option key={c.id} value={c.id} title={`${num} - ${c.name}`}>
-                      {shortLabel}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
             {editingPhase === phase.id ? (
               <button onClick={() => renamePhase(phase.id)} className="h-7 w-7 flex items-center justify-center rounded hover:bg-success/20 text-success transition-colors flex-shrink-0" title="Salvar nome">
                 <Check className="w-3.5 h-3.5" />
