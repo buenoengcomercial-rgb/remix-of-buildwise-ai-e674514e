@@ -1194,12 +1194,26 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           const noWorkDays = hasNoWorkingDays(task);
 
                           const rowTeamDef = getTeamDefinition(task.team);
+                          const isReorderDragging = reorderDragTaskId === task.id;
+                          const isReorderTarget = reorderDropTargetId === task.id && reorderDragTaskId && reorderDragTaskId !== task.id;
                           return (
                             <div
                               key={task.id}
-                              className={`grid items-center gap-0.5 px-1 border-b border-border hover:brightness-110 transition-colors ${
+                              draggable
+                              onDragStart={(e) => handleRowDragStart(e, phase.id, task.id)}
+                              onDragOver={(e) => handleRowDragOver(e, task.id)}
+                              onDrop={(e) => handleRowDrop(e, phase.id, task.id)}
+                              onDragEnd={handleRowDragEnd}
+                              title="Arraste para reordenar a tarefa"
+                              className={`grid items-center gap-0.5 px-1 border-b border-border hover:brightness-110 transition-colors cursor-grab active:cursor-grabbing ${
                                 !rowTeamDef ? (idx % 2 === 0 ? 'bg-card' : 'bg-muted/10') : ''
-                              } ${task.isCritical && !rowTeamDef ? 'bg-destructive/5' : ''} ${noWorkDays && !rowTeamDef ? 'bg-warning/10' : ''}`}
+                              } ${task.isCritical && !rowTeamDef ? 'bg-destructive/5' : ''} ${noWorkDays && !rowTeamDef ? 'bg-warning/10' : ''} ${
+                                isReorderDragging ? 'opacity-40' : ''
+                              } ${
+                                isReorderTarget && reorderDropPos === 'before' ? 'border-t-2 border-t-primary' : ''
+                              } ${
+                                isReorderTarget && reorderDropPos === 'after' ? 'border-b-2 border-b-primary' : ''
+                              }`}
                               style={{
                                 height: ROW_HEIGHT,
                                 gridTemplateColumns: sidebarCols,
