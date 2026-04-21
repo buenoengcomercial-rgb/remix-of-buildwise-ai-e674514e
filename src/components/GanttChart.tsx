@@ -48,13 +48,19 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   // Real-time drag propagation: temporary task overrides during drag
   const [dragTempTasks, setDragTempTasks] = useState<Map<string, { startDate: string }>>(new Map());
 
-  const tasks = getAllTasks(project);
-  const criticalCount = tasks.filter(t => t.isCritical).length;
-  const projectStart = new Date(Math.min(...tasks.map(t => parseISODateLocal(t.startDate).getTime())));
-  const projectEnd = new Date(Math.max(...tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime())));
-  const totalDays = diffDays(projectStart, projectEnd) + 10;
+  const tasks = useMemo(() => getAllTasks(project), [project]);
+  const criticalCount = useMemo(() => tasks.filter(t => t.isCritical).length, [tasks]);
+  const projectStart = useMemo(
+    () => new Date(Math.min(...tasks.map(t => parseISODateLocal(t.startDate).getTime()))),
+    [tasks],
+  );
+  const projectEnd = useMemo(
+    () => new Date(Math.max(...tasks.map(t => addDays(parseISODateLocal(t.startDate), Math.max(0, t.duration - 1)).getTime()))),
+    [tasks],
+  );
+  const totalDays = useMemo(() => diffDays(projectStart, projectEnd) + 10, [projectStart, projectEnd]);
   const dayWidth = DAY_WIDTH[viewMode];
-  const chartWidth = totalDays * dayWidth;
+  const chartWidth = useMemo(() => totalDays * dayWidth, [totalDays, dayWidth]);
 
   const today = new Date();
   const todayOffset = diffDays(projectStart, today);
