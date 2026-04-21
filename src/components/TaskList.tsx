@@ -585,27 +585,50 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
               } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
               <div
-                className="flex items-center"
+                className={`flex items-center relative ${
+                  isDropTarget && dropPosition === 'before' ? 'before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-primary' : ''
+                } ${
+                  isDropTarget && dropPosition === 'after' ? 'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary' : ''
+                }`}
                 onDragOver={e => handleChapterDragOver(e, phase.id)}
                 onDrop={e => handleChapterDrop(e, phase.id)}
               >
-                <button
+                <div
+                  draggable
+                  onDragStart={e => handleChapterDragStart(e, phase.id)}
+                  onDragEnd={handleChapterDragEnd}
+                  className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
                   onClick={() => togglePhase(phase.id)}
-                  className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
+                  title="Arraste para mover/reordenar este capítulo"
                 >
-                  <span
-                    draggable
-                    onDragStart={e => handleChapterDragStart(e, phase.id)}
-                    onDragEnd={handleChapterDragEnd}
-                    onClick={e => e.stopPropagation()}
-                    className="cursor-grab active:cursor-grabbing"
-                    title="Arraste para mover este capítulo"
-                  >
-                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50" />
-                  </span>
-                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                  <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
-                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{num}</span>
+                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: phase.color }} />
+                  {editingNumberId === phase.id ? (
+                    <input
+                      autoFocus
+                      value={numberDraft}
+                      onChange={e => setNumberDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveChapterNumber(phase.id); if (e.key === 'Escape') setEditingNumberId(null); }}
+                      onBlur={() => saveChapterNumber(phase.id)}
+                      onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                      onDragStart={e => e.preventDefault()}
+                      className="text-[11px] font-bold text-foreground bg-transparent border border-primary rounded px-1 py-0 w-14 tabular-nums focus:outline-none"
+                      placeholder={String(pi + 1)}
+                    />
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); setEditingNumberId(phase.id); setNumberDraft(phase.customNumber ?? num); }}
+                      onMouseDown={e => e.stopPropagation()}
+                      onDragStart={e => e.preventDefault()}
+                      draggable={false}
+                      className="text-[11px] font-bold text-muted-foreground tabular-nums hover:text-primary hover:bg-primary/10 rounded px-1 py-0.5 transition-colors"
+                      title="Clique para editar a numeração"
+                    >
+                      {num}
+                    </button>
+                  )}
                   {editingPhase === phase.id ? (
                     <input
                       autoFocus
@@ -613,26 +636,29 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                       onChange={e => setPhaseNameDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') renamePhase(phase.id); if (e.key === 'Escape') setEditingPhase(null); }}
                       onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                      onDragStart={e => e.preventDefault()}
                       className="text-sm font-bold text-foreground bg-transparent border border-primary rounded px-1.5 py-0.5 focus:outline-none w-40"
                     />
                   ) : (
-                    <span className="text-sm font-bold text-foreground">{phase.name}</span>
+                    <span className="text-sm font-bold text-foreground truncate">{phase.name}</span>
                   )}
-                  {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive" />}
-                  <span className="text-xs text-muted-foreground ml-1">({phase.tasks.length} tarefas)</span>
-                  <div className="ml-auto flex items-center gap-3">
+                  {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
+                  <span className="text-xs text-muted-foreground ml-1 flex-shrink-0">({phase.tasks.length})</span>
+                  <div className="ml-auto flex items-center gap-3 flex-shrink-0">
                     <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${phaseProgress}%` }} />
                     </div>
                     <span className="text-xs font-bold text-muted-foreground w-8 text-right">{phaseProgress}%</span>
                   </div>
-                </button>
+                </div>
 
-                <div className="flex items-center gap-1 mr-2">
+                <div className="flex items-center gap-1 mr-2" onMouseDown={e => e.stopPropagation()}>
                   {renderActionButtons(phase, isSub)}
                 </div>
                 <button
                   onClick={() => addTask(phase.id)}
+                  onMouseDown={e => e.stopPropagation()}
                   className="mr-4 flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors"
                   title="Adicionar tarefa"
                 >
