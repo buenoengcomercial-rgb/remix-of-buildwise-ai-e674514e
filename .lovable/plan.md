@@ -1,50 +1,27 @@
 
 
-## Plano: data fim e largura da barra respeitando calendário (sábado meio dia)
+## Plano: dropdown "Mover para capítulo" — apenas capítulos principais, ordenados
 
-### Diagnóstico
-- `addWorkDays(start, days, trabalhaSabado)` em `src/components/gantt/utils.ts` **já existe** e implementa a regra (domingo pula, sábado = 0.5 dia).
-- `calculateRupDuration` em `src/lib/calculations.ts` já calcula `horasPorDia = horasSemana / diasUteisSemana` com sábado = ½ jornada — mantém (mais flexível que "4h fixos" e alinhado com a memória `mem://logic/calendario-e-feriados`).
-- O que **não** respeita calendário hoje:
-  1. `getEndDate(startDate, duration)` em `utils.ts` — soma `duration − 1` em dias corridos.
-  2. `GanttChart.tsx` (sidebar coluna FIM e tooltip) chama `getEndDate` sem `trabalhaSabado`.
-  3. Largura da barra (`getBarStyle`) usa `task.duration * dayWidth` direto — bate por coincidência só quando não há fim de semana no meio.
+### Problema
+O `<select>` em `src/components/TaskList.tsx` (linha ~562) lista capítulos principais na ordem bruta de `project.phases`, então capítulos novos aparecem no fim em vez de respeitarem a numeração 1, 2, 3...
 
-### Mudanças
+### Solução
+Manter o dropdown apenas com **capítulos principais** (sem subcapítulos), mas ordenados pela numeração hierárquica de raiz (campo `order` do nível raiz, refletido no `getChapterNumbering`).
 
-**A. `src/components/gantt/utils.ts`**
-1. Adicionar `getWorkEndDate(startISO, duration, trabalhaSabado)`:
-   - `addWorkDays(start, duration − 1, trabalhaSabado)`.
-   - Defensivo: se cair em domingo, avança para a próxima segunda.
-   - Retorna ISO via `toISODateLocal`.
-2. Adicionar `countWorkDays(start, end, trabalhaSabado)` para uso futuro (debug / Curva-S).
-3. Substituir `getEndDate` por wrapper que delega para `getWorkEndDate`, mantendo a assinatura de 2 args como compatibilidade (default `trabalhaSabado = false` → comportamento legado), aceitando 3º arg opcional.
-
-**B. `src/components/GanttChart.tsx`**
-1. Importar `getWorkEndDate`.
-2. **Sidebar coluna FIM (~linha 932)**: trocar `getEndDate(task.startDate, task.duration)` por `getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado)`.
-3. **Tooltip da barra (~linha 1472)**: idem.
-4. **`getBarStyle`** — recalcular `width` pela data fim real:
-   ```ts
-   const endISO = getWorkEndDate(task.startDate, task.duration, obraConfig.trabalhaSabado);
-   const endOffset = diffDays(projectStart, parseISODateLocal(endISO));
-   const width = (endOffset - start + 1) * dayWidth;
-   ```
-   Barra cobre o intervalo calendário até o último dia útil, passando por cima dos domingos pintados em cinza.
-5. Onde mais `endDate` for derivado de `task.duration` na renderização da linha, usar `getWorkEndDate` com `obraConfig.trabalhaSabado`.
-
-**C. `src/lib/calculations.ts`** — sem mudanças (fórmula atual já correta e flexível).
-
-### Não incluído (follow-up)
-- Atualizar `captureBaseline`/`syncBaselineWithRup`/`buildCurrent` para usar `addWorkDays` — invalidaria baselines já capturadas.
-- `propagateAllDependencies` (usa dias corridos via `addDaysCalc`) — mesmo motivo.
+### Mudanças em `src/components/TaskList.tsx`
+1. Criar `useMemo` `orderedMainChapters`:
+   - Filtrar `project.phases` onde `parentId` é nulo/undefined.
+   - Ordenar por `order` ascendente (fallback: índice em `phases`).
+2. No `<select>` (linhas 569–577):
+   - Trocar a fonte de `mainChapters` por `orderedMainChapters`.
+   - Continuar excluindo o próprio `phase.id` da lista.
+   - Renderizar `option` como `${numbering.get(c.id)} - ${c.name}` para deixar a ordem 1, 2, 3... explícita ao usuário.
 
 ### Resultado esperado
-- Coluna FIM e tooltip mostram a data correta (ex.: tarefa de 5 dias começando sexta termina na sexta seguinte, não na terça).
-- Largura da barra cobre o intervalo calendário real (start até último dia útil).
-- Comportamento controlado pelo toggle "Trabalha sábado?" da `ConfiguracaoObra`.
+- Dropdown exibe apenas capítulos principais (sem subcapítulos).
+- Ordem segue a numeração 1, 2, 3, 4... — capítulos novos aparecem na posição correta segundo `order`, não no fim.
+- Cada opção mostra o número do capítulo antes do nome.
 
-### Arquivos afetados
-- `src/components/gantt/utils.ts`
-- `src/components/GanttChart.tsx`
+### Arquivo afetado
+- `src/components/TaskList.tsx`
 
