@@ -720,7 +720,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
               <AnimatePresence>
                 {isExpanded && (
-                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
                        <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px' }}>
