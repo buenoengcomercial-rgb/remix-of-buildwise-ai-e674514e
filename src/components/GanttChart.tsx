@@ -857,14 +857,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 return (
                   <div key={phase.id}>
                     {/* Phase header with dates */}
-                    <div className="border-b border-border bg-muted/60">
+                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/40' : 'bg-muted/70'}`}>
                       <button
                         onClick={() => togglePhase(phase.id)}
                         className="w-full flex items-center gap-1.5 px-2 hover:bg-muted transition-colors"
-                        style={{ height: ROW_HEIGHT }}
+                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 18 : 8 }}
                       >
                         {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        <span className="text-[11px] font-bold text-foreground truncate">{phase.name}</span>
+                        <span className="text-[9px] font-mono text-muted-foreground tabular-nums">{chapterNumbering.get(phase.id)}</span>
+                        <span className={`truncate ${phase.parentId ? 'text-[10px] font-semibold text-foreground/90' : 'text-[11px] font-bold text-foreground'}`}>{phase.name}</span>
                         <span className="text-[9px] text-muted-foreground ml-auto">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
