@@ -26,10 +26,20 @@ export default function Dashboard({ project }: DashboardProps) {
   const allMaterials = tasks.flatMap(t => t.materials);
   const totalCost = allMaterials.reduce((s, m) => s + (m.estimatedCost || 0), 0);
 
-  const phaseData = project.phases.map(p => ({
-    name: p.name.length > 12 ? p.name.slice(0, 12) + '…' : p.name,
-    progresso: Math.round(p.tasks.reduce((s, t) => s + t.percentComplete, 0) / p.tasks.length),
-  }));
+  // Agrupa progresso por capítulo principal (incluindo seus subcapítulos)
+  const chapterTree = getChapterTree(project);
+  const chapterNumbering = getChapterNumbering(project);
+  const phaseData = chapterTree.map(node => {
+    const all = getChapterTasks(project, node.phase.id);
+    const progresso = all.length
+      ? Math.round(all.reduce((s, t) => s + t.percentComplete, 0) / all.length)
+      : 0;
+    const label = `${chapterNumbering.get(node.phase.id)} ${node.phase.name}`;
+    return {
+      name: label.length > 14 ? label.slice(0, 14) + '…' : label,
+      progresso,
+    };
+  });
 
   const statusData = [
     { name: 'Concluído', value: completedTasks, color: 'hsl(152, 60%, 42%)' },
