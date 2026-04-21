@@ -104,7 +104,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const togglePhase = (id: string) => {
     setCollapsedPhases(prev => {
       const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
+      const isCollapsing = !n.has(id);
+      const childIds = allPhases.filter(p => p.parentId === id).map(p => p.id);
+      if (isCollapsing) {
+        n.add(id);
+        childIds.forEach(c => n.add(c));
+      } else {
+        n.delete(id);
+        childIds.forEach(c => n.delete(c));
+      }
       return n;
     });
   };
@@ -128,7 +136,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   }, [taskNumbering]);
 
   // Phases ordenadas: capítulo principal seguido de seus subcapítulos
-  const displayPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const allPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const displayPhases = useMemo(
+    () => allPhases.filter(p => !p.parentId || !collapsedPhases.has(p.parentId)),
+    [allPhases, collapsedPhases]
+  );
   const chapterNumbering = useMemo(() => getChapterNumbering(project), [project]);
 
   const flatTasks = useMemo(() => {
@@ -642,7 +654,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const daysMoved = Math.round(dragOffset / dayWidth);
     const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
     const newEnd = addDays(newStart, Math.max(0, task.duration - 1));
-    return { start: formatDateFull(dateToISO(newStart)), end: formatDateFull(dateToISO(newEnd)) };
+  };
+
+  // Forecast delay (em dias) baseado no ritmo médio dos apontamentos
+  const calcForecastDelay = (task: Task): number | null => {
+    const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+    if (logs.length === 0 || !task.quantity || !task.duration) return null;
+    const executed = logs.reduce((s, l) => s + (l.actualQuantity || 0), 0);
+    const remaining = task.quantity - executed;
+    if (remaining <= 0) return 0;
+    const avgDaily = executed / logs.length;
+    if (avgDaily <= 0) return null;
+    const daysNeeded = Math.ceil(remaining / avgDaily);
+    const plannedRemaining = task.duration - logs.length;
+    return daysNeeded - plannedRemaining;
   };
 
   // Check if task has zero working days
@@ -653,8 +678,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return result.dias === 0;
   }, [obraConfig]);
 
-  const sidebarCols = '24px 1fr 88px 88px 44px 22px 52px 48px 56px 56px';
-  const sidebarWidth = 586;
+  const sidebarCols = '24px 1fr 88px 88px 44px 22px 60px 60px 52px 48px 56px';
+  const sidebarWidth = 646;
 
   // Toggle duration mode and recalculate if switching to RUP
   const toggleDurationMode = (taskId: string) => {
@@ -854,6 +879,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Duração em dias">Dur.</span>
                 <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Modo: RUP ou Manual">M</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Percentual concluído">% Concl.</span>
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center" title="Produção diária planejada vs realizada">Prod/Dia</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Dep</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tipo</span>
                 <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Equipe</span>
@@ -867,11 +893,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 return (
                   <div key={phase.id}>
                     {/* Phase header with dates */}
-                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/40' : 'bg-muted/70'}`}>
+                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/30' : 'bg-muted/70'}`}>
                       <button
                         onClick={() => togglePhase(phase.id)}
                         className="w-full flex items-center gap-1.5 px-2 hover:bg-muted transition-colors"
-                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 18 : 8 }}
+                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 24 : 8 }}
                       >
                         {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                         <span className="text-[9px] font-mono text-muted-foreground tabular-nums">{chapterNumbering.get(phase.id)}</span>
@@ -1139,14 +1165,65 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   const color = !hasData
                                     ? '#6b7280'
                                     : pct >= expected ? '#166534' : '#991b1b';
+                                  const delay = calcForecastDelay(task);
                                   return (
-                                    <span
-                                      className="text-[10px] font-bold"
-                                      style={{ color, filter: 'drop-shadow(0 0 1px white)' }}
-                                      title={`Concluído: ${pct}% • Esperado: ${expected}%`}
-                                    >
-                                      {pct}%
-                                    </span>
+                                    <div className="flex flex-col items-center gap-0 leading-none">
+                                      <span
+                                        className="text-[10px] font-bold"
+                                        style={{ color, filter: 'drop-shadow(0 0 1px white)' }}
+                                        title={`Concluído: ${pct}% • Esperado: ${expected}%`}
+                                      >
+                                        {pct}%
+                                      </span>
+                                      {delay !== null && delay !== 0 && (
+                                        <span
+                                          className={`text-[8px] font-bold px-1 rounded leading-none mt-0.5 ${
+                                            delay > 0
+                                              ? 'bg-destructive/15 text-destructive'
+                                              : 'bg-success/15 text-success'
+                                          }`}
+                                          title={delay > 0
+                                            ? `Previsão: +${delay} dias de atraso com ritmo atual`
+                                            : `Previsão: ${Math.abs(delay)} dias adiantado`
+                                          }
+                                        >
+                                          {delay > 0 ? `+${delay}d` : `${delay}d`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                              {/* Prod./Dia (planejado vs realizado) */}
+                              <div className="text-center">
+                                {(() => {
+                                  const plannedDaily = task.quantity && task.duration > 0
+                                    ? task.quantity / task.duration
+                                    : null;
+                                  const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+                                  const realDaily = logs.length > 0
+                                    ? logs.reduce((s, l) => s + (l.actualQuantity || 0), 0) / logs.length
+                                    : null;
+                                  if (!plannedDaily) {
+                                    return <span className="text-[9px] text-muted-foreground">—</span>;
+                                  }
+                                  const unit = task.unit || 'un';
+                                  const realColor = realDaily === null
+                                    ? 'text-muted-foreground'
+                                    : realDaily >= plannedDaily
+                                      ? 'text-success'
+                                      : 'text-destructive';
+                                  return (
+                                    <div className="flex flex-col items-center gap-0 leading-none">
+                                      <span className="text-[9px] text-muted-foreground leading-none">
+                                        {plannedDaily.toFixed(1)}{unit}/d
+                                      </span>
+                                      {realDaily !== null && (
+                                        <span className={`text-[9px] font-bold leading-none ${realColor}`}>
+                                          {realDaily.toFixed(1)}{unit}/d
+                                        </span>
+                                      )}
+                                    </div>
                                   );
                                 })()}
                               </div>
@@ -1526,7 +1603,29 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     className="h-full rounded-md opacity-30"
                                     style={{ width: `${task.percentComplete}%`, background: 'white', borderRadius: 6 }}
                                   />
-
+                                  {/* Indicador de ritmo (faixa direita) — só com apontamentos */}
+                                  {(() => {
+                                    const logs = (task.dailyLogs || []).filter(l => (l.actualQuantity ?? 0) > 0);
+                                    if (!logs.length || !task.quantity || !task.duration) return null;
+                                    const planned = task.quantity / task.duration;
+                                    const real = logs.reduce((s, l) => s + (l.actualQuantity || 0), 0) / logs.length;
+                                    const onPace = real >= planned;
+                                    return (
+                                      <div
+                                        className="absolute top-0 right-0 h-full pointer-events-none"
+                                        style={{
+                                          width: 4,
+                                          background: onPace ? '#166534' : '#991b1b',
+                                          opacity: 0.85,
+                                          borderRadius: '0 6px 6px 0',
+                                        }}
+                                        title={onPace
+                                          ? 'Ritmo no prazo'
+                                          : `Ritmo: ${((real / planned) * 100).toFixed(0)}% do planejado`
+                                        }
+                                      />
+                                    );
+                                  })()}
                                 </div>
                                   );
                                 })()}
