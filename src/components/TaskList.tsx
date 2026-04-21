@@ -1217,6 +1217,45 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
             {project.phases
               .filter(p => p.parentId && !project.phases.some(c => c.id === p.parentId))
               .map((p, i) => renderPhaseCard(p, tree.length + i, false))}
+
+            {/* Drop zone final: solta um capítulo aqui para enviá-lo ao fim da lista. */}
+            {dragChapterId && tree.length > 0 && (() => {
+              const lastRoot = tree[tree.length - 1].phase;
+              const isActive = dropChapterTargetId === '__end__';
+              return (
+                <div
+                  onDragOver={e => {
+                    if (!dragChapterId || dragChapterId === lastRoot.id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDropPosition('after');
+                    setDropChapterTargetId('__end__');
+                  }}
+                  onDrop={e => {
+                    if (!dragChapterId) return;
+                    e.preventDefault();
+                    if (dragChapterId !== lastRoot.id) {
+                      const reordered = reorderChapter(project, dragChapterId, lastRoot.id, 'after');
+                      const cleaned = {
+                        ...reordered,
+                        phases: reordered.phases.map(p =>
+                          !p.parentId ? { ...p, customNumber: undefined } : p,
+                        ),
+                      };
+                      onProjectChange(cleaned);
+                    }
+                    setDragChapterId(null);
+                    setDropChapterTargetId(null);
+                    setDropPosition('inside');
+                  }}
+                  className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
+                    isActive ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+                  }`}
+                >
+                  Soltar aqui para mover ao final da lista
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
