@@ -859,7 +859,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               </div>
 
                               {/* Dependências */}
-                              <div className="">
+                              <div className="min-w-0">
                                 {isEditing ? (
                                   <select
                                     multiple
@@ -875,12 +875,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       <option key={t.id} value={t.id}>{t.name}</option>
                                     ))}
                                   </select>
+                                ) : task.dependencies.length > 0 ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold cursor-help ${rowTeam ? 'bg-white/20' : 'bg-muted text-muted-foreground'}`}>
+                                        {task.dependencies.length} dep
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs whitespace-normal">
+                                      {task.dependencies.map(d => allTasks.find(t => t.id === d)?.name || d).join(' • ')}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 ) : (
-                                  <span className={`text-[9px] ${rowTeam ? 'opacity-70' : 'text-muted-foreground'}`}>
-                                    {task.dependencies.length > 0
-                                      ? task.dependencies.map(d => allTasks.find(t => t.id === d)?.name?.slice(0, 8) || d).join(', ')
-                                      : '—'}
-                                  </span>
+                                  <span className={`text-[9px] ${rowTeam ? 'opacity-60' : 'text-muted-foreground'}`}>—</span>
                                 )}
                               </div>
 
