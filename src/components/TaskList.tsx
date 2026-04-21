@@ -710,10 +710,10 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               const rowTeam = getTeamDefinition(task.team);
                               return (
                             <div
-                              className={`grid gap-2 px-4 py-3 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              className={`grid gap-1.5 px-3 py-2.5 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '32px 220px 90px 90px 110px 70px 60px 95px 50px 110px 130px 95px 110px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '28px minmax(0,2.4fr) minmax(0,0.9fr) minmax(0,0.85fr) minmax(0,1.1fr) 56px 52px minmax(0,0.85fr) 44px minmax(0,1fr) minmax(0,1.3fr) minmax(0,0.9fr) 92px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
