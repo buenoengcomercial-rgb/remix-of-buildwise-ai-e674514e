@@ -446,27 +446,83 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         })}
       </div>
 
-      <div className="space-y-3">
-        {project.phases.map((phase, pi) => {
+      {(() => {
+        const tree = getChapterTree(project);
+        const numbering = getChapterNumbering(project);
+        const mainChapters = project.phases.filter(p => !p.parentId);
+
+        const renderActionButtons = (phase: Phase, isSub: boolean) => (
+          <>
+            {/* Mover para capítulo (dropdown) */}
+            <div className="relative">
+              <select
+                value={phase.parentId ?? ''}
+                onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
+                className="text-[10px] px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
+                title={isSub ? 'Mover para outro capítulo' : 'Transformar em subcapítulo'}
+                onClick={e => e.stopPropagation()}
+              >
+                <option value="">— Capítulo principal —</option>
+                {mainChapters.filter(c => c.id !== phase.id).map(c => (
+                  <option key={c.id} value={c.id}>↳ {numbering.get(c.id)} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            {editingPhase === phase.id ? (
+              <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
+                className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                title="Renomear capítulo"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => deletePhase(phase.id)}
+              className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+              title="Excluir capítulo"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        );
+
+        // Renderiza um cartão de capítulo (com suas tarefas dentro). Reaproveita o layout existente.
+        const renderPhaseCard = (phase: Phase, pi: number, isSub: boolean) => {
           const phaseProgress = phase.tasks.length ? Math.round(phase.tasks.reduce((s, t) => s + t.percentComplete, 0) / phase.tasks.length) : 0;
           const isExpanded = expandedPhases.has(phase.id);
           const hasCritical = phase.tasks.some(t => t.isCritical);
+          const num = numbering.get(phase.id) || '';
+          const isDropTarget = dropChapterTargetId === phase.id && dragChapterId !== phase.id;
 
           return (
             <motion.div
               key={phase.id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: pi * 0.05 }}
-              className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
+              transition={{ delay: pi * 0.04 }}
+              draggable
+              onDragStart={e => handleChapterDragStart(e, phase.id)}
+              onDragOver={e => handleChapterDragOver(e, phase.id)}
+              onDrop={e => handleChapterDrop(e, phase.id)}
+              onDragEnd={handleChapterDragEnd}
+              className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
+                isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
+              } ${dragChapterId === phase.id ? 'opacity-50' : ''} ${isSub ? 'ml-6' : ''}`}
             >
               <div className="flex items-center">
                 <button
                   onClick={() => togglePhase(phase.id)}
                   className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
                 >
+                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab" />
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
+                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{num}</span>
                   {editingPhase === phase.id ? (
                     <input
                       autoFocus
@@ -489,28 +545,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   </div>
                 </button>
 
-                {/* Phase actions */}
                 <div className="flex items-center gap-1 mr-2">
-                  {editingPhase === phase.id ? (
-                    <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
-                      className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
-                      title="Renomear capítulo"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deletePhase(phase.id)}
-                    className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-                    title="Excluir capítulo"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {renderActionButtons(phase, isSub)}
                 </div>
                 <button
                   onClick={() => addTask(phase.id)}
