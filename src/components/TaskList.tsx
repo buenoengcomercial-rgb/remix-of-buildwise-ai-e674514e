@@ -526,28 +526,33 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         const renderActionButtons = (phase: Phase, isSub: boolean) => (
           <>
             {/* Mover para capítulo (dropdown) */}
-            <div className="relative">
+            <div className="relative w-32 max-w-[8rem] flex-shrink-0">
               <select
                 value={phase.parentId ?? ''}
                 onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
-                className="text-[10px] px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
+                className="w-full max-w-[8rem] truncate overflow-hidden text-ellipsis text-[10px] h-7 px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
                 title={isSub ? 'Mover para outro capítulo' : 'Transformar em subcapítulo'}
                 onClick={e => e.stopPropagation()}
               >
-                <option value="">— Capítulo principal —</option>
-                {mainChapters.filter(c => c.id !== phase.id).map(c => (
-                  <option key={c.id} value={c.id}>↳ {numbering.get(c.id)} {c.name}</option>
-                ))}
+                <option value="" label="— Principal —">— Capítulo principal —</option>
+                {mainChapters.filter(c => c.id !== phase.id).map(c => {
+                  const shortLabel = `↳ ${numbering.get(c.id) ?? ''} ${truncateWords(c.name, 3)}`.trim();
+                  return (
+                    <option key={c.id} value={c.id} label={shortLabel} title={c.name}>
+                      {shortLabel}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             {editingPhase === phase.id ? (
-              <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
+              <button onClick={() => renamePhase(phase.id)} className="h-7 w-7 flex items-center justify-center rounded hover:bg-success/20 text-success transition-colors flex-shrink-0" title="Salvar nome">
                 <Check className="w-3.5 h-3.5" />
               </button>
             ) : (
               <button
                 onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
-                className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
                 title="Renomear capítulo"
               >
                 <Edit3 className="w-3.5 h-3.5" />
@@ -555,7 +560,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
             )}
             <button
               onClick={() => deletePhase(phase.id)}
-              className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+              className="h-7 w-7 flex items-center justify-center rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
               title="Excluir capítulo"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -597,7 +602,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
+                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing"
                   onClick={() => togglePhase(phase.id)}
                   title="Arraste para mover/reordenar este capítulo"
                 >
@@ -653,7 +658,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 mr-2" onMouseDown={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1 mr-2 flex-shrink-0 min-w-0 max-w-[260px]" onMouseDown={e => e.stopPropagation()}>
                   {renderActionButtons(phase, isSub)}
                 </div>
                 <button
