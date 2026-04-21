@@ -33,30 +33,23 @@ export default function DependencyArrows({ tasks, taskYPositions, projectStart, 
       const tgtY = taskYPositions.get(task.id);
       if (srcY === undefined || tgtY === undefined) return;
 
-      const srcStartDay = diffDays(projectStart, new Date(src.startDate));
-      const srcEndDay = srcStartDay + src.duration;
-      const tgtStartDay = diffDays(projectStart, new Date(task.startDate));
-      const tgtEndDay = tgtStartDay + task.duration;
+      const predStart = diffDays(projectStart, parseISODateLocal(src.startDate));
+      const predEnd = predStart + src.duration; // end exclusivo (mesma fórmula da barra)
+      const succStart = diffDays(projectStart, parseISODateLocal(task.startDate));
+      const succEnd = succStart + task.duration;
+
+      const xPredLeft = predStart * dayWidth;
+      const xPredRight = predEnd * dayWidth;
+      const xSuccLeft = succStart * dayWidth;
+      const xSuccRight = succEnd * dayWidth;
 
       let x1: number, x2: number;
-
       switch (dep.type) {
-        case 'TI':
-          x1 = srcEndDay * dayWidth;
-          x2 = tgtStartDay * dayWidth;
-          break;
-        case 'II':
-          x1 = srcStartDay * dayWidth;
-          x2 = tgtStartDay * dayWidth;
-          break;
-        case 'TT':
-          x1 = srcEndDay * dayWidth;
-          x2 = tgtEndDay * dayWidth;
-          break;
-        case 'IT':
-          x1 = srcStartDay * dayWidth;
-          x2 = tgtEndDay * dayWidth;
-          break;
+        case 'TI': x1 = xPredRight; x2 = xSuccLeft;  break;
+        case 'II': x1 = xPredLeft;  x2 = xSuccLeft;  break;
+        case 'TT': x1 = xPredRight; x2 = xSuccRight; break;
+        case 'IT': x1 = xPredLeft;  x2 = xSuccRight; break;
+        default:   x1 = xPredRight; x2 = xSuccLeft;
       }
 
       const isViolated = violations.get(task.id)?.has(dep.taskId) ?? false;
