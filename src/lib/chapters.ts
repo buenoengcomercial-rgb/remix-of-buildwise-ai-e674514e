@@ -282,19 +282,20 @@ export function getChapterTasks(project: Project, chapterId: string): Task[] {
   return [...direct, ...subTasks];
 }
 
-/** Numeração hierárquica: { phaseId → "1", "1.1", "1.2", "2", ... } */
+/** Numeração hierárquica recursiva: "1", "1.1", "1.1.1", "2", ... */
 export function getChapterNumbering(project: Project): Map<string, string> {
   const tree = getChapterTree(project);
   const map = new Map<string, string>();
-  tree.forEach((node, idx) => {
-    const chapterNum = node.phase.customNumber?.trim() || String(idx + 1);
-    map.set(node.phase.id, chapterNum);
-    node.children.forEach((child, cIdx) => {
-      const childNum = child.customNumber?.trim() || `${chapterNum}.${cIdx + 1}`;
-      map.set(child.id, childNum);
+  const walk = (nodes: ChapterNode[], prefix: string) => {
+    nodes.forEach((node, idx) => {
+      const auto = prefix ? `${prefix}.${idx + 1}` : String(idx + 1);
+      const num = node.phase.customNumber?.trim() || auto;
+      map.set(node.phase.id, num);
+      if (node.children.length) walk(node.children, num);
     });
-  });
-  // Phases legadas não enumeradas: numera na sequência
+  };
+  walk(tree, '');
+  // Phases legadas / órfãs não enumeradas: numera na sequência
   let next = tree.length + 1;
   project.phases.forEach(p => {
     if (!map.has(p.id)) {
