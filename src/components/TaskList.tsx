@@ -78,6 +78,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
       type={type}
       value={value}
       onChange={e => onChange(e.target.value)}
+      onFocus={type === 'number' ? (e) => e.currentTarget.select() : undefined}
       min={min}
       max={max}
       step={step}
