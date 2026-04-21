@@ -95,6 +95,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const [importOpen, setImportOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<string | null>(null);
   const [phaseNameDraft, setPhaseNameDraft] = useState('');
+  const [editingNumberId, setEditingNumberId] = useState<string | null>(null);
+  const [numberDraft, setNumberDraft] = useState('');
 
   // Drag-and-drop state
   const [dragPhaseId, setDragPhaseId] = useState<string | null>(null);
