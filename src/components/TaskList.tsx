@@ -196,6 +196,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     });
   };
 
+  /** Salva numeração customizada do capítulo. */
+  const saveChapterNumber = useCallback((phaseId: string) => {
+    const v = numberDraft.trim();
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p =>
+        p.id === phaseId ? { ...p, customNumber: v || undefined } : p,
+      ),
+    });
+    setEditingNumberId(null);
+  }, [numberDraft, project, onProjectChange]);
+
   /** Move um capítulo/subcapítulo para outro pai (ou promove a principal se newParentId === null). */
   const handleMoveChapter = useCallback((chapterId: string, newParentId: string | null) => {
     const { project: nextProject, validation, applied } = safeMoveChapter(project, chapterId, newParentId);
