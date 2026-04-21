@@ -45,6 +45,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const [resizeDelta, setResizeDelta] = useState(0);
   const resizeStartX = useRef(0);
 
+  // Refs DOM por tarefa para mutação direta durante drag/resize (evita re-render)
+  const barRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const setBarRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
+    if (el) barRefs.current.set(id, el);
+    else barRefs.current.delete(id);
+  }, []);
+
   // Local duration edit state
   const [editingDurationTaskId, setEditingDurationTaskId] = useState<string | null>(null);
   const [localDuration, setLocalDuration] = useState<string>('');
