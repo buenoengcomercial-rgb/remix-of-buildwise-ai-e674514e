@@ -15,6 +15,7 @@ import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, getWork
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis, isDiaUtil } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
 import { flattenPhasesByChapter, getChapterNumbering } from '@/lib/chapters';
+import { beginBarMutation, endBarMutation, endAllBarMutations, setTransform, setTransition, setOpacity, setLeftPx, setWidthPx, type BarMutationSession } from './gantt/barTransform';
 import { toast } from 'sonner';
 
 interface GanttChartProps {
@@ -532,6 +533,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     lastDragDays.current = null;
     dragRafPending.current = false;
 
+    // Sessões de mutação: arrastada + propagadas. Cada sessão guarda o snapshot
+    // inline original e só é capaz de tocar nas propriedades declaradas.
+    const draggedEl = barRefs.current.get(taskId);
+    const draggedSession = beginBarMutation(draggedEl, ['transform', 'transition']);
+    const successorSessions = new Map<string, { session: BarMutationSession; origLeft: number }>();
+
+    const cleanup = () => {
+      endBarMutation(draggedSession);
+      endAllBarMutations(Array.from(successorSessions.values()).map(s => s.session));
+      successorSessions.clear();
+    };
+
     const handleMove = (ev: MouseEvent) => {
       lastDragDx.current = ev.clientX - dragStartX.current;
       if (dragRafPending.current) return;
@@ -539,39 +552,55 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       requestAnimationFrame(() => {
         dragRafPending.current = false;
         const dx = lastDragDx.current;
-        // Mutação DOM direta — sem setState → sem re-render durante o drag
-        const el = barRefs.current.get(taskId);
-        if (el) {
-          el.style.transform = `translateX(${dx}px)`;
-          el.style.transition = 'none';
-        }
+        // Mutação DOM via camada utilitária — sem setState, sem re-render
+        setTransition(draggedSession, 'none');
+        setTransform(draggedSession, `translateX(${dx}px)`);
+
         const daysMoved = Math.round(dx / dayWidth);
         if (daysMoved !== lastDragDays.current) {
           lastDragDays.current = daysMoved;
           const task = tasks.find(t => t.id === taskId);
-          if (task) {
-            const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
-            const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
-            // Propagar visualmente nos sucessores via DOM (sem state)
-            tempMap.forEach((data, sid) => {
-              const sEl = barRefs.current.get(sid);
-              if (!sEl) return;
-              const tempStart = diffDays(projectStart, parseISODateLocal(data.startDate));
-              const targetLeft = tempStart * dayWidth;
-              const origLeft = parseFloat(sEl.dataset.origLeft || sEl.style.left || '0');
-              if (!sEl.dataset.origLeft) sEl.dataset.origLeft = String(origLeft);
-              sEl.style.transform = `translateX(${targetLeft - origLeft}px)`;
-              sEl.style.transition = 'none';
-              sEl.style.opacity = '0.85';
-            });
+          if (!task) return;
+          const newStart = addDays(parseISODateLocal(task.startDate), daysMoved);
+          const tempMap = computeDragPropagation(taskId, dateToISO(newStart));
+
+          // Encerra sucessores que não estão mais propagados
+          for (const [sid, info] of successorSessions) {
+            if (!tempMap.has(sid)) {
+              endBarMutation(info.session);
+              successorSessions.delete(sid);
+            }
           }
+
+          // Aplica/atualiza sucessores presentes
+          tempMap.forEach((data, sid) => {
+            const sEl = barRefs.current.get(sid);
+            if (!sEl) return;
+            let entry = successorSessions.get(sid);
+            if (!entry) {
+              const session = beginBarMutation(sEl, ['transform', 'transition', 'opacity']);
+              if (!session) return;
+              const origLeft = parseFloat(sEl.style.left || '0') || 0;
+              entry = { session, origLeft };
+              successorSessions.set(sid, entry);
+            }
+            const tempStart = diffDays(projectStart, parseISODateLocal(data.startDate));
+            const targetLeft = tempStart * dayWidth;
+            setTransition(entry.session, 'none');
+            setTransform(entry.session, `translateX(${targetLeft - entry.origLeft}px)`);
+            setOpacity(entry.session, '0.85');
+          });
         }
       });
     };
+
     const handleUp = (ev: MouseEvent) => {
       document.removeEventListener('mousemove', handleMove);
       document.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('blur', handleCancel);
+      document.removeEventListener('keydown', handleKey);
       dragRafPending.current = false;
+
       const dx = ev.clientX - dragStartX.current;
       const daysMoved = Math.round(dx / dayWidth);
       if (daysMoved !== 0) {
@@ -587,7 +616,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
               action: {
                 label: 'Forçar mesmo assim',
                 onClick: () => {
-                  // Remove the violating dependency and move
                   const newDetails = (task.dependencyDetails || []).filter(d => d.taskId !== violation.predId);
                   const newDeps = newDetails.map(d => d.taskId);
                   const updatedProject = {
@@ -605,7 +633,6 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
               },
             });
           } else {
-            // Apply the move and propagate
             const updatedProject = {
               ...project,
               phases: project.phases.map(phase => ({
@@ -618,19 +645,32 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           }
         }
       }
-      // Limpa as transformações DOM antes do React re-renderizar
-      barRefs.current.forEach(el => {
-        el.style.transform = '';
-        el.style.transition = '';
-        el.style.opacity = '';
-        delete el.dataset.origLeft;
-      });
+      cleanup();
       setDraggingTaskId(null);
       setDragOffset(0);
       setDragTempTasks(new Map());
     };
+
+    // Cancelamento (ESC, perda de foco da janela, etc.) — limpa sem aplicar
+    const handleCancel = () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('blur', handleCancel);
+      document.removeEventListener('keydown', handleKey);
+      dragRafPending.current = false;
+      cleanup();
+      setDraggingTaskId(null);
+      setDragOffset(0);
+      setDragTempTasks(new Map());
+    };
+    const handleKey = (kev: KeyboardEvent) => {
+      if (kev.key === 'Escape') handleCancel();
+    };
+
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleUp);
+    window.addEventListener('blur', handleCancel);
+    document.addEventListener('keydown', handleKey);
   };
 
   const handleDepChange = (taskId: string, value: string) => {
@@ -767,12 +807,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     setResizeDelta(0);
     resizeStartX.current = e.clientX;
 
-    // Captura largura/posição original da barra para mutar diretamente o DOM
+    // Captura largura/posição original da barra
     const barEl = barRefs.current.get(taskId);
     const origWidth = barEl ? barEl.getBoundingClientRect().width : 0;
-    const origLeftStr = barEl?.style.left || '0';
-    const origLeftPx = parseFloat(origLeftStr) || 0;
+    const origLeftPx = barEl ? (parseFloat(barEl.style.left || '0') || 0) : 0;
     const minWidth = dayWidth;
+
+    // Sessão owna left + width + transition (não toca em transform/opacity etc.)
+    const session = beginBarMutation(barEl, ['left', 'width', 'transition']);
 
     let resizeRafPending = false;
     let lastResizeDx = 0;
@@ -782,55 +824,67 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       resizeRafPending = true;
       requestAnimationFrame(() => {
         resizeRafPending = false;
-        if (!barEl) return;
+        if (!session) return;
         const dx = lastResizeDx;
+        setTransition(session, 'none');
         if (side === 'right') {
-          const newW = Math.max(minWidth, origWidth + dx);
-          barEl.style.width = `${newW}px`;
+          setWidthPx(session, Math.max(minWidth, origWidth + dx));
         } else {
           const delta = Math.min(dx, origWidth - minWidth);
-          barEl.style.left = `${origLeftPx + delta}px`;
-          barEl.style.width = `${origWidth - delta}px`;
+          setLeftPx(session, origLeftPx + delta);
+          setWidthPx(session, origWidth - delta);
         }
-        barEl.style.transition = 'none';
       });
     };
-    const handleUp = (ev: MouseEvent) => {
+
+    const finalize = (commitDx: number | null) => {
       document.removeEventListener('mousemove', handleMove);
       document.removeEventListener('mouseup', handleUp);
-      const dx = ev.clientX - resizeStartX.current;
-      const daysDelta = Math.round(dx / dayWidth);
-      const task = tasks.find(t => t.id === taskId);
-      if (task && daysDelta !== 0) {
-        let updates: Partial<Task>;
-        if (side === 'right') {
-          const newDuration = Math.max(1, task.duration + daysDelta);
-          updates = { duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
-        } else {
-          const newDuration = Math.max(1, task.duration - daysDelta);
-          const newStart = addDays(parseISODateLocal(task.startDate), daysDelta);
-          updates = { startDate: dateToISO(newStart), duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
+      window.removeEventListener('blur', handleCancel);
+      document.removeEventListener('keydown', handleKey);
+      resizeRafPending = false;
+
+      if (commitDx !== null) {
+        const daysDelta = Math.round(commitDx / dayWidth);
+        const task = tasks.find(t => t.id === taskId);
+        if (task && daysDelta !== 0) {
+          let updates: Partial<Task>;
+          if (side === 'right') {
+            const newDuration = Math.max(1, task.duration + daysDelta);
+            updates = { duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
+          } else {
+            const newDuration = Math.max(1, task.duration - daysDelta);
+            const newStart = addDays(parseISODateLocal(task.startDate), daysDelta);
+            updates = { startDate: dateToISO(newStart), duration: newDuration, durationMode: 'manual', isManual: true, manualDuration: newDuration };
+          }
+          const updatedProject = {
+            ...project,
+            phases: project.phases.map(phase => ({
+              ...phase,
+              tasks: phase.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+            })),
+          };
+          onProjectChange?.(updatedProject);
+          setTimeout(() => runPropagation(taskId, updatedProject), 0);
         }
-        const updatedProject = {
-          ...project,
-          phases: project.phases.map(phase => ({
-            ...phase,
-            tasks: phase.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
-          })),
-        };
-        onProjectChange?.(updatedProject);
-        setTimeout(() => runPropagation(taskId, updatedProject), 0);
       }
-      // Limpa estilos inline para o React reassumir o controle
-      if (barEl) {
-        barEl.style.transition = '';
-      }
+      // Restaura APENAS as propriedades que tocamos (left/width/transition)
+      endBarMutation(session);
       setResizingTaskId(null);
       setResizeSide(null);
       setResizeDelta(0);
     };
+
+    const handleUp = (ev: MouseEvent) => finalize(ev.clientX - resizeStartX.current);
+    const handleCancel = () => finalize(null);
+    const handleKey = (kev: KeyboardEvent) => {
+      if (kev.key === 'Escape') handleCancel();
+    };
+
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleUp);
+    window.addEventListener('blur', handleCancel);
+    document.addEventListener('keydown', handleKey);
   };
 
   // Helper: get 3 first words of a name
