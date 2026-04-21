@@ -245,13 +245,15 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
     setDragChapterId(chapterId);
     e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('application/x-chapter-id', chapterId); } catch { /* noop */ }
+    try {
+      e.dataTransfer.setData('application/x-chapter-id', chapterId);
+      // Alguns browsers (Firefox) exigem text/plain para iniciar o drag.
+      e.dataTransfer.setData('text/plain', chapterId);
+    } catch { /* noop */ }
   }, []);
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
-    const types = Array.from(e.dataTransfer.types || []);
-    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     // Determina posição baseada no Y do mouse dentro do header (terços)
@@ -268,8 +270,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
     if (!dragChapterId) return;
-    const types = Array.from(e.dataTransfer.types || []);
-    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
     if (dragChapterId !== targetId) {
       if (targetId === null) {
@@ -279,9 +279,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         // Vira subcapítulo do alvo
         handleMoveChapter(dragChapterId, targetId);
       } else {
-        // Reordena no mesmo nível do alvo (antes/depois)
-        const next = reorderChapter(project, dragChapterId, targetId, dropPosition);
-        onProjectChange(next);
+        // Reordena no mesmo nível do alvo (antes/depois) e limpa customNumber
+        // dos irmãos para que a numeração visual reflita a nova ordem.
+        const reordered = reorderChapter(project, dragChapterId, targetId, dropPosition);
+        const target = reordered.phases.find(p => p.id === targetId);
+        const levelParent = target?.parentId ?? null;
+        const cleaned = {
+          ...reordered,
+          phases: reordered.phases.map(p =>
+            (p.parentId ?? null) === levelParent ? { ...p, customNumber: undefined } : p,
+          ),
+        };
+        onProjectChange(cleaned);
       }
     }
     setDragChapterId(null);
