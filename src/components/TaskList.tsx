@@ -78,6 +78,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
       type={type}
       value={value}
       onChange={e => onChange(e.target.value)}
+      onFocus={type === 'number' ? (e) => e.currentTarget.select() : undefined}
       min={min}
       max={max}
       step={step}
@@ -937,6 +938,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                     min={0}
                                     max={100}
                                     value={task.percentComplete}
+                                    onFocus={e => e.currentTarget.select()}
                                     onChange={e => updateTask(phase.id, task.id, { percentComplete: Math.min(100, Math.max(0, Number(e.target.value))) })}
                                     className={`w-9 text-[10px] font-bold text-center bg-transparent border rounded px-0.5 py-0.5 ${rowTeam ? 'border-current/30' : 'border-border'}`}
                                     style={rowTeam ? { color: 'inherit' } : undefined}
@@ -1049,6 +1051,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                               type="number"
                                               min={1}
                                               value={comp.workerCount}
+                                              onFocus={e => e.currentTarget.select()}
                                               onChange={e => updateLaborComp(phase.id, task.id, comp.id, { workerCount: Math.max(1, Number(e.target.value)) })}
                                               className="w-12 text-center bg-transparent border border-border rounded px-1 py-0.5 text-[11px]"
                                             />
