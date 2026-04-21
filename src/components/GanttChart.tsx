@@ -154,6 +154,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     const PHASE_HEADER_HEIGHT = ROW_HEIGHT + 20;
     let y = 0;
     displayPhases.forEach(phase => {
+      // Header do capítulo é sempre renderizado (botão + linha de datas)
+      y += PHASE_HEADER_HEIGHT;
       if (!collapsedPhases.has(phase.id)) {
         phase.tasks
           .filter(t => !showCriticalOnly || t.isCritical)
