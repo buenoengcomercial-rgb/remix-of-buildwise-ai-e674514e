@@ -84,6 +84,53 @@ export function moveChapter(
   };
 }
 
+/**
+ * Reordena um capítulo dentro do mesmo nível (mesmo parentId).
+ * `targetChapterId` define a posição: o capítulo arrastado é inserido
+ * imediatamente ANTES do alvo (ou no FINAL se `position === 'after'`).
+ * Mantém o `parentId` do alvo (permite mover entre níveis também).
+ */
+export function reorderChapter(
+  project: Project,
+  draggedId: string,
+  targetId: string,
+  position: 'before' | 'after' = 'before',
+): Project {
+  if (draggedId === targetId) return project;
+  const target = project.phases.find(p => p.id === targetId);
+  if (!target) return project;
+  // Impede ciclo se mudar de pai
+  if (target.parentId && isDescendant(project, target.parentId, draggedId)) return project;
+
+  const newParent = target.parentId;
+  // Constrói lista de irmãos (já ordenada por order)
+  const siblings = project.phases
+    .filter(p => (p.parentId ?? null) === (newParent ?? null) && p.id !== draggedId)
+    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+
+  const targetIdx = siblings.findIndex(s => s.id === targetId);
+  const insertAt = position === 'after' ? targetIdx + 1 : targetIdx;
+  const draggedPhase = project.phases.find(p => p.id === draggedId);
+  if (!draggedPhase) return project;
+  const updatedDragged: Phase = { ...draggedPhase, parentId: newParent };
+  siblings.splice(insertAt, 0, updatedDragged);
+
+  // Reatribui order sequencial aos irmãos do nível
+  const orderMap = new Map<string, number>();
+  siblings.forEach((s, i) => orderMap.set(s.id, i));
+
+  return {
+    ...project,
+    phases: project.phases.map(p => {
+      if (p.id === draggedId) return { ...updatedDragged, order: orderMap.get(p.id) ?? p.order };
+      if ((p.parentId ?? null) === (newParent ?? null) && orderMap.has(p.id)) {
+        return { ...p, order: orderMap.get(p.id)! };
+      }
+      return p;
+    }),
+  };
+}
+
 /** Verifica se `candidateId` é descendente de `ancestorId` na árvore atual. */
 function isDescendant(project: Project, candidateId: string, ancestorId: string): boolean {
   const map = new Map(project.phases.map(p => [p.id, p] as const));
