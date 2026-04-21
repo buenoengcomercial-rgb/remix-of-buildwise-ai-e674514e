@@ -3,6 +3,7 @@ import { getAllTasks } from '@/data/sampleProject';
 import { generateCurvaS, suggestOptimizations } from '@/lib/calculations';
 import { getChapterTree, getChapterTasks, getChapterNumbering } from '@/lib/chapters';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
 import { TrendingUp, AlertTriangle, DollarSign, CheckCircle2, Zap, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
@@ -11,7 +12,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ project }: DashboardProps) {
-  const tasks = getAllTasks(project);
+  const tasks = useMemo(() => getAllTasks(project), [project]);
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.percentComplete === 100).length;
   const delayedTasks = tasks.filter(t => {
@@ -21,15 +22,15 @@ export default function Dashboard({ project }: DashboardProps) {
     return end < new Date() && t.percentComplete < 100;
   }).length;
   const criticalTasks = tasks.filter(t => t.isCritical).length;
-  const overallProgress = Math.round(tasks.reduce((s, t) => s + t.percentComplete, 0) / totalTasks);
+  const overallProgress = totalTasks > 0 ? Math.round(tasks.reduce((s, t) => s + t.percentComplete, 0) / totalTasks) : 0;
 
   const allMaterials = tasks.flatMap(t => t.materials);
   const totalCost = allMaterials.reduce((s, m) => s + (m.estimatedCost || 0), 0);
 
   // Agrupa progresso por capítulo principal (incluindo seus subcapítulos)
-  const chapterTree = getChapterTree(project);
-  const chapterNumbering = getChapterNumbering(project);
-  const phaseData = chapterTree.map(node => {
+  const chapterTree = useMemo(() => getChapterTree(project), [project.phases]);
+  const chapterNumbering = useMemo(() => getChapterNumbering(project), [project.phases]);
+  const phaseData = useMemo(() => chapterTree.map(node => {
     const all = getChapterTasks(project, node.phase.id);
     const progresso = all.length
       ? Math.round(all.reduce((s, t) => s + t.percentComplete, 0) / all.length)
@@ -39,7 +40,7 @@ export default function Dashboard({ project }: DashboardProps) {
       name: label.length > 14 ? label.slice(0, 14) + '…' : label,
       progresso,
     };
-  });
+  }), [chapterTree, chapterNumbering, project]);
 
   const statusData = [
     { name: 'Concluído', value: completedTasks, color: 'hsl(152, 60%, 42%)' },

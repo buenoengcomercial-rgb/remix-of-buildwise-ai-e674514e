@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
 import { formatISODateBR } from '@/components/gantt/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks } from '@/lib/chapters';
+import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter } from '@/lib/chapters';
+import { toast } from 'sonner';
 
 /** Encurta o nome da tarefa para no máximo `maxWords` palavras, adicionando "…" no final. */
 function truncateWords(text: string, maxWords = 4): string {
@@ -195,32 +196,64 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   /** Move um capítulo/subcapítulo para outro pai (ou promove a principal se newParentId === null). */
   const handleMoveChapter = useCallback((chapterId: string, newParentId: string | null) => {
-    onProjectChange(moveChapter(project, chapterId, newParentId));
+    const { project: nextProject, validation, applied } = safeMoveChapter(project, chapterId, newParentId);
+    if (!applied) {
+      // Bloqueado por violação dura — oferece "Forçar"
+      const first = validation.violations[0];
+      const desc = first
+        ? `${first.taskName} depende de ${first.predName} (${first.type}).`
+        : validation.warnings[0] ?? 'Movimentação inválida.';
+      toast.error('Movimentação bloqueada', {
+        description: desc,
+        action: {
+          label: 'Forçar',
+          onClick: () => {
+            const forced = safeMoveChapter(project, chapterId, newParentId, { force: true });
+            if (forced.applied) {
+              onProjectChange(forced.project);
+              if (newParentId) setExpandedPhases(prev => new Set([...prev, newParentId]));
+              toast.warning('Movimentação forçada — dependências conflitantes removidas.');
+            }
+          },
+        },
+      });
+      return;
+    }
+    if (validation.warnings.length > 0) {
+      toast.warning(validation.warnings[0]);
+    }
+    onProjectChange(nextProject);
     if (newParentId) setExpandedPhases(prev => new Set([...prev, newParentId]));
   }, [project, onProjectChange]);
 
-  // Drag-and-drop de capítulos (mover/transformar em subcapítulo)
+  // Drag-and-drop de capítulos (mover/transformar em subcapítulo).
+  // IMPORTANTE: o `draggable` fica APENAS no handle (GripVertical) do header.
+  // Assim não conflita com o drag de tarefas filhas nem trava cliques.
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropChapterTargetId, setDropChapterTargetId] = useState<string | null>(null);
 
   const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
-    e.stopPropagation();
     setDragChapterId(chapterId);
     e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('application/x-chapter-id', chapterId); } catch { /* noop */ }
   }, []);
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
+    // Só intercepta drops de capítulo (não de tarefas)
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
-    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     setDropChapterTargetId(targetId);
   }, [dragChapterId]);
 
   const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
+    if (!dragChapterId) return;
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
-    e.stopPropagation();
-    if (dragChapterId && dragChapterId !== targetId) {
+    if (dragChapterId !== targetId) {
       handleMoveChapter(dragChapterId, targetId);
     }
     setDragChapterId(null);
@@ -401,6 +434,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   // Get all task IDs for dependency dropdown
   const allTasks = project.phases.flatMap(p => p.tasks);
 
+  // Memoiza árvore/numeração para evitar recomputação a cada toggle.
+  const chapterTree = useMemo(() => getChapterTree(project), [project.phases]);
+  const chapterNumbering = useMemo(() => getChapterNumbering(project), [project.phases]);
+  const mainChapters = useMemo(() => project.phases.filter(p => !p.parentId), [project.phases]);
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -447,9 +485,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       </div>
 
       {(() => {
-        const tree = getChapterTree(project);
-        const numbering = getChapterNumbering(project);
-        const mainChapters = project.phases.filter(p => !p.parentId);
+        const tree = chapterTree;
+        const numbering = chapterNumbering;
 
         const renderActionButtons = (phase: Phase, isSub: boolean) => (
           <>
@@ -502,11 +539,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           return (
             <div
               key={phase.id}
-              draggable
-              onDragStart={e => handleChapterDragStart(e, phase.id)}
-              onDragOver={e => handleChapterDragOver(e, phase.id)}
-              onDrop={e => handleChapterDrop(e, phase.id)}
-              onDragEnd={handleChapterDragEnd}
               className={isSub ? 'ml-6' : ''}
             >
             <motion.div
@@ -517,12 +549,25 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
               } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-center">
+              <div
+                className="flex items-center"
+                onDragOver={e => handleChapterDragOver(e, phase.id)}
+                onDrop={e => handleChapterDrop(e, phase.id)}
+              >
                 <button
                   onClick={() => togglePhase(phase.id)}
                   className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
                 >
-                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab" />
+                  <span
+                    draggable
+                    onDragStart={e => handleChapterDragStart(e, phase.id)}
+                    onDragEnd={handleChapterDragEnd}
+                    onClick={e => e.stopPropagation()}
+                    className="cursor-grab active:cursor-grabbing"
+                    title="Arraste para mover este capítulo"
+                  >
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  </span>
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
                   <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{num}</span>

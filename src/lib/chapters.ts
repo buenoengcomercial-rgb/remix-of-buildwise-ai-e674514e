@@ -1,4 +1,5 @@
-import { Phase, Project, Task } from '@/types/project';
+import { Phase, Project, Task, DependencyType } from '@/types/project';
+import { checkDependencyViolation } from '@/lib/calculations';
 
 /**
  * Hierarquia de capítulos
@@ -124,4 +125,116 @@ export function getChapterNumbering(project: Project): Map<string, string> {
     }
   });
   return map;
+}
+
+// ─── Validação de movimentação de capítulo ────────────────────────────
+
+export interface ChapterMoveValidation {
+  blocked: boolean;
+  warnings: string[];
+  violations: Array<{ taskId: string; taskName: string; predId: string; predName: string; type: DependencyType }>;
+}
+
+/** Coleta todas as tarefas do projeto. */
+function getAllProjectTasks(project: Project): Task[] {
+  return project.phases.flatMap(p => p.tasks);
+}
+
+/**
+ * Valida se mover um capítulo causaria violações de dependência.
+ * Como mover um capítulo não altera datas de tarefas (apenas seu agrupamento
+ * visual via parentId), violações "duras" só ocorrem se já houver dependências
+ * inconsistentes ou se a movimentação criar ciclo. Geramos avisos quando
+ * existem dependências cruzadas com o pai antigo / dentro do novo destino.
+ */
+export function validateChapterMove(
+  project: Project,
+  chapterId: string,
+  newParentId: string | null,
+): ChapterMoveValidation {
+  const result: ChapterMoveValidation = { blocked: false, warnings: [], violations: [] };
+
+  // Ciclo
+  if (newParentId && (chapterId === newParentId || isDescendant(project, newParentId, chapterId))) {
+    result.blocked = true;
+    result.warnings.push('Movimentação criaria um ciclo na hierarquia.');
+    return result;
+  }
+
+  const allTasks = getAllProjectTasks(project);
+  const movedTasks = getChapterTasks(project, chapterId);
+  const movedIds = new Set(movedTasks.map(t => t.id));
+
+  // Verifica violações duras: se alguma tarefa do capítulo já tem violação
+  // ativa com suas dependências (pré-existente, mas exposta ao reorganizar).
+  for (const task of movedTasks) {
+    const v = checkDependencyViolation(task, task.startDate, allTasks);
+    if (v) {
+      result.violations.push({
+        taskId: task.id,
+        taskName: task.name,
+        predId: v.predId,
+        predName: v.predName,
+        type: v.type,
+      });
+    }
+  }
+
+  // Avisos: dependências cruzadas com o pai antigo
+  const oldParent = project.phases.find(p => p.id === chapterId)?.parentId;
+  if (oldParent && oldParent !== newParentId) {
+    const oldParentTasks = getChapterTasks(project, oldParent);
+    const oldParentIds = new Set(oldParentTasks.map(t => t.id));
+    for (const task of movedTasks) {
+      const crosses = (task.dependencyDetails || []).some(d => oldParentIds.has(d.taskId) && !movedIds.has(d.taskId));
+      if (crosses) {
+        result.warnings.push(`Tarefa "${task.name}" mantém dependência com o capítulo de origem.`);
+        break;
+      }
+    }
+  }
+
+  if (result.violations.length > 0) result.blocked = true;
+  return result;
+}
+
+/**
+ * Aplica a movimentação. Se houver violações e `force` for true, remove
+ * as dependências conflitantes antes de mover.
+ */
+export function safeMoveChapter(
+  project: Project,
+  chapterId: string,
+  newParentId: string | null,
+  options: { force?: boolean } = {},
+): { project: Project; validation: ChapterMoveValidation; applied: boolean } {
+  const validation = validateChapterMove(project, chapterId, newParentId);
+
+  if (validation.blocked && !options.force) {
+    return { project, validation, applied: false };
+  }
+
+  let next = project;
+  if (validation.violations.length > 0 && options.force) {
+    // Remove dependências conflitantes
+    const conflictPairs = new Set(validation.violations.map(v => `${v.taskId}::${v.predId}`));
+    next = {
+      ...next,
+      phases: next.phases.map(p => ({
+        ...p,
+        tasks: p.tasks.map(t => {
+          const hasConflict = (t.dependencies || []).some(d => conflictPairs.has(`${t.id}::${d}`));
+          if (!hasConflict) return t;
+          return {
+            ...t,
+            dependencies: (t.dependencies || []).filter(d => !conflictPairs.has(`${t.id}::${d}`)),
+            dependencyDetails: (t.dependencyDetails || []).filter(d => !conflictPairs.has(`${t.id}::${d.taskId}`)),
+          };
+        }),
+      })),
+    };
+  }
+
+  next = moveChapter(next, chapterId, newParentId);
+  return { project: next, validation, applied: true };
 }
