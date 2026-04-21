@@ -196,32 +196,64 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
 
   /** Move um capítulo/subcapítulo para outro pai (ou promove a principal se newParentId === null). */
   const handleMoveChapter = useCallback((chapterId: string, newParentId: string | null) => {
-    onProjectChange(moveChapter(project, chapterId, newParentId));
+    const { project: nextProject, validation, applied } = safeMoveChapter(project, chapterId, newParentId);
+    if (!applied) {
+      // Bloqueado por violação dura — oferece "Forçar"
+      const first = validation.violations[0];
+      const desc = first
+        ? `${first.taskName} depende de ${first.predName} (${first.type}).`
+        : validation.warnings[0] ?? 'Movimentação inválida.';
+      toast.error('Movimentação bloqueada', {
+        description: desc,
+        action: {
+          label: 'Forçar',
+          onClick: () => {
+            const forced = safeMoveChapter(project, chapterId, newParentId, { force: true });
+            if (forced.applied) {
+              onProjectChange(forced.project);
+              if (newParentId) setExpandedPhases(prev => new Set([...prev, newParentId]));
+              toast.warning('Movimentação forçada — dependências conflitantes removidas.');
+            }
+          },
+        },
+      });
+      return;
+    }
+    if (validation.warnings.length > 0) {
+      toast.warning(validation.warnings[0]);
+    }
+    onProjectChange(nextProject);
     if (newParentId) setExpandedPhases(prev => new Set([...prev, newParentId]));
   }, [project, onProjectChange]);
 
-  // Drag-and-drop de capítulos (mover/transformar em subcapítulo)
+  // Drag-and-drop de capítulos (mover/transformar em subcapítulo).
+  // IMPORTANTE: o `draggable` fica APENAS no handle (GripVertical) do header.
+  // Assim não conflita com o drag de tarefas filhas nem trava cliques.
   const [dragChapterId, setDragChapterId] = useState<string | null>(null);
   const [dropChapterTargetId, setDropChapterTargetId] = useState<string | null>(null);
 
   const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
-    e.stopPropagation();
     setDragChapterId(chapterId);
     e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('application/x-chapter-id', chapterId); } catch { /* noop */ }
   }, []);
 
   const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     if (!dragChapterId || dragChapterId === targetId) return;
+    // Só intercepta drops de capítulo (não de tarefas)
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
-    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     setDropChapterTargetId(targetId);
   }, [dragChapterId]);
 
   const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
+    if (!dragChapterId) return;
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.length && !types.includes('application/x-chapter-id')) return;
     e.preventDefault();
-    e.stopPropagation();
-    if (dragChapterId && dragChapterId !== targetId) {
+    if (dragChapterId !== targetId) {
       handleMoveChapter(dragChapterId, targetId);
     }
     setDragChapterId(null);
