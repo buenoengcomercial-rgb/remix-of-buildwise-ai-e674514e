@@ -14,7 +14,7 @@ import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
 import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, getWorkEndDate, MONTH_NAMES_PT, dateToISO, toISODateLocal, parseISODateLocal } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis, isDiaUtil } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
-import { flattenPhasesByChapter, getChapterNumbering } from '@/lib/chapters';
+import { flattenPhasesByChapter, getChapterNumbering, getChapterTasks } from '@/lib/chapters';
 import { beginBarMutation, endBarMutation, endAllBarMutations, setTransform, setTransition, setOpacity, setLeftPx, setWidthPx, type BarMutationSession } from './gantt/barTransform';
 import { toast } from 'sonner';
 
