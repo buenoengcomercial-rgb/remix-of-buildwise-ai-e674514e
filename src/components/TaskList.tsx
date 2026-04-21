@@ -771,7 +771,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                               className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
-                              style={{ gridTemplateColumns: '36px 2.5fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
+                              style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
                             >
                               {/* Equipe inicial */}
                               <div className="flex items-center justify-center">
