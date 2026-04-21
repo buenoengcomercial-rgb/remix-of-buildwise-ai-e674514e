@@ -1,13 +1,14 @@
-import { Project, Task, LaborComposition, DailyProductionLog } from '@/types/project';
+import { Project, Task, LaborComposition, DailyProductionLog, Phase } from '@/types/project';
 import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
-import { useState, useRef, useCallback } from 'react';
-import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList } from 'lucide-react';
+import { useState, useRef, useCallback, useMemo } from 'react';
+import { ChevronDown, ChevronRight, User, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import DailyLogsPanel from '@/components/DailyLogsPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateRupDuration } from '@/lib/calculations';
 import { formatISODateBR } from '@/components/gantt/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks } from '@/lib/chapters';
 
 /** Encurta o nome da tarefa para no máximo `maxWords` palavras, adicionando "…" no final. */
 function truncateWords(text: string, maxWords = 4): string {
@@ -149,16 +150,28 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     'hsl(280, 50%, 55%)', 'hsl(160, 50%, 45%)',
   ];
 
-  const addPhase = () => {
+  const addPhase = (parentId?: string) => {
     const newId = `phase-${Date.now()}`;
     const colorIdx = project.phases.length % PHASE_COLORS.length;
+    const siblings = project.phases.filter(p => (p.parentId ?? null) === (parentId ?? null));
+    const order = siblings.length;
     onProjectChange({
       ...project,
-      phases: [...project.phases, { id: newId, name: 'Novo Capítulo', color: PHASE_COLORS[colorIdx], tasks: [] }],
+      phases: [
+        ...project.phases,
+        {
+          id: newId,
+          name: parentId ? 'Novo Subcapítulo' : 'Novo Capítulo',
+          color: PHASE_COLORS[colorIdx],
+          tasks: [],
+          parentId,
+          order,
+        },
+      ],
     });
-    setExpandedPhases(prev => new Set([...prev, newId]));
+    setExpandedPhases(prev => new Set([...prev, newId, ...(parentId ? [parentId] : [])]));
     setEditingPhase(newId);
-    setPhaseNameDraft('Novo Capítulo');
+    setPhaseNameDraft(parentId ? 'Novo Subcapítulo' : 'Novo Capítulo');
   };
 
   const renamePhase = (phaseId: string) => {
@@ -171,11 +184,53 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
   };
 
   const deletePhase = (phaseId: string) => {
+    // Ao excluir um capítulo principal, promove os subcapítulos para principais
     onProjectChange({
       ...project,
-      phases: project.phases.filter(p => p.id !== phaseId),
+      phases: project.phases
+        .filter(p => p.id !== phaseId)
+        .map(p => p.parentId === phaseId ? { ...p, parentId: undefined } : p),
     });
   };
+
+  /** Move um capítulo/subcapítulo para outro pai (ou promove a principal se newParentId === null). */
+  const handleMoveChapter = useCallback((chapterId: string, newParentId: string | null) => {
+    onProjectChange(moveChapter(project, chapterId, newParentId));
+    if (newParentId) setExpandedPhases(prev => new Set([...prev, newParentId]));
+  }, [project, onProjectChange]);
+
+  // Drag-and-drop de capítulos (mover/transformar em subcapítulo)
+  const [dragChapterId, setDragChapterId] = useState<string | null>(null);
+  const [dropChapterTargetId, setDropChapterTargetId] = useState<string | null>(null);
+
+  const handleChapterDragStart = useCallback((e: React.DragEvent, chapterId: string) => {
+    e.stopPropagation();
+    setDragChapterId(chapterId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleChapterDragOver = useCallback((e: React.DragEvent, targetId: string) => {
+    if (!dragChapterId || dragChapterId === targetId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setDropChapterTargetId(targetId);
+  }, [dragChapterId]);
+
+  const handleChapterDrop = useCallback((e: React.DragEvent, targetId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragChapterId && dragChapterId !== targetId) {
+      handleMoveChapter(dragChapterId, targetId);
+    }
+    setDragChapterId(null);
+    setDropChapterTargetId(null);
+  }, [dragChapterId, handleMoveChapter]);
+
+  const handleChapterDragEnd = useCallback(() => {
+    setDragChapterId(null);
+    setDropChapterTargetId(null);
+  }, []);
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => {
@@ -361,7 +416,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
             <Upload className="w-4 h-4" /> Importar PDF/Excel
           </button>
           <button
-            onClick={addPhase}
+            onClick={() => addPhase()}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border bg-card text-foreground font-medium text-sm hover:bg-muted/50 transition-colors shadow-sm"
           >
             <FolderPlus className="w-4 h-4" /> Novo Capítulo
@@ -391,27 +446,86 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         })}
       </div>
 
-      <div className="space-y-3">
-        {project.phases.map((phase, pi) => {
+      {(() => {
+        const tree = getChapterTree(project);
+        const numbering = getChapterNumbering(project);
+        const mainChapters = project.phases.filter(p => !p.parentId);
+
+        const renderActionButtons = (phase: Phase, isSub: boolean) => (
+          <>
+            {/* Mover para capítulo (dropdown) */}
+            <div className="relative">
+              <select
+                value={phase.parentId ?? ''}
+                onChange={e => handleMoveChapter(phase.id, e.target.value || null)}
+                className="text-[10px] px-1.5 py-1 rounded border border-border bg-card text-foreground hover:border-primary focus:outline-none focus:border-primary cursor-pointer"
+                title={isSub ? 'Mover para outro capítulo' : 'Transformar em subcapítulo'}
+                onClick={e => e.stopPropagation()}
+              >
+                <option value="">— Capítulo principal —</option>
+                {mainChapters.filter(c => c.id !== phase.id).map(c => (
+                  <option key={c.id} value={c.id}>↳ {numbering.get(c.id)} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            {editingPhase === phase.id ? (
+              <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
+                className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                title="Renomear capítulo"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => deletePhase(phase.id)}
+              className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+              title="Excluir capítulo"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        );
+
+        // Renderiza um cartão de capítulo (com suas tarefas dentro). Reaproveita o layout existente.
+        const renderPhaseCard = (phase: Phase, pi: number, isSub: boolean) => {
           const phaseProgress = phase.tasks.length ? Math.round(phase.tasks.reduce((s, t) => s + t.percentComplete, 0) / phase.tasks.length) : 0;
           const isExpanded = expandedPhases.has(phase.id);
           const hasCritical = phase.tasks.some(t => t.isCritical);
+          const num = numbering.get(phase.id) || '';
+          const isDropTarget = dropChapterTargetId === phase.id && dragChapterId !== phase.id;
 
           return (
-            <motion.div
+            <div
               key={phase.id}
+              draggable
+              onDragStart={e => handleChapterDragStart(e, phase.id)}
+              onDragOver={e => handleChapterDragOver(e, phase.id)}
+              onDrop={e => handleChapterDrop(e, phase.id)}
+              onDragEnd={handleChapterDragEnd}
+              className={isSub ? 'ml-6' : ''}
+            >
+            <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: pi * 0.05 }}
-              className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
+              transition={{ delay: pi * 0.04 }}
+              className={`bg-card rounded-xl border shadow-sm overflow-hidden transition-colors ${
+                isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
+              } ${dragChapterId === phase.id ? 'opacity-50' : ''}`}
             >
               <div className="flex items-center">
                 <button
                   onClick={() => togglePhase(phase.id)}
                   className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
                 >
+                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 cursor-grab" />
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   <div className="w-3 h-3 rounded-full" style={{ background: phase.color }} />
+                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{num}</span>
                   {editingPhase === phase.id ? (
                     <input
                       autoFocus
@@ -434,28 +548,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   </div>
                 </button>
 
-                {/* Phase actions */}
                 <div className="flex items-center gap-1 mr-2">
-                  {editingPhase === phase.id ? (
-                    <button onClick={() => renamePhase(phase.id)} className="p-1.5 rounded hover:bg-success/20 text-success transition-colors" title="Salvar nome">
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => { setEditingPhase(phase.id); setPhaseNameDraft(phase.name); }}
-                      className="p-1.5 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
-                      title="Renomear capítulo"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deletePhase(phase.id)}
-                    className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-                    title="Excluir capítulo"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {renderActionButtons(phase, isSub)}
                 </div>
                 <button
                   onClick={() => addTask(phase.id)}
@@ -941,9 +1035,55 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 )}
               </AnimatePresence>
             </motion.div>
+            </div>
           );
-        })}
-      </div>
+        };
+
+        return (
+          <div className="space-y-3">
+            {/* Drop zone para promover a capítulo principal */}
+            {dragChapterId && (
+              <div
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDropChapterTargetId('__root__'); }}
+                onDrop={e => handleChapterDrop(e, null)}
+                className={`px-4 py-3 rounded-xl border-2 border-dashed text-center text-[11px] font-medium transition-colors ${
+                  dropChapterTargetId === '__root__'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground'
+                }`}
+              >
+                <ArrowUpFromLine className="w-3.5 h-3.5 inline mr-1" />
+                Soltar aqui para promover a Capítulo Principal
+              </div>
+            )}
+
+            {tree.map((node, idx) => (
+              <div key={node.phase.id} className="space-y-2">
+                {renderPhaseCard(node.phase, idx, false)}
+                {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
+                  renderPhaseCard(child, idx * 100 + cIdx, true),
+                )}
+                {/* Atalho para criar subcapítulo */}
+                {expandedPhases.has(node.phase.id) && (
+                  <div className="ml-6">
+                    <button
+                      onClick={() => addPhase(node.phase.id)}
+                      className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-primary px-3 py-1.5 rounded-md border border-dashed border-border hover:border-primary transition-colors"
+                    >
+                      <FolderPlus className="w-3 h-3" /> Adicionar subcapítulo a {node.phase.name}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Phases órfãs (parentId apontando para um capítulo inexistente) */}
+            {project.phases
+              .filter(p => p.parentId && !project.phases.some(c => c.id === p.parentId))
+              .map((p, i) => renderPhaseCard(p, tree.length + i, false))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

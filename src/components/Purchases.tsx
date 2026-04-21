@@ -1,7 +1,8 @@
 import { Project, Material } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
+import { getChapterTree, getChapterNumbering } from '@/lib/chapters';
 import { useState } from 'react';
-import { Package, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import { Package, CheckCircle2, AlertCircle, Filter, FolderTree } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface PurchasesProps {

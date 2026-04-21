@@ -1,6 +1,7 @@
 import { Project } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
 import { generateCurvaS, suggestOptimizations } from '@/lib/calculations';
+import { getChapterTree, getChapterTasks, getChapterNumbering } from '@/lib/chapters';
 import { motion } from 'framer-motion';
 import { TrendingUp, AlertTriangle, DollarSign, CheckCircle2, Zap, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
@@ -25,10 +26,20 @@ export default function Dashboard({ project }: DashboardProps) {
   const allMaterials = tasks.flatMap(t => t.materials);
   const totalCost = allMaterials.reduce((s, m) => s + (m.estimatedCost || 0), 0);
 
-  const phaseData = project.phases.map(p => ({
-    name: p.name.length > 12 ? p.name.slice(0, 12) + '…' : p.name,
-    progresso: Math.round(p.tasks.reduce((s, t) => s + t.percentComplete, 0) / p.tasks.length),
-  }));
+  // Agrupa progresso por capítulo principal (incluindo seus subcapítulos)
+  const chapterTree = getChapterTree(project);
+  const chapterNumbering = getChapterNumbering(project);
+  const phaseData = chapterTree.map(node => {
+    const all = getChapterTasks(project, node.phase.id);
+    const progresso = all.length
+      ? Math.round(all.reduce((s, t) => s + t.percentComplete, 0) / all.length)
+      : 0;
+    const label = `${chapterNumbering.get(node.phase.id)} ${node.phase.name}`;
+    return {
+      name: label.length > 14 ? label.slice(0, 14) + '…' : label,
+      progresso,
+    };
+  });
 
   const statusData = [
     { name: 'Concluído', value: completedTasks, color: 'hsl(152, 60%, 42%)' },
@@ -77,7 +88,7 @@ export default function Dashboard({ project }: DashboardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="lg:col-span-2 bg-card rounded-xl p-5 border border-border shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Progresso por Fase</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Progresso por Capítulo</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={phaseData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

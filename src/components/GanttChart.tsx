@@ -14,6 +14,7 @@ import { DAY_WIDTH, ROW_HEIGHT, FlatTask } from './gantt/types';
 import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, MONTH_NAMES_PT, dateToISO, toISODateLocal, parseISODateLocal } from './gantt/utils';
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis, isDiaUtil } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
+import { flattenPhasesByChapter, getChapterNumbering } from '@/lib/chapters';
 import { toast } from 'sonner';
 
 interface GanttChartProps {
@@ -120,10 +121,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
     return map;
   }, [taskNumbering]);
 
+  // Phases ordenadas: capítulo principal seguido de seus subcapítulos
+  const displayPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const chapterNumbering = useMemo(() => getChapterNumbering(project), [project]);
+
   const flatTasks = useMemo(() => {
     const result: FlatTask[] = [];
     let rowIdx = 0;
-    project.phases.forEach(phase => {
+    displayPhases.forEach(phase => {
       rowIdx++;
       if (!collapsedPhases.has(phase.id)) {
         phase.tasks
@@ -135,15 +140,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       }
     });
     return result;
-  }, [project, collapsedPhases, showCriticalOnly]);
+  }, [displayPhases, collapsedPhases, showCriticalOnly]);
 
   // Compute Y positions for dependency arrows (relative to bars area)
   const taskYPositions = useMemo(() => {
     const map = new Map<string, number>();
     const PHASE_HEADER_HEIGHT = ROW_HEIGHT + 20;
     let y = 0;
-    project.phases.forEach(phase => {
-      y += PHASE_HEADER_HEIGHT;
+    displayPhases.forEach(phase => {
       if (!collapsedPhases.has(phase.id)) {
         phase.tasks
           .filter(t => !showCriticalOnly || t.isCritical)
@@ -154,9 +158,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
       }
     });
     return map;
-  }, [project, collapsedPhases, showCriticalOnly]);
-
-  // Compute violation map for dependency arrows
+  }, [displayPhases, collapsedPhases, showCriticalOnly]);
   const violationMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
     tasks.forEach(task => {
@@ -848,21 +850,22 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
               </div>
 
               {/* Rows */}
-              {project.phases.map(phase => {
+              {displayPhases.map(phase => {
                 const phaseRange = getPhaseRange(phase);
                 const diasUteis = getChapterDiasUteis(phase);
 
                 return (
                   <div key={phase.id}>
                     {/* Phase header with dates */}
-                    <div className="border-b border-border bg-muted/60">
+                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/40' : 'bg-muted/70'}`}>
                       <button
                         onClick={() => togglePhase(phase.id)}
                         className="w-full flex items-center gap-1.5 px-2 hover:bg-muted transition-colors"
-                        style={{ height: ROW_HEIGHT }}
+                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 18 : 8 }}
                       >
                         {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        <span className="text-[11px] font-bold text-foreground truncate">{phase.name}</span>
+                        <span className="text-[9px] font-mono text-muted-foreground tabular-nums">{chapterNumbering.get(phase.id)}</span>
+                        <span className={`truncate ${phase.parentId ? 'text-[10px] font-semibold text-foreground/90' : 'text-[11px] font-bold text-foreground'}`}>{phase.name}</span>
                         <span className="text-[9px] text-muted-foreground ml-auto">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
@@ -1330,7 +1333,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                     );
                   })()}
 
-                  {project.phases.map(phase => (
+                  {displayPhases.map(phase => (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
                       <div className="border-b border-border bg-muted/30 relative" style={{ height: ROW_HEIGHT + 20 }}>

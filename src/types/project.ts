@@ -118,6 +118,14 @@ export interface Phase {
   name: string;
   color: string;
   tasks: Task[];
+  /**
+   * Hierarquia de capítulos:
+   * - parentId === undefined  → capítulo principal
+   * - parentId === string     → subcapítulo, filho do capítulo principal indicado
+   */
+  parentId?: string;
+  /** Ordem manual dentro do mesmo nível. */
+  order?: number;
 }
 
 export interface Project {
