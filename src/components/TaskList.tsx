@@ -580,10 +580,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 onClick={e => e.stopPropagation()}
               >
                 <option value="" label="— Principal —">— Capítulo principal —</option>
-                {mainChapters.filter(c => c.id !== phase.id).map(c => {
-                  const shortLabel = `↳ ${numbering.get(c.id) ?? ''} ${truncateWords(c.name, 3)}`.trim();
+                {orderedMainChapters.filter(c => c.id !== phase.id).map(c => {
+                  const num = numbering.get(c.id) ?? '';
+                  const shortLabel = `${num} - ${truncateWords(c.name, 3)}`.trim();
                   return (
-                    <option key={c.id} value={c.id} label={shortLabel} title={c.name}>
+                    <option key={c.id} value={c.id} label={shortLabel} title={`${num} - ${c.name}`}>
                       {shortLabel}
                     </option>
                   );
