@@ -1,7 +1,7 @@
 import { Project, Task, LaborComposition, DailyProductionLog, Phase } from '@/types/project';
 import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Copy, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
+import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import DailyLogsPanel from '@/components/DailyLogsPanel';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -733,17 +733,19 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" data-chapter-body>
                      <div className="border-t border-border overflow-x-hidden">
                        <div className="w-full">
-                       <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px' }}>
-                        <div>Eq.</div>
-                        <div>Tarefa</div>
-                        <div>Qtd.</div>
-                        <div className="text-center">Prod./dia</div>
-                        <div>Duração</div>
-                        <div>Gargalo</div>
-                        <div>Depend.</div>
-                        <div>Progresso</div>
-                        <div>Ações</div>
-                      </div>
+                       {phase.tasks.length > 0 && (
+                         <div className="grid gap-1.5 px-3 py-2 bg-secondary/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider" style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px' }}>
+                           <div>Eq.</div>
+                           <div>Tarefa</div>
+                           <div>Qtd.</div>
+                           <div className="text-center">Prod./dia</div>
+                           <div>Duração</div>
+                           <div>Gargalo</div>
+                           <div>Depend.</div>
+                           <div>Progresso</div>
+                           <div>Ações</div>
+                         </div>
+                       )}
 
                       {phase.tasks.map(task => {
                         const endDate = new Date(task.startDate);
@@ -964,9 +966,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       <Edit3 className="w-3 h-3" />
                                     </button>
                                   )}
-                                  <button onClick={() => duplicateTask(phase.id, task)} className="p-1 rounded hover:bg-info/20 text-info transition-colors" title="Duplicar">
-                                    <Copy className="w-3 h-3" />
-                                  </button>
+                                  
                                 </div>
                               </div>
                             </div>
