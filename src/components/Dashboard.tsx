@@ -88,7 +88,7 @@ export default function Dashboard({ project }: DashboardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="lg:col-span-2 bg-card rounded-xl p-5 border border-border shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Progresso por Fase</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Progresso por Capítulo</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={phaseData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
