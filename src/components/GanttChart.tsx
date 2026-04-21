@@ -1334,6 +1334,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                   })()}
 
                   {displayPhases.map(phase => (
+                    <div key={phase.id}>
+                      {/* Phase header row with milestone markers */}
                       <div className="border-b border-border bg-muted/30 relative" style={{ height: ROW_HEIGHT + 20 }}>
                         {(() => {
                           const chapterBar = getChapterBarInfo(phase);
