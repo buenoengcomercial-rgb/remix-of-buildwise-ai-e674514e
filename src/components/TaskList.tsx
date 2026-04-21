@@ -989,35 +989,21 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                       <div><span className="text-muted-foreground">Folga:</span> {task.float !== undefined ? `${task.float}d` : '—'}</div>
                                       <div><span className="text-muted-foreground">Desvio:</span> {task.baseline ? `${task.duration - task.baseline.duration > 0 ? '+' : ''}${task.duration - task.baseline.duration}d` : '—'}</div>
                                     </div>
-                                    <div className="flex items-center justify-between flex-wrap gap-2">
-                                      <h4 className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                                        <Zap className="w-3.5 h-3.5 text-warning" />
-                                        Composição RUP — {task.quantity} {task.unit}
-                                      </h4>
-                                      <div className="flex items-center gap-2">
+                                    <h4 className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                                      <Zap className="w-3.5 h-3.5 text-warning" />
+                                      Composição RUP — {task.quantity} {task.unit}
+                                    </h4>
+
+                                    <div className="grid grid-cols-6 gap-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                                      <div>
                                         <button
                                           onClick={() => addLabor(phase.id, task.id)}
-                                          className="text-[10px] px-2 py-1 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors flex items-center gap-1"
+                                          className="text-[10px] font-semibold uppercase text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                                          title="Adicionar profissional"
                                         >
                                           <Plus className="w-3 h-3" /> Profissional
                                         </button>
-                                        <button
-                                          onClick={() => doubleTeam(phase.id, task.id)}
-                                          className="text-[10px] px-2 py-1 rounded-md bg-warning/10 text-warning font-medium hover:bg-warning/20 transition-colors"
-                                        >
-                                          ⚡ Dobrar equipe
-                                        </button>
-                                        <button
-                                          onClick={() => setSimulating(simulating === task.id ? null : task.id)}
-                                          className="text-[10px] px-2 py-1 rounded-md bg-info/10 text-info font-medium hover:bg-info/20 transition-colors"
-                                        >
-                                          {simulating === task.id ? 'Ocultar simulação' : '📊 Simular'}
-                                        </button>
                                       </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-6 gap-2 text-[10px] font-semibold text-muted-foreground uppercase">
-                                      <div>Profissional</div>
                                       <div className="text-center">RUP (h/{task.unit})</div>
                                       <div className="text-center">Qtd. Trab.</div>
                                       <div className="text-center">Tempo total</div>
