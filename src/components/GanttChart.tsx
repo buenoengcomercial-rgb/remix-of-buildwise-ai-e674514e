@@ -15,6 +15,7 @@ import { addDays, diffDays, formatDateFull, formatDateShort, getEndDate, getWork
 import { getFeriadosMap, FeriadoInfo, calcularDiasUteis, isDiaUtil } from '@/lib/feriados';
 import { calculateRupDuration, propagateAllDependencies, checkDependencyViolation } from '@/lib/calculations';
 import { flattenPhasesByChapter, getChapterNumbering } from '@/lib/chapters';
+import { beginBarMutation, endBarMutation, endAllBarMutations, setTransform, setTransition, setOpacity, setLeftPx, setWidthPx, type BarMutationSession } from './gantt/barTransform';
 import { toast } from 'sonner';
 
 interface GanttChartProps {
