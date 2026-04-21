@@ -7,7 +7,27 @@ const TooltipProvider = TooltipPrimitive.Provider;
 
 const Tooltip = TooltipPrimitive.Root;
 
-const TooltipTrigger = TooltipPrimitive.Trigger;
+const TooltipTrigger = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
+>(({ asChild, children, ...props }, ref) => {
+  // When asChild is true, ensure the child can accept a ref by wrapping
+  // function components in a span. This silences the
+  // "Function components cannot be given refs" warning from Radix.
+  if (asChild) {
+    return (
+      <TooltipPrimitive.Trigger ref={ref} asChild {...props}>
+        <span style={{ display: "contents" }}>{children}</span>
+      </TooltipPrimitive.Trigger>
+    );
+  }
+  return (
+    <TooltipPrimitive.Trigger ref={ref} {...props}>
+      {children}
+    </TooltipPrimitive.Trigger>
+  );
+});
+TooltipTrigger.displayName = TooltipPrimitive.Trigger.displayName;
 
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
