@@ -133,6 +133,8 @@ export interface Phase {
 export interface ProjectUiState {
   /** IDs de capítulos/subcapítulos atualmente recolhidos na aba Tarefas (EAP). */
   collapsedPhaseIds?: string[];
+  /** IDs de capítulos/subcapítulos atualmente recolhidos na aba Cronograma (Gantt). */
+  ganttCollapsedPhaseIds?: string[];
 }
 
 export interface Project {
