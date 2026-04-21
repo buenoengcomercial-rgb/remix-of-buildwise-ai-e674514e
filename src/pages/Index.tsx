@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { AppView, Project } from '@/types/project';
 import AppSidebar from '@/components/AppSidebar';
 import Dashboard from '@/components/Dashboard';
@@ -19,15 +19,18 @@ export default function Index() {
     saveProject(rawProject);
   }, [rawProject]);
 
+  // Adia o recálculo pesado de CPM enquanto o usuário ainda está digitando/arrastando
+  const deferredRawProject = useDeferredValue(rawProject);
+
   const project = useMemo(
     () => calculateCPM(
       applyDailyLogsToProject(
         syncBaselineWithRup(
-          applyRupToProject(captureBaseline(rawProject))
+          applyRupToProject(captureBaseline(deferredRawProject))
         )
       )
     ),
-    [rawProject]
+    [deferredRawProject]
   );
 
   const handleSwitchProject = (id: string) => {
