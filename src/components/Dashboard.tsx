@@ -3,6 +3,7 @@ import { getAllTasks } from '@/data/sampleProject';
 import { generateCurvaS, suggestOptimizations } from '@/lib/calculations';
 import { getChapterTree, getChapterTasks, getChapterNumbering } from '@/lib/chapters';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
 import { TrendingUp, AlertTriangle, DollarSign, CheckCircle2, Zap, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
