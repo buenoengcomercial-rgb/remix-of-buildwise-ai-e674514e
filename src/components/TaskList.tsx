@@ -173,7 +173,18 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         },
       ],
     });
-    setExpandedPhases(prev => new Set([...prev, newId, ...(parentId ? [parentId] : [])]));
+    // Subcapítulos novos ficam MINIMIZADOS por padrão (apenas garante o pai expandido).
+    // Capítulos principais novos ficam expandidos.
+    setExpandedPhases(prev => {
+      const next = new Set(prev);
+      if (parentId) {
+        next.add(parentId);
+        next.delete(newId);
+      } else {
+        next.add(newId);
+      }
+      return next;
+    });
     setEditingPhase(newId);
     setPhaseNameDraft(parentId ? 'Novo Subcapítulo' : 'Novo Capítulo');
   };
