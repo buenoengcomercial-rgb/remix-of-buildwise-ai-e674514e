@@ -126,6 +126,8 @@ export interface Phase {
   parentId?: string;
   /** Ordem manual dentro do mesmo nível. */
   order?: number;
+  /** Numeração customizada do capítulo (sobrescreve o automático "1", "1.1", etc). */
+  customNumber?: string;
 }
 
 export interface Project {
