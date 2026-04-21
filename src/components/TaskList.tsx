@@ -326,6 +326,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
     setDragChapterId(null);
     setDropChapterTargetId(null);
     setDropPosition('inside');
+    document.body.classList.remove('cursor-grabbing');
   }, []);
 
   const togglePhase = (id: string) => {
