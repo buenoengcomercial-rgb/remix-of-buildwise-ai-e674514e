@@ -216,15 +216,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
   const togglePhase = (id: string) => {
     setCollapsedPhases(prev => {
       const n = new Set(prev);
-      const isCollapsing = !n.has(id);
-      const childIds = allPhases.filter(p => p.parentId === id).map(p => p.id);
-      if (isCollapsing) {
-        n.add(id);
-        childIds.forEach(c => n.add(c));
-      } else {
-        n.delete(id);
-        childIds.forEach(c => n.delete(c));
-      }
+      // Apenas alterna o próprio capítulo/subcapítulo.
+      // O estado individual dos subcapítulos é preservado — quando o pai
+      // for re-expandido, cada filho mantém o estado em que foi deixado.
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
       return n;
     });
   };
