@@ -1,5 +1,7 @@
 import { Project, Task, ViewMode, DependencyType, TaskDependency } from '@/types/project';
-import { getTeamDefinition, TEAM_DEFINITIONS, TEAM_CODES, TeamCode } from '@/lib/teams';
+import { getTeamDefinition, DEFAULT_TEAMS, TeamCode, TeamDefinition } from '@/lib/teams';
+import GerenciarEquipes from './GerenciarEquipes';
+import { Settings2 } from 'lucide-react';
 import { getAllTasks } from '@/data/sampleProject';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle, Flag } from 'lucide-react';
