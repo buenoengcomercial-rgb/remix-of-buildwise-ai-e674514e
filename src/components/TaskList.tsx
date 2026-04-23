@@ -91,6 +91,9 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
 }
 
 export default function TaskList({ project, onProjectChange }: TaskListProps) {
+  // Lista de equipes do projeto (com fallback aos defaults).
+  const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
+  const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
   // Estado inicial respeita a persistência (uiState.collapsedPhaseIds).
   // Se não houver registro, todos os capítulos começam expandidos.
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(() => {
