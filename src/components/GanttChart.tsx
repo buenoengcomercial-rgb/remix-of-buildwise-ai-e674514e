@@ -26,6 +26,8 @@ interface GanttChartProps {
 }
 
 export default function GanttChart({ project, onProjectChange }: GanttChartProps) {
+  // Lista de equipes do projeto (com fallback aos defaults).
+  const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
   const [viewMode, setViewMode] = useState<ViewMode>('weeks');
   // Estado de capítulos minimizados — inicializa com a persistência do projeto.
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
