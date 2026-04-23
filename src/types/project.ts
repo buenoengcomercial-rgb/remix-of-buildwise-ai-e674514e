@@ -7,8 +7,8 @@ export interface LaborComposition {
 }
 
 export type DependencyType = 'TI' | 'II' | 'TT' | 'IT';
-import type { TeamCode } from '@/lib/teams';
-export type { TeamCode } from '@/lib/teams';
+import type { TeamCode, TeamDefinition } from '@/lib/teams';
+export type { TeamCode, TeamDefinition } from '@/lib/teams';
 
 export interface TaskDependency {
   taskId: string;
@@ -144,6 +144,8 @@ export interface Project {
   endDate: string;
   phases: Phase[];
   totalBudget: number;
+  /** Equipes do projeto. Quando undefined, usa-se DEFAULT_TEAMS. */
+  teams?: TeamDefinition[];
   /** Estado visual persistido da UI (ex.: capítulos minimizados na EAP). */
   uiState?: ProjectUiState;
 }

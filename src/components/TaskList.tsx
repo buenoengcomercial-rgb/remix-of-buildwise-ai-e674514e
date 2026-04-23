@@ -1,5 +1,8 @@
 import { Project, Task, LaborComposition, DailyProductionLog, Phase } from '@/types/project';
-import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
+import { getTeamDefinition, DEFAULT_TEAMS, TeamCode, TeamDefinition } from '@/lib/teams';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Settings2 } from 'lucide-react';
+import GerenciarEquipes from '@/components/GerenciarEquipes';
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
@@ -88,6 +91,9 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
 }
 
 export default function TaskList({ project, onProjectChange }: TaskListProps) {
+  // Lista de equipes do projeto (com fallback aos defaults).
+  const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
+  const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
   // Estado inicial respeita a persistência (uiState.collapsedPhaseIds).
   // Se não houver registro, todos os capítulos começam expandidos.
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(() => {
@@ -603,16 +609,24 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       {/* Legenda de equipes */}
       <div className="flex flex-wrap items-center gap-3 px-2 py-2 bg-card rounded-lg border border-border">
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Equipes:</span>
-        {TEAM_CODES.map(code => {
-          const def = getTeamDefinition(code)!;
-          return (
-            <div key={code} className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
-              <span className="text-[10px] font-medium text-foreground">{def.label}</span>
-              <span className="text-[9px] text-muted-foreground">({def.composition})</span>
-            </div>
-          );
-        })}
+        {projectTeams.map(def => (
+          <div key={def.code} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+            <span className="text-[10px] font-medium text-foreground">{def.label}</span>
+            <span className="text-[9px] text-muted-foreground">({def.composition})</span>
+          </div>
+        ))}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-[10px] text-muted-foreground hover:text-primary hover:border-primary transition-colors">
+              <Settings2 className="w-3 h-3" /> Gerenciar
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[480px] p-3" align="end">
+            <div className="text-[11px] font-semibold text-foreground mb-2">Gerenciar Equipes</div>
+            <GerenciarEquipes project={project} onProjectChange={onProjectChange} />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {(() => {
@@ -829,7 +843,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                             className={`${dropTargetId === task.id && dragTaskId !== task.id ? 'border-t-2 border-t-primary' : ''} ${dragTaskId === task.id ? 'opacity-40' : ''}`}
                           >
                             {(() => {
-                              const rowTeam = getTeamDefinition(task.team);
+                              const rowTeam = teamDef(task.team);
                               return (
                             <div
                               className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
@@ -850,8 +864,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                   title="Selecionar equipe"
                                 >
                                   <option value="">—</option>
-                                  {TEAM_CODES.map(code => (
-                                    <option key={code} value={code}>{getTeamDefinition(code)!.label.charAt(0)}</option>
+                                  {projectTeams.map(def => (
+                                    <option key={def.code} value={def.code}>{def.label.charAt(0)}</option>
                                   ))}
                                 </select>
                               </div>

@@ -1,5 +1,7 @@
 import { Project, Task, ViewMode, DependencyType, TaskDependency } from '@/types/project';
-import { getTeamDefinition, TEAM_DEFINITIONS, TEAM_CODES, TeamCode } from '@/lib/teams';
+import { getTeamDefinition, DEFAULT_TEAMS, TeamCode, TeamDefinition } from '@/lib/teams';
+import GerenciarEquipes from './GerenciarEquipes';
+import { Settings2 } from 'lucide-react';
 import { getAllTasks } from '@/data/sampleProject';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle, Flag } from 'lucide-react';
@@ -24,6 +26,10 @@ interface GanttChartProps {
 }
 
 export default function GanttChart({ project, onProjectChange }: GanttChartProps) {
+  // Lista de equipes do projeto (com fallback aos defaults).
+  const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
+  // Helper local que sempre busca a definição na lista do projeto.
+  const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
   const [viewMode, setViewMode] = useState<ViewMode>('weeks');
   // Estado de capítulos minimizados — inicializa com a persistência do projeto.
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
@@ -1100,16 +1106,26 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           </div>
           <div className="flex items-center gap-3 text-[9px] text-muted-foreground flex-wrap">
             <span className="font-medium">Equipes:</span>
-            {TEAM_CODES.map(code => {
-              const def = TEAM_DEFINITIONS[code];
-              return (
-                <div key={code} className="flex items-center gap-1">
-                  <div className="w-3 h-1.5 rounded-full" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
-                  <span>{def.label}</span>
-                  <span className="text-muted-foreground/70">({def.composition})</span>
-                </div>
-              );
-            })}
+            {projectTeams.map(def => (
+              <div key={def.code} className="flex items-center gap-1">
+                <div className="w-3 h-1.5 rounded-full" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+                <span>{def.label}</span>
+                <span className="text-muted-foreground/70">({def.composition})</span>
+              </div>
+            ))}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-[9px] text-muted-foreground hover:text-primary hover:border-primary transition-colors">
+                  <Settings2 className="w-3 h-3" /> Gerenciar
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[480px] p-3" align="end">
+                <div className="text-[11px] font-semibold text-foreground mb-2">Gerenciar Equipes</div>
+                {onProjectChange && (
+                  <GerenciarEquipes project={project} onProjectChange={onProjectChange} />
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -1272,7 +1288,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           const depTypes = getDepTypes(task);
                           const noWorkDays = hasNoWorkingDays(task);
 
-                          const rowTeamDef = getTeamDefinition(task.team);
+                          const rowTeamDef = teamDef(task.team);
                           const isReorderDragging = reorderDragTaskId === task.id;
                           const isReorderTarget = reorderDropTargetId === task.id && reorderDragTaskId && reorderDragTaskId !== task.id;
                           return (
@@ -1609,17 +1625,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="_none" className="text-[10px]">—</SelectItem>
-                                    {TEAM_CODES.map(code => {
-                                      const def = TEAM_DEFINITIONS[code];
-                                      return (
-                                        <SelectItem key={code} value={code} className="text-[10px]">
-                                          <span className="flex items-center gap-1">
-                                            <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
-                                            {def.label}
-                                          </span>
-                                        </SelectItem>
-                                      );
-                                    })}
+                                    {projectTeams.map(def => (
+                                      <SelectItem key={def.code} value={def.code} className="text-[10px]">
+                                        <span className="flex items-center gap-1">
+                                          <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+                                          {def.label}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -1905,16 +1918,16 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     height: 20,
                                     borderRadius: 6,
                                     background: (() => {
-                                      const teamDef = getTeamDefinition(task.team);
-                                      if (task.team && teamDef) return teamDef.barColor;
+                                      const td = teamDef(task.team);
+                                      if (task.team && td) return td.barColor;
                                       if (bar.isDelayed) return 'hsl(var(--gantt-bar-delayed))';
                                       if (bar.isComplete) return 'hsl(var(--gantt-bar-complete))';
                                       if (bar.isCritical) return 'hsl(var(--gantt-critical))';
                                       return 'hsl(var(--gantt-bar))';
                                     })(),
                                     border: (() => {
-                                      const teamDef = getTeamDefinition(task.team);
-                                      return teamDef ? `1.5px solid ${teamDef.borderColor}` : 'none';
+                                      const td = teamDef(task.team);
+                                      return td ? `1.5px solid ${td.borderColor}` : 'none';
                                     })(),
                                     opacity: isDragPropagated ? 0.85 : 0.95,
                                     transition: (isDragging || isResizing || isDragPropagated) ? 'none' : 'left 0.2s ease, width 0.2s ease',
