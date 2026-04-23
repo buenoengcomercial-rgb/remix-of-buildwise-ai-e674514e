@@ -1156,9 +1156,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         color: headerFg,
                         borderLeft: `3px solid ${headerBorder}`,
                       } as React.CSSProperties;
-                      const dateLabelColor = 'hsl(220, 8%, 40%)';
-                      const dateValueColor = 'hsl(220, 10%, 12%)';
-                      const numberColor = isMainChapter ? 'hsl(220, 8%, 35%)' : 'hsl(220, 8%, 45%)';
+                      // Tons calibrados para AA (≥4.5:1) sobre os fundos do capítulo
+                      const dateLabelColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 30%)';
+                      const dateValueColor = 'hsl(220, 10%, 8%)';
+                      const numberColor = isMainChapter ? 'hsl(220, 10%, 22%)' : 'hsl(220, 10%, 28%)';
                       return (
                     <div className="border-b border-border" style={headerStyle}>
                       <button
@@ -1750,8 +1751,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                   {displayPhases.map(phase => {
                     const isMainChapter = !phase.parentId;
                     const ganttRowBg = isMainChapter ? 'hsl(220, 8%, 91%)' : 'hsl(220, 8%, 95%)';
-                    const ganttSpanColor = isMainChapter ? 'hsl(220, 8%, 55%)' : 'hsl(220, 8%, 65%)';
-                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 8%, 40%)' : 'hsl(220, 8%, 55%)';
+                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 50%)';
+                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 40%)';
                     const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 35%)';
                     return (
                     <div key={phase.id}>
