@@ -1143,12 +1143,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={phaseRange.start ? new Date(phaseRange.start) : undefined}
-                              onSelect={(d) => handleChapterDateChange(phase.id, 'start', d)}
-                              className={cn("p-3 pointer-events-auto")}
-                            />
+                            {(() => {
+                              const sel = phaseRange.start ? parseISODateLocal(phaseRange.start) : undefined;
+                              return (
+                                <Calendar
+                                  mode="single"
+                                  selected={sel}
+                                  defaultMonth={sel}
+                                  onSelect={(d) => handleChapterDateChange(phase.id, 'start', d)}
+                                  className={cn("p-3 pointer-events-auto")}
+                                />
+                              );
+                            })()}
                           </PopoverContent>
                         </Popover>
                         <Popover>
@@ -1158,12 +1164,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={phaseRange.end ? new Date(phaseRange.end) : undefined}
-                              onSelect={(d) => handleChapterDateChange(phase.id, 'end', d)}
-                              className={cn("p-3 pointer-events-auto")}
-                            />
+                            {(() => {
+                              const sel = phaseRange.end ? parseISODateLocal(phaseRange.end) : undefined;
+                              return (
+                                <Calendar
+                                  mode="single"
+                                  selected={sel}
+                                  defaultMonth={sel}
+                                  onSelect={(d) => handleChapterDateChange(phase.id, 'end', d)}
+                                  className={cn("p-3 pointer-events-auto")}
+                                />
+                              );
+                            })()}
                           </PopoverContent>
                         </Popover>
                         <span className="text-muted-foreground ml-auto flex items-center gap-2">
@@ -1295,12 +1307,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                         </button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                          mode="single"
-                                          selected={parseISODateLocal(task.startDate)}
-                                          onSelect={(d) => handleDateChange(task.id, 'start', d)}
-                                          className={cn("p-3 pointer-events-auto")}
-                                        />
+                                        {(() => {
+                                          const sel = parseISODateLocal(task.startDate);
+                                          return (
+                                            <Calendar
+                                              mode="single"
+                                              selected={sel}
+                                              defaultMonth={sel}
+                                              onSelect={(d) => handleDateChange(task.id, 'start', d)}
+                                              className={cn("p-3 pointer-events-auto")}
+                                            />
+                                          );
+                                        })()}
                                       </PopoverContent>
                                     </Popover>
                                   );
@@ -1353,12 +1371,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                         </button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                          mode="single"
-                                          selected={new Date(endDate)}
-                                          onSelect={(d) => handleDateChange(task.id, 'end', d)}
-                                          className={cn("p-3 pointer-events-auto")}
-                                        />
+                                        {(() => {
+                                          const sel = parseISODateLocal(endDate);
+                                          return (
+                                            <Calendar
+                                              mode="single"
+                                              selected={sel}
+                                              defaultMonth={sel}
+                                              onSelect={(d) => handleDateChange(task.id, 'end', d)}
+                                              className={cn("p-3 pointer-events-auto")}
+                                            />
+                                          );
+                                        })()}
                                       </PopoverContent>
                                     </Popover>
                                   );
