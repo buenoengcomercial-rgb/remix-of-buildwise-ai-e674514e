@@ -1161,13 +1161,18 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                       const dateValueColor = 'hsl(220, 10%, 8%)';
                       const numberColor = isMainChapter ? 'hsl(220, 10%, 22%)' : 'hsl(220, 10%, 28%)';
                       return (
-                    <div className="border-b border-border" style={headerStyle}>
+                    <div
+                      className="border-b border-border transition-[background-color,filter] duration-300 ease-out hover:brightness-[0.98]"
+                      style={headerStyle}
+                    >
                       <button
                         onClick={() => togglePhase(phase.id)}
-                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-95 transition-all"
+                        className="w-full flex items-center gap-1.5 px-2 transition-colors duration-200 ease-out focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 rounded-sm"
                         style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18, color: 'inherit' }}
                       >
-                        {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3 opacity-50" /> : <ChevronDown className="w-3 h-3 opacity-50" />}
+                        {collapsedPhases.has(phase.id)
+                          ? <ChevronRight className="w-3 h-3 opacity-50 transition-transform duration-200 ease-out" />
+                          : <ChevronDown className="w-3 h-3 opacity-50 transition-transform duration-200 ease-out" />}
                         <span className="text-[9px] font-mono tabular-nums" style={{ color: numberColor }}>{chapterNumbering.get(phase.id)}</span>
                         <span
                           className={`truncate ${isMainChapter ? 'text-[12px] font-bold tracking-wide uppercase' : 'text-[11px] font-semibold'}`}
