@@ -864,8 +864,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                                   title="Selecionar equipe"
                                 >
                                   <option value="">—</option>
-                                  {TEAM_CODES.map(code => (
-                                    <option key={code} value={code}>{getTeamDefinition(code)!.label.charAt(0)}</option>
+                                  {projectTeams.map(def => (
+                                    <option key={def.code} value={def.code}>{def.label.charAt(0)}</option>
                                   ))}
                                 </select>
                               </div>
