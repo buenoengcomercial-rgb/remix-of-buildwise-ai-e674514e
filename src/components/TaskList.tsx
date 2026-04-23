@@ -760,7 +760,16 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                       </select>
                     </div>
                   ) : (
-                    <span className="text-sm font-bold text-foreground truncate">{phase.name}</span>
+                    <span
+                      className="truncate"
+                      style={{
+                        color: 'inherit',
+                        fontSize: depth === 0 ? 15 : depth === 1 ? 13 : 12,
+                        fontWeight: depth === 0 ? 800 : 700,
+                        textTransform: depth === 0 ? 'uppercase' : 'none',
+                        letterSpacing: depth === 0 ? 0.4 : 0,
+                      }}
+                    >{phase.name}</span>
                   )}
                   {hasCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
                   <span className="text-xs text-muted-foreground ml-1 flex-shrink-0">({phase.tasks.length})</span>
