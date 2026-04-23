@@ -1143,16 +1143,32 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 return (
                   <div key={phase.id}>
                     {/* Phase header with dates */}
-                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/30' : 'bg-muted/70'}`}>
+                    {(() => {
+                      const depth = Math.min(phaseDepth.get(phase.id) ?? 0, 3);
+                      const headerStyle = {
+                        backgroundColor: `hsl(var(--chapter-l${depth}-bg))`,
+                        borderLeft: `3px solid hsl(var(--chapter-l${depth}-border))`,
+                        color: `hsl(var(--chapter-l${depth}-fg))`,
+                      } as React.CSSProperties;
+                      return (
+                    <div className="border-b border-border" style={headerStyle}>
                       <button
                         onClick={() => togglePhase(phase.id)}
-                        className="w-full flex items-center gap-1.5 px-2 hover:bg-muted transition-colors"
-                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 24 : 8 }}
+                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-95 dark:hover:brightness-110 transition-all"
+                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18 }}
                       >
                         {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        <span className="text-[9px] font-mono text-muted-foreground tabular-nums">{chapterNumbering.get(phase.id)}</span>
-                        <span className={`truncate ${phase.parentId ? 'text-[10px] font-semibold text-foreground/90' : 'text-[11px] font-bold text-foreground'}`}>{phase.name}</span>
-                        <span className="text-[9px] text-muted-foreground ml-auto">{phase.tasks.length}</span>
+                        <span className="text-[9px] font-mono opacity-70 tabular-nums">{chapterNumbering.get(phase.id)}</span>
+                        <span
+                          className="truncate"
+                          style={{
+                            fontSize: depth === 0 ? 12 : depth === 1 ? 11 : 10,
+                            fontWeight: depth === 0 ? 800 : depth === 1 ? 700 : 600,
+                            textTransform: depth === 0 ? 'uppercase' : 'none',
+                            letterSpacing: depth === 0 ? 0.3 : 0,
+                          }}
+                        >{phase.name}</span>
+                        <span className="text-[9px] opacity-70 ml-auto">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
                       <div className="flex items-center gap-2 px-2 pb-1 text-[9px]">
