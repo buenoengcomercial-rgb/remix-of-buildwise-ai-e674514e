@@ -28,6 +28,8 @@ interface GanttChartProps {
 export default function GanttChart({ project, onProjectChange }: GanttChartProps) {
   // Lista de equipes do projeto (com fallback aos defaults).
   const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
+  // Helper local que sempre busca a definição na lista do projeto.
+  const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
   const [viewMode, setViewMode] = useState<ViewMode>('weeks');
   // Estado de capítulos minimizados — inicializa com a persistência do projeto.
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
