@@ -66,19 +66,19 @@
     --status-delayed: 0 72% 51%;
     --status-purchased: 152 60% 42%;
 
-    /* Chapter hierarchy tones (light) — increasing contrast by depth */
-    --chapter-l0-bg: 230 55% 88%;
-    --chapter-l0-border: 230 65% 52%;
-    --chapter-l0-fg: 230 70% 18%;
-    --chapter-l1-bg: 205 60% 91%;
-    --chapter-l1-border: 205 70% 45%;
-    --chapter-l1-fg: 205 70% 20%;
-    --chapter-l2-bg: 152 45% 90%;
-    --chapter-l2-border: 152 50% 38%;
-    --chapter-l2-fg: 152 60% 18%;
-    --chapter-l3-bg: 38 80% 90%;
-    --chapter-l3-border: 38 80% 45%;
-    --chapter-l3-fg: 30 70% 22%;
+    /* Chapter hierarchy tones (light) — neutral grayscale, dark→light by depth */
+    --chapter-l0-bg: 220 12% 28%;
+    --chapter-l0-border: 220 15% 18%;
+    --chapter-l0-fg: 0 0% 100%;
+    --chapter-l1-bg: 220 10% 55%;
+    --chapter-l1-border: 220 12% 38%;
+    --chapter-l1-fg: 0 0% 100%;
+    --chapter-l2-bg: 220 10% 78%;
+    --chapter-l2-border: 220 10% 55%;
+    --chapter-l2-fg: 220 25% 15%;
+    --chapter-l3-bg: 220 12% 92%;
+    --chapter-l3-border: 220 10% 70%;
+    --chapter-l3-fg: 220 25% 20%;
 
     --sidebar-background: 225 35% 12%;
     --sidebar-foreground: 220 15% 85%;
@@ -126,19 +126,19 @@
 
     --gantt-grid: 225 20% 18%;
 
-    /* Chapter hierarchy tones (dark) */
-    --chapter-l0-bg: 230 50% 22%;
-    --chapter-l0-border: 230 65% 60%;
-    --chapter-l0-fg: 230 30% 95%;
-    --chapter-l1-bg: 205 45% 20%;
-    --chapter-l1-border: 205 65% 55%;
-    --chapter-l1-fg: 205 30% 92%;
-    --chapter-l2-bg: 152 35% 18%;
-    --chapter-l2-border: 152 55% 50%;
-    --chapter-l2-fg: 152 30% 92%;
-    --chapter-l3-bg: 38 45% 18%;
-    --chapter-l3-border: 38 75% 55%;
-    --chapter-l3-fg: 38 30% 92%;
+    /* Chapter hierarchy tones (dark) — neutral grayscale, dark→light by depth */
+    --chapter-l0-bg: 220 10% 14%;
+    --chapter-l0-border: 220 10% 8%;
+    --chapter-l0-fg: 0 0% 98%;
+    --chapter-l1-bg: 220 8% 22%;
+    --chapter-l1-border: 220 10% 14%;
+    --chapter-l1-fg: 0 0% 95%;
+    --chapter-l2-bg: 220 7% 32%;
+    --chapter-l2-border: 220 8% 22%;
+    --chapter-l2-fg: 0 0% 95%;
+    --chapter-l3-bg: 220 6% 42%;
+    --chapter-l3-border: 220 7% 30%;
+    --chapter-l3-fg: 0 0% 96%;
 
     --sidebar-background: 225 40% 6%;
     --sidebar-foreground: 220 15% 75%;
