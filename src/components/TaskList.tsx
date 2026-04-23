@@ -843,7 +843,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                             className={`${dropTargetId === task.id && dragTaskId !== task.id ? 'border-t-2 border-t-primary' : ''} ${dragTaskId === task.id ? 'opacity-40' : ''}`}
                           >
                             {(() => {
-                              const rowTeam = getTeamDefinition(task.team);
+                              const rowTeam = teamDef(task.team);
                               return (
                             <div
                               className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
