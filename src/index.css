@@ -126,6 +126,20 @@
 
     --gantt-grid: 225 20% 18%;
 
+    /* Chapter hierarchy tones (dark) */
+    --chapter-l0-bg: 230 50% 22%;
+    --chapter-l0-border: 230 65% 60%;
+    --chapter-l0-fg: 230 30% 95%;
+    --chapter-l1-bg: 205 45% 20%;
+    --chapter-l1-border: 205 65% 55%;
+    --chapter-l1-fg: 205 30% 92%;
+    --chapter-l2-bg: 152 35% 18%;
+    --chapter-l2-border: 152 55% 50%;
+    --chapter-l2-fg: 152 30% 92%;
+    --chapter-l3-bg: 38 45% 18%;
+    --chapter-l3-border: 38 75% 55%;
+    --chapter-l3-fg: 38 30% 92%;
+
     --sidebar-background: 225 40% 6%;
     --sidebar-foreground: 220 15% 75%;
     --sidebar-primary: 230 65% 60%;
