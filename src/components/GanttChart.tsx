@@ -1161,46 +1161,42 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                     {/* Phase header with dates */}
                     {(() => {
                       const isMainChapter = !phase.parentId;
-                      const isSubChapter = !!phase.parentId;
                       const depth = Math.min(phaseDepth.get(phase.id) ?? 0, 3);
-                      // Escala de cinza — sem cores de equipe
-                      const headerBg = isMainChapter ? 'hsl(220, 8%, 72%)' : 'hsl(220, 8%, 84%)';
-                      const headerFg = isMainChapter ? 'hsl(220, 10%, 15%)' : 'hsl(220, 10%, 20%)';
-                      const headerBorder = isMainChapter ? 'hsl(220, 8%, 50%)' : 'hsl(220, 8%, 65%)';
-                      const headerStyle = {
-                        background: headerBg,
-                        color: headerFg,
-                        borderLeft: `3px solid ${headerBorder}`,
-                      } as React.CSSProperties;
-                      // Tons calibrados para AA (≥4.5:1) sobre os fundos do capítulo
-                      const dateLabelColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 30%)';
-                      const dateValueColor = 'hsl(220, 10%, 8%)';
-                      const numberColor = isMainChapter ? 'hsl(220, 10%, 22%)' : 'hsl(220, 10%, 28%)';
+                      const headerBgClass = isMainChapter ? 'bg-muted/50' : 'bg-muted/30';
                       return (
-                    <div
-                      className="border-b border-border transition-[background-color,filter] duration-300 ease-out hover:brightness-[0.98]"
-                      style={headerStyle}
-                    >
+                    <div className={`border-b border-border ${headerBgClass} transition-colors duration-200 ease-out hover:bg-muted/70`}>
                       <button
                         onClick={() => togglePhase(phase.id)}
                         className="w-full flex items-center gap-1.5 px-2 transition-colors duration-200 ease-out focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 rounded-sm"
-                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18, color: 'inherit' }}
+                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18 }}
                       >
                         {collapsedPhases.has(phase.id)
-                          ? <ChevronRight className="w-3 h-3 opacity-50 transition-transform duration-200 ease-out" />
-                          : <ChevronDown className="w-3 h-3 opacity-50 transition-transform duration-200 ease-out" />}
-                        <span className="text-[9px] font-mono tabular-nums" style={{ color: numberColor }}>{chapterNumbering.get(phase.id)}</span>
+                          ? <ChevronRight className="w-3 h-3 opacity-60 transition-transform duration-200 ease-out" />
+                          : <ChevronDown className="w-3 h-3 opacity-60 transition-transform duration-200 ease-out" />}
                         <span
-                          className={`truncate ${isMainChapter ? 'text-[12px] font-bold tracking-wide uppercase' : 'text-[11px] font-semibold'}`}
-                        >{phase.name}</span>
-                        <span className="text-[9px] ml-auto" style={{ color: numberColor }}>{phase.tasks.length}</span>
+                          className="font-mono tabular-nums flex-shrink-0 text-muted-foreground"
+                          style={{ fontSize: isMainChapter ? 11 : 10, fontWeight: isMainChapter ? 700 : 600 }}
+                        >
+                          {chapterNumbering.get(phase.id)}
+                        </span>
+                        <span
+                          className="truncate text-foreground"
+                          style={{
+                            fontSize: isMainChapter ? 13 : 11,
+                            fontWeight: isMainChapter ? 700 : 600,
+                            letterSpacing: isMainChapter ? '0.01em' : 0,
+                          }}
+                        >
+                          {phase.name}
+                        </span>
+                        <span className="text-[9px] ml-auto text-muted-foreground">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
-                      <div className="flex items-center gap-2 px-2 pb-1 text-[9px]" style={{ color: dateLabelColor }}>
+                      <div className="flex items-center gap-2 px-2 pb-1 text-[9px]">
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="hover:brightness-125 transition-colors" style={{ color: dateLabelColor }}>
-                              Início: <span className="font-medium" style={{ color: dateValueColor }}>{phaseRange.start ? formatDateFull(phaseRange.start) : '—'}</span>
+                            <button className="text-muted-foreground hover:text-primary transition-colors">
+                              Início: <span className="font-semibold text-foreground">{phaseRange.start ? formatDateFull(phaseRange.start) : '—'}</span>
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1220,8 +1216,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </Popover>
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="hover:brightness-125 transition-colors" style={{ color: dateLabelColor }}>
-                              Fim: <span className="font-medium" style={{ color: dateValueColor }}>{phaseRange.end ? formatDateFull(phaseRange.end) : '—'}</span>
+                            <button className="text-muted-foreground hover:text-primary transition-colors">
+                              Fim: <span className="font-semibold text-foreground">{phaseRange.end ? formatDateFull(phaseRange.end) : '—'}</span>
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1239,7 +1235,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             })()}
                           </PopoverContent>
                         </Popover>
-                        <span className="ml-auto flex items-center gap-2" style={{ color: dateLabelColor }}>
+                        <span className="ml-auto flex items-center gap-2 text-muted-foreground">
                           {(() => {
                             const items = phase.tasks;
                             if (items.length === 0) return null;
@@ -1247,12 +1243,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             const weighted = items.reduce((s, t) => s + (t.physicalProgress ?? t.percentComplete ?? 0) * Math.max(1, t.duration), 0);
                             const pct = Math.round(weighted / totalDur);
                             return (
-                              <span className="font-bold" style={{ color: dateValueColor }} title="Percentual concluído do capítulo (média ponderada por duração)">
+                              <span className="font-bold text-foreground" title="Percentual concluído do capítulo (média ponderada por duração)">
                                 {pct}%
                               </span>
                             );
                           })()}
-                          <span><span className="font-medium" style={{ color: dateValueColor }}>{diasUteis.dias}d</span> / <span className="font-medium" style={{ color: dateValueColor }}>{diasUteis.horas}h</span> úteis</span>
+                          <span><span className="font-semibold text-foreground">{diasUteis.dias}d</span> / <span className="font-semibold text-foreground">{diasUteis.horas}h</span> úteis</span>
                         </span>
                       </div>
                     </div>
@@ -1768,19 +1764,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
                   {displayPhases.map(phase => {
                     const isMainChapter = !phase.parentId;
-                    const ganttRowBg = isMainChapter ? 'hsl(220, 8%, 91%)' : 'hsl(220, 8%, 95%)';
-                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 50%)';
-                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 40%)';
-                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 35%)';
+                    const ganttRowBgClass = isMainChapter ? 'bg-muted/40' : 'bg-muted/20';
                     return (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
                       <div
-                        className="border-b border-border relative"
-                        style={{
-                          height: ROW_HEIGHT + 20,
-                          background: ganttRowBg,
-                        }}
+                        className={`border-b border-border ${ganttRowBgClass} relative`}
+                        style={{ height: ROW_HEIGHT + 20 }}
                       >
                         {(() => {
                           const chapterBar = getChapterBarInfo(phase);
@@ -1791,26 +1781,23 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             <>
                               {/* Chapter span line */}
                               <div
-                                className="absolute"
+                                className="absolute bg-foreground/60"
                                 style={{
                                   left: chapterBar.left,
                                   width: chapterBar.width,
                                   top: midY - 1,
                                   height: 2,
-                                  background: ganttSpanColor,
-                                  opacity: 0.9,
                                   zIndex: 5,
                                 }}
                               />
                               {/* Start milestone diamond */}
                               <div
-                                className="absolute z-10"
+                                className="absolute z-10 bg-foreground/80"
                                 style={{
                                   left: chapterBar.left - diamondSize / 2,
                                   top: midY - diamondSize / 2,
                                   width: diamondSize,
                                   height: diamondSize,
-                                  background: ganttDiamondColor,
                                   transform: 'rotate(45deg)',
                                   borderRadius: 2,
                                 }}
@@ -1818,13 +1805,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               />
                               {/* End milestone diamond */}
                               <div
-                                className="absolute z-10"
+                                className="absolute z-10 bg-foreground/80"
                                 style={{
                                   left: chapterBar.right - diamondSize / 2,
                                   top: midY - diamondSize / 2,
                                   width: diamondSize,
                                   height: diamondSize,
-                                  background: ganttDiamondColor,
                                   transform: 'rotate(45deg)',
                                   borderRadius: 2,
                                 }}
@@ -1832,11 +1818,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               />
                               {/* Chapter name label */}
                               <div
-                                className={`absolute z-10 whitespace-nowrap ${isMainChapter ? 'text-[9px] font-bold' : 'text-[9px] font-semibold'}`}
+                                className="absolute z-10 whitespace-nowrap text-foreground"
                                 style={{
                                   left: chapterBar.left + diamondSize + 4,
                                   top: midY - 14,
-                                  color: ganttLabelColor,
+                                  fontSize: isMainChapter ? 10 : 9,
+                                  fontWeight: isMainChapter ? 700 : 600,
                                 }}
                               >
                                 {phase.name}
