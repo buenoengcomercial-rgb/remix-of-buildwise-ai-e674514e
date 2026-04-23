@@ -1231,6 +1231,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </span>
                       </div>
                     </div>
+                      );
+                    })()}
                     {!collapsedPhases.has(phase.id) && phase.tasks.length > 0 && (
                       <div
                         className="border-b border-border bg-secondary/30 grid items-center px-1"
