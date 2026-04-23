@@ -1161,46 +1161,42 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                     {/* Phase header with dates */}
                     {(() => {
                       const isMainChapter = !phase.parentId;
-                      const isSubChapter = !!phase.parentId;
                       const depth = Math.min(phaseDepth.get(phase.id) ?? 0, 3);
-                      // Escala de cinza — sem cores de equipe
-                      const headerBg = isMainChapter ? 'hsl(220, 8%, 72%)' : 'hsl(220, 8%, 84%)';
-                      const headerFg = isMainChapter ? 'hsl(220, 10%, 15%)' : 'hsl(220, 10%, 20%)';
-                      const headerBorder = isMainChapter ? 'hsl(220, 8%, 50%)' : 'hsl(220, 8%, 65%)';
-                      const headerStyle = {
-                        background: headerBg,
-                        color: headerFg,
-                        borderLeft: `3px solid ${headerBorder}`,
-                      } as React.CSSProperties;
-                      // Tons calibrados para AA (≥4.5:1) sobre os fundos do capítulo
-                      const dateLabelColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 30%)';
-                      const dateValueColor = 'hsl(220, 10%, 8%)';
-                      const numberColor = isMainChapter ? 'hsl(220, 10%, 22%)' : 'hsl(220, 10%, 28%)';
+                      const headerBgClass = isMainChapter ? 'bg-muted/50' : 'bg-muted/30';
                       return (
-                    <div
-                      className="border-b border-border transition-[background-color,filter] duration-300 ease-out hover:brightness-[0.98]"
-                      style={headerStyle}
-                    >
+                    <div className={`border-b border-border ${headerBgClass} transition-colors duration-200 ease-out hover:bg-muted/70`}>
                       <button
                         onClick={() => togglePhase(phase.id)}
                         className="w-full flex items-center gap-1.5 px-2 transition-colors duration-200 ease-out focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 rounded-sm"
-                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18, color: 'inherit' }}
+                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18 }}
                       >
                         {collapsedPhases.has(phase.id)
-                          ? <ChevronRight className="w-3 h-3 opacity-50 transition-transform duration-200 ease-out" />
-                          : <ChevronDown className="w-3 h-3 opacity-50 transition-transform duration-200 ease-out" />}
-                        <span className="text-[9px] font-mono tabular-nums" style={{ color: numberColor }}>{chapterNumbering.get(phase.id)}</span>
+                          ? <ChevronRight className="w-3 h-3 opacity-60 transition-transform duration-200 ease-out" />
+                          : <ChevronDown className="w-3 h-3 opacity-60 transition-transform duration-200 ease-out" />}
                         <span
-                          className={`truncate ${isMainChapter ? 'text-[12px] font-bold tracking-wide uppercase' : 'text-[11px] font-semibold'}`}
-                        >{phase.name}</span>
-                        <span className="text-[9px] ml-auto" style={{ color: numberColor }}>{phase.tasks.length}</span>
+                          className="font-mono tabular-nums flex-shrink-0 text-muted-foreground"
+                          style={{ fontSize: isMainChapter ? 11 : 10, fontWeight: isMainChapter ? 700 : 600 }}
+                        >
+                          {chapterNumbering.get(phase.id)}
+                        </span>
+                        <span
+                          className="truncate text-foreground"
+                          style={{
+                            fontSize: isMainChapter ? 13 : 11,
+                            fontWeight: isMainChapter ? 700 : 600,
+                            letterSpacing: isMainChapter ? '0.01em' : 0,
+                          }}
+                        >
+                          {phase.name}
+                        </span>
+                        <span className="text-[9px] ml-auto text-muted-foreground">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
-                      <div className="flex items-center gap-2 px-2 pb-1 text-[9px]" style={{ color: dateLabelColor }}>
+                      <div className="flex items-center gap-2 px-2 pb-1 text-[9px]">
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="hover:brightness-125 transition-colors" style={{ color: dateLabelColor }}>
-                              Início: <span className="font-medium" style={{ color: dateValueColor }}>{phaseRange.start ? formatDateFull(phaseRange.start) : '—'}</span>
+                            <button className="text-muted-foreground hover:text-primary transition-colors">
+                              Início: <span className="font-semibold text-foreground">{phaseRange.start ? formatDateFull(phaseRange.start) : '—'}</span>
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1220,8 +1216,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </Popover>
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="hover:brightness-125 transition-colors" style={{ color: dateLabelColor }}>
-                              Fim: <span className="font-medium" style={{ color: dateValueColor }}>{phaseRange.end ? formatDateFull(phaseRange.end) : '—'}</span>
+                            <button className="text-muted-foreground hover:text-primary transition-colors">
+                              Fim: <span className="font-semibold text-foreground">{phaseRange.end ? formatDateFull(phaseRange.end) : '—'}</span>
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1239,7 +1235,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             })()}
                           </PopoverContent>
                         </Popover>
-                        <span className="ml-auto flex items-center gap-2" style={{ color: dateLabelColor }}>
+                        <span className="ml-auto flex items-center gap-2 text-muted-foreground">
                           {(() => {
                             const items = phase.tasks;
                             if (items.length === 0) return null;
@@ -1247,12 +1243,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             const weighted = items.reduce((s, t) => s + (t.physicalProgress ?? t.percentComplete ?? 0) * Math.max(1, t.duration), 0);
                             const pct = Math.round(weighted / totalDur);
                             return (
-                              <span className="font-bold" style={{ color: dateValueColor }} title="Percentual concluído do capítulo (média ponderada por duração)">
+                              <span className="font-bold text-foreground" title="Percentual concluído do capítulo (média ponderada por duração)">
                                 {pct}%
                               </span>
                             );
                           })()}
-                          <span><span className="font-medium" style={{ color: dateValueColor }}>{diasUteis.dias}d</span> / <span className="font-medium" style={{ color: dateValueColor }}>{diasUteis.horas}h</span> úteis</span>
+                          <span><span className="font-semibold text-foreground">{diasUteis.dias}d</span> / <span className="font-semibold text-foreground">{diasUteis.horas}h</span> úteis</span>
                         </span>
                       </div>
                     </div>
