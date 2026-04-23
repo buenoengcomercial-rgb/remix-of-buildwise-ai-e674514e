@@ -245,8 +245,32 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
   // Phases ordenadas: capítulo principal seguido de seus subcapítulos
   const allPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const phaseDepth = useMemo(() => {
+    const map = new Map<string, number>();
+    const byId = new Map(project.phases.map(p => [p.id, p]));
+    const compute = (id: string): number => {
+      if (map.has(id)) return map.get(id)!;
+      const ph = byId.get(id);
+      const d = ph?.parentId ? compute(ph.parentId) + 1 : 0;
+      map.set(id, d);
+      return d;
+    };
+    project.phases.forEach(p => compute(p.id));
+    return map;
+  }, [project.phases]);
   const displayPhases = useMemo(
-    () => allPhases.filter(p => !p.parentId || !collapsedPhases.has(p.parentId)),
+    () => {
+      const collapsedAncestor = (p: { parentId?: string }) => {
+        let cur = p.parentId;
+        const byId = new Map(allPhases.map(x => [x.id, x]));
+        while (cur) {
+          if (collapsedPhases.has(cur)) return true;
+          cur = byId.get(cur)?.parentId;
+        }
+        return false;
+      };
+      return allPhases.filter(p => !collapsedAncestor(p));
+    },
     [allPhases, collapsedPhases]
   );
   const chapterNumbering = useMemo(() => getChapterNumbering(project), [project]);
@@ -1119,16 +1143,32 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                 return (
                   <div key={phase.id}>
                     {/* Phase header with dates */}
-                    <div className={`border-b border-border ${phase.parentId ? 'bg-muted/30' : 'bg-muted/70'}`}>
+                    {(() => {
+                      const depth = Math.min(phaseDepth.get(phase.id) ?? 0, 3);
+                      const headerStyle = {
+                        backgroundColor: `hsl(var(--chapter-l${depth}-bg))`,
+                        borderLeft: `3px solid hsl(var(--chapter-l${depth}-border))`,
+                        color: `hsl(var(--chapter-l${depth}-fg))`,
+                      } as React.CSSProperties;
+                      return (
+                    <div className="border-b border-border" style={headerStyle}>
                       <button
                         onClick={() => togglePhase(phase.id)}
-                        className="w-full flex items-center gap-1.5 px-2 hover:bg-muted transition-colors"
-                        style={{ height: ROW_HEIGHT, paddingLeft: phase.parentId ? 24 : 8 }}
+                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-95 dark:hover:brightness-110 transition-all"
+                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18 }}
                       >
                         {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        <span className="text-[9px] font-mono text-muted-foreground tabular-nums">{chapterNumbering.get(phase.id)}</span>
-                        <span className={`truncate ${phase.parentId ? 'text-[10px] font-semibold text-foreground/90' : 'text-[11px] font-bold text-foreground'}`}>{phase.name}</span>
-                        <span className="text-[9px] text-muted-foreground ml-auto">{phase.tasks.length}</span>
+                        <span className="text-[9px] font-mono opacity-70 tabular-nums">{chapterNumbering.get(phase.id)}</span>
+                        <span
+                          className="truncate"
+                          style={{
+                            fontSize: depth === 0 ? 12 : depth === 1 ? 11 : 10,
+                            fontWeight: depth === 0 ? 800 : depth === 1 ? 700 : 600,
+                            textTransform: depth === 0 ? 'uppercase' : 'none',
+                            letterSpacing: depth === 0 ? 0.3 : 0,
+                          }}
+                        >{phase.name}</span>
+                        <span className="text-[9px] opacity-70 ml-auto">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
                       <div className="flex items-center gap-2 px-2 pb-1 text-[9px]">
@@ -1191,6 +1231,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </span>
                       </div>
                     </div>
+                      );
+                    })()}
                     {!collapsedPhases.has(phase.id) && phase.tasks.length > 0 && (
                       <div
                         className="border-b border-border bg-secondary/30 grid items-center px-1"
@@ -1705,7 +1747,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                   {displayPhases.map(phase => (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
-                      <div className="border-b border-border bg-muted/30 relative" style={{ height: ROW_HEIGHT + 20 }}>
+                      <div
+                        className="border-b border-border relative"
+                        style={{
+                          height: ROW_HEIGHT + 20,
+                          backgroundColor: `hsl(var(--chapter-l${Math.min(phaseDepth.get(phase.id) ?? 0, 3)}-bg) / 0.55)`,
+                        }}
+                      >
                         {(() => {
                           const chapterBar = getChapterBarInfo(phase);
                           if (!chapterBar) return null;
