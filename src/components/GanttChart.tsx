@@ -1751,8 +1751,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                   {displayPhases.map(phase => {
                     const isMainChapter = !phase.parentId;
                     const ganttRowBg = isMainChapter ? 'hsl(220, 8%, 91%)' : 'hsl(220, 8%, 95%)';
-                    const ganttSpanColor = isMainChapter ? 'hsl(220, 8%, 55%)' : 'hsl(220, 8%, 65%)';
-                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 8%, 40%)' : 'hsl(220, 8%, 55%)';
+                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 50%)';
+                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 40%)';
                     const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 35%)';
                     return (
                     <div key={phase.id}>
