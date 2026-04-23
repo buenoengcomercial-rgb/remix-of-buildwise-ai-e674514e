@@ -1900,7 +1900,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     borderRadius: 6,
                                     background: (() => {
                                       const teamDef = getTeamDefinition(task.team);
-                                      if (teamDef) return teamDef.barColor;
+                                      if (task.team && teamDef) return teamDef.barColor;
                                       if (bar.isDelayed) return 'hsl(var(--gantt-bar-delayed))';
                                       if (bar.isComplete) return 'hsl(var(--gantt-bar-complete))';
                                       if (bar.isCritical) return 'hsl(var(--gantt-critical))';
