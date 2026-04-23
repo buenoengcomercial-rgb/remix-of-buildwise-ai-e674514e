@@ -665,10 +665,9 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           const hasCritical = phase.tasks.some(t => t.isCritical);
           const num = numbering.get(phase.id) || '';
           const isDropTarget = dropChapterTargetId === phase.id && dragChapterId !== phase.id;
-          const lvl = Math.min(depth, 3);
-          const headerBg = `hsl(var(--chapter-l${lvl}-bg))`;
-          const headerFg = `hsl(var(--chapter-l${lvl}-fg))`;
-          const headerBorder = `hsl(var(--chapter-l${lvl}-border))`;
+          const isMainChapter = !phase.parentId;
+          // Hierarquia apenas por tipografia/indentação — fundos do tema (mesma lógica do Gantt).
+          const headerBgClass = isMainChapter ? 'bg-muted/50' : 'bg-muted/30';
 
           return (
             <div
@@ -682,7 +681,6 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 isDropTarget && dropPosition === 'inside' ? 'border-primary ring-4 ring-primary' :
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
               } ${dragChapterId === phase.id ? 'opacity-40 scale-[0.98]' : ''}`}
-              style={{ borderLeft: `4px solid ${headerBorder}` }}
             >
               {isDropTarget && dropPosition === 'inside' && (
                 <div className="absolute top-1 right-2 z-10 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-md pointer-events-none">
@@ -702,8 +700,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-2.5 hover:brightness-95 dark:hover:brightness-110 transition-colors cursor-move"
-                  style={{ background: headerBg, color: headerFg }}
+                  className={`flex-1 min-w-0 flex items-center gap-3 px-5 py-2.5 ${headerBgClass} text-foreground transition-colors duration-200 ease-out hover:bg-muted/70 cursor-move`}
                   title="Arraste para mover/reordenar este capítulo"
                 >
                   <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
@@ -775,13 +772,11 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                     </div>
                   ) : (
                     <span
-                      className="truncate"
+                      className="truncate text-foreground"
                       style={{
-                        color: 'inherit',
-                        fontSize: depth === 0 ? 15 : depth === 1 ? 13 : 12,
-                        fontWeight: depth === 0 ? 800 : 700,
-                        textTransform: depth === 0 ? 'uppercase' : 'none',
-                        letterSpacing: depth === 0 ? 0.4 : 0,
+                        fontSize: isMainChapter ? 13 : 11,
+                        fontWeight: isMainChapter ? 700 : 600,
+                        letterSpacing: isMainChapter ? '0.01em' : 0,
                       }}
                     >{phase.name}</span>
                   )}
