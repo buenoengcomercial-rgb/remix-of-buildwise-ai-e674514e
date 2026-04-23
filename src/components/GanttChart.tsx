@@ -1764,19 +1764,13 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
                   {displayPhases.map(phase => {
                     const isMainChapter = !phase.parentId;
-                    const ganttRowBg = isMainChapter ? 'hsl(220, 8%, 91%)' : 'hsl(220, 8%, 95%)';
-                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 50%)';
-                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 40%)';
-                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 35%)';
+                    const ganttRowBgClass = isMainChapter ? 'bg-muted/40' : 'bg-muted/20';
                     return (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
                       <div
-                        className="border-b border-border relative"
-                        style={{
-                          height: ROW_HEIGHT + 20,
-                          background: ganttRowBg,
-                        }}
+                        className={`border-b border-border ${ganttRowBgClass} relative`}
+                        style={{ height: ROW_HEIGHT + 20 }}
                       >
                         {(() => {
                           const chapterBar = getChapterBarInfo(phase);
@@ -1787,26 +1781,23 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             <>
                               {/* Chapter span line */}
                               <div
-                                className="absolute"
+                                className="absolute bg-foreground/60"
                                 style={{
                                   left: chapterBar.left,
                                   width: chapterBar.width,
                                   top: midY - 1,
                                   height: 2,
-                                  background: ganttSpanColor,
-                                  opacity: 0.9,
                                   zIndex: 5,
                                 }}
                               />
                               {/* Start milestone diamond */}
                               <div
-                                className="absolute z-10"
+                                className="absolute z-10 bg-foreground/80"
                                 style={{
                                   left: chapterBar.left - diamondSize / 2,
                                   top: midY - diamondSize / 2,
                                   width: diamondSize,
                                   height: diamondSize,
-                                  background: ganttDiamondColor,
                                   transform: 'rotate(45deg)',
                                   borderRadius: 2,
                                 }}
@@ -1814,13 +1805,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               />
                               {/* End milestone diamond */}
                               <div
-                                className="absolute z-10"
+                                className="absolute z-10 bg-foreground/80"
                                 style={{
                                   left: chapterBar.right - diamondSize / 2,
                                   top: midY - diamondSize / 2,
                                   width: diamondSize,
                                   height: diamondSize,
-                                  background: ganttDiamondColor,
                                   transform: 'rotate(45deg)',
                                   borderRadius: 2,
                                 }}
@@ -1828,11 +1818,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               />
                               {/* Chapter name label */}
                               <div
-                                className={`absolute z-10 whitespace-nowrap ${isMainChapter ? 'text-[9px] font-bold' : 'text-[9px] font-semibold'}`}
+                                className="absolute z-10 whitespace-nowrap text-foreground"
                                 style={{
                                   left: chapterBar.left + diamondSize + 4,
                                   top: midY - 14,
-                                  color: ganttLabelColor,
+                                  fontSize: isMainChapter ? 10 : 9,
+                                  fontWeight: isMainChapter ? 700 : 600,
                                 }}
                               >
                                 {phase.name}
