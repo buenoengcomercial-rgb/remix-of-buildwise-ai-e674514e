@@ -2086,7 +2086,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             );
                           })}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             </div>
