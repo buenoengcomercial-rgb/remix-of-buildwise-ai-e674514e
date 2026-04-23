@@ -1175,15 +1175,15 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           : <ChevronDown className="w-3 h-3 opacity-60 transition-transform duration-200 ease-out" />}
                         <span
                           className="font-mono tabular-nums flex-shrink-0 text-muted-foreground"
-                          style={{ fontSize: isMainChapter ? 11 : 10, fontWeight: isMainChapter ? 700 : 600 }}
+                          style={{ fontSize: isMainChapter ? 13 : 12, fontWeight: isMainChapter ? 800 : 700 }}
                         >
                           {chapterNumbering.get(phase.id)}
                         </span>
                         <span
                           className="truncate text-foreground"
                           style={{
-                            fontSize: isMainChapter ? 13 : 11,
-                            fontWeight: isMainChapter ? 700 : 600,
+                            fontSize: isMainChapter ? 15 : 13,
+                            fontWeight: isMainChapter ? 800 : 700,
                             letterSpacing: isMainChapter ? '0.01em' : 0,
                           }}
                         >
