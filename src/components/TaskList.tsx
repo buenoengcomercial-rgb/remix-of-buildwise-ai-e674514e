@@ -774,8 +774,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                     <span
                       className="truncate text-foreground"
                       style={{
-                        fontSize: isMainChapter ? 13 : 11,
-                        fontWeight: isMainChapter ? 700 : 600,
+                        fontSize: isMainChapter ? 15 : 13,
+                        fontWeight: isMainChapter ? 800 : 700,
                         letterSpacing: isMainChapter ? '0.01em' : 0,
                       }}
                     >{phase.name}</span>
