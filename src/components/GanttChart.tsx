@@ -1288,7 +1288,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                           const depTypes = getDepTypes(task);
                           const noWorkDays = hasNoWorkingDays(task);
 
-                          const rowTeamDef = getTeamDefinition(task.team);
+                          const rowTeamDef = teamDef(task.team);
                           const isReorderDragging = reorderDragTaskId === task.id;
                           const isReorderTarget = reorderDropTargetId === task.id && reorderDragTaskId && reorderDragTaskId !== task.id;
                           return (
@@ -1918,16 +1918,16 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     height: 20,
                                     borderRadius: 6,
                                     background: (() => {
-                                      const teamDef = getTeamDefinition(task.team);
-                                      if (task.team && teamDef) return teamDef.barColor;
+                                      const td = teamDef(task.team);
+                                      if (task.team && td) return td.barColor;
                                       if (bar.isDelayed) return 'hsl(var(--gantt-bar-delayed))';
                                       if (bar.isComplete) return 'hsl(var(--gantt-bar-complete))';
                                       if (bar.isCritical) return 'hsl(var(--gantt-critical))';
                                       return 'hsl(var(--gantt-bar))';
                                     })(),
                                     border: (() => {
-                                      const teamDef = getTeamDefinition(task.team);
-                                      return teamDef ? `1.5px solid ${teamDef.borderColor}` : 'none';
+                                      const td = teamDef(task.team);
+                                      return td ? `1.5px solid ${td.borderColor}` : 'none';
                                     })(),
                                     opacity: isDragPropagated ? 0.85 : 0.95,
                                     transition: (isDragging || isResizing || isDragPropagated) ? 'none' : 'left 0.2s ease, width 0.2s ease',
