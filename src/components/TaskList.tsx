@@ -1,5 +1,8 @@
 import { Project, Task, LaborComposition, DailyProductionLog, Phase } from '@/types/project';
-import { getTeamDefinition, TEAM_CODES, TeamCode } from '@/lib/teams';
+import { getTeamDefinition, DEFAULT_TEAMS, TeamCode, TeamDefinition } from '@/lib/teams';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Settings2 } from 'lucide-react';
+import GerenciarEquipes from '@/components/GerenciarEquipes';
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
