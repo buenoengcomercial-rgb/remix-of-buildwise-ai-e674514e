@@ -1144,38 +1144,40 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                   <div key={phase.id}>
                     {/* Phase header with dates */}
                     {(() => {
+                      const isMainChapter = !phase.parentId;
+                      const isSubChapter = !!phase.parentId;
                       const depth = Math.min(phaseDepth.get(phase.id) ?? 0, 3);
+                      // Escala de cinza — sem cores de equipe
+                      const headerBg = isMainChapter ? 'hsl(220, 10%, 22%)' : 'hsl(220, 10%, 42%)';
+                      const headerFg = isMainChapter ? 'hsl(220, 10%, 95%)' : 'hsl(220, 10%, 90%)';
+                      const headerBorder = isMainChapter ? 'hsl(220, 10%, 12%)' : 'hsl(220, 10%, 30%)';
                       const headerStyle = {
-                        backgroundColor: `hsl(var(--chapter-l${depth}-bg))`,
-                        borderLeft: `3px solid hsl(var(--chapter-l${depth}-border))`,
-                        color: `hsl(var(--chapter-l${depth}-fg))`,
+                        background: headerBg,
+                        color: headerFg,
+                        borderLeft: `3px solid ${headerBorder}`,
                       } as React.CSSProperties;
+                      const dateLabelColor = 'hsl(220, 10%, 75%)';
+                      const dateValueColor = 'hsl(220, 10%, 98%)';
                       return (
                     <div className="border-b border-border" style={headerStyle}>
                       <button
                         onClick={() => togglePhase(phase.id)}
-                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-95 dark:hover:brightness-110 transition-all"
-                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18 }}
+                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-110 transition-all"
+                        style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18, color: 'inherit' }}
                       >
-                        {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3 opacity-80" /> : <ChevronDown className="w-3 h-3 opacity-80" />}
                         <span className="text-[9px] font-mono opacity-70 tabular-nums">{chapterNumbering.get(phase.id)}</span>
                         <span
-                          className="truncate"
-                          style={{
-                            fontSize: depth === 0 ? 12 : depth === 1 ? 11 : 10,
-                            fontWeight: depth === 0 ? 800 : depth === 1 ? 700 : 600,
-                            textTransform: depth === 0 ? 'uppercase' : 'none',
-                            letterSpacing: depth === 0 ? 0.3 : 0,
-                          }}
+                          className={`truncate ${isMainChapter ? 'text-[12px] font-bold tracking-wide uppercase' : 'text-[11px] font-semibold'}`}
                         >{phase.name}</span>
-                        <span className="text-[9px] opacity-70 ml-auto">{phase.tasks.length}</span>
+                        <span className="text-[9px] opacity-60 ml-auto">{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
-                      <div className="flex items-center gap-2 px-2 pb-1 text-[9px]">
+                      <div className="flex items-center gap-2 px-2 pb-1 text-[9px]" style={{ color: dateLabelColor }}>
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="text-muted-foreground hover:text-primary transition-colors">
-                              Início: <span className="font-medium text-foreground">{phaseRange.start ? formatDateFull(phaseRange.start) : '—'}</span>
+                            <button className="hover:brightness-125 transition-colors" style={{ color: dateLabelColor }}>
+                              Início: <span className="font-medium" style={{ color: dateValueColor }}>{phaseRange.start ? formatDateFull(phaseRange.start) : '—'}</span>
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1195,8 +1197,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                         </Popover>
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="text-muted-foreground hover:text-primary transition-colors">
-                              Fim: <span className="font-medium text-foreground">{phaseRange.end ? formatDateFull(phaseRange.end) : '—'}</span>
+                            <button className="hover:brightness-125 transition-colors" style={{ color: dateLabelColor }}>
+                              Fim: <span className="font-medium" style={{ color: dateValueColor }}>{phaseRange.end ? formatDateFull(phaseRange.end) : '—'}</span>
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -1214,7 +1216,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             })()}
                           </PopoverContent>
                         </Popover>
-                        <span className="text-muted-foreground ml-auto flex items-center gap-2">
+                        <span className="ml-auto flex items-center gap-2" style={{ color: dateLabelColor }}>
                           {(() => {
                             const items = phase.tasks;
                             if (items.length === 0) return null;
@@ -1222,12 +1224,12 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                             const weighted = items.reduce((s, t) => s + (t.physicalProgress ?? t.percentComplete ?? 0) * Math.max(1, t.duration), 0);
                             const pct = Math.round(weighted / totalDur);
                             return (
-                              <span className="font-bold" style={{ color: pct >= 100 ? '#166534' : '#1e40af' }} title="Percentual concluído do capítulo (média ponderada por duração)">
+                              <span className="font-bold" style={{ color: dateValueColor }} title="Percentual concluído do capítulo (média ponderada por duração)">
                                 {pct}%
                               </span>
                             );
                           })()}
-                          <span><span className="font-medium text-foreground">{diasUteis.dias}d</span> / <span className="font-medium text-foreground">{diasUteis.horas}h</span> úteis</span>
+                          <span><span className="font-medium" style={{ color: dateValueColor }}>{diasUteis.dias}d</span> / <span className="font-medium" style={{ color: dateValueColor }}>{diasUteis.horas}h</span> úteis</span>
                         </span>
                       </div>
                     </div>
