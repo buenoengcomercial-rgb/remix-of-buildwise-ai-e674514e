@@ -645,12 +645,16 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
         );
 
         // Renderiza um cartão de capítulo (com suas tarefas dentro). Reaproveita o layout existente.
-        const renderPhaseCard = (phase: Phase, pi: number, isSub: boolean) => {
+        const renderPhaseCard = (phase: Phase, pi: number, isSub: boolean, depth: number = 0) => {
           const phaseProgress = phase.tasks.length ? Math.round(phase.tasks.reduce((s, t) => s + t.percentComplete, 0) / phase.tasks.length) : 0;
           const isExpanded = expandedPhases.has(phase.id);
           const hasCritical = phase.tasks.some(t => t.isCritical);
           const num = numbering.get(phase.id) || '';
           const isDropTarget = dropChapterTargetId === phase.id && dragChapterId !== phase.id;
+          const lvl = Math.min(depth, 3);
+          const headerBg = `hsl(var(--chapter-l${lvl}-bg))`;
+          const headerFg = `hsl(var(--chapter-l${lvl}-fg))`;
+          const headerBorder = `hsl(var(--chapter-l${lvl}-border))`;
 
           return (
             <div
@@ -664,6 +668,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                 isDropTarget && dropPosition === 'inside' ? 'border-primary ring-4 ring-primary' :
                 isDropTarget ? 'border-primary ring-2 ring-primary/40' : 'border-border'
               } ${dragChapterId === phase.id ? 'opacity-40 scale-[0.98]' : ''}`}
+              style={{ borderLeft: `4px solid ${headerBorder}` }}
             >
               {isDropTarget && dropPosition === 'inside' && (
                 <div className="absolute top-1 right-2 z-10 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-md pointer-events-none">
