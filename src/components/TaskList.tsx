@@ -609,16 +609,24 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
       {/* Legenda de equipes */}
       <div className="flex flex-wrap items-center gap-3 px-2 py-2 bg-card rounded-lg border border-border">
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Equipes:</span>
-        {TEAM_CODES.map(code => {
-          const def = getTeamDefinition(code)!;
-          return (
-            <div key={code} className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
-              <span className="text-[10px] font-medium text-foreground">{def.label}</span>
-              <span className="text-[9px] text-muted-foreground">({def.composition})</span>
-            </div>
-          );
-        })}
+        {projectTeams.map(def => (
+          <div key={def.code} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+            <span className="text-[10px] font-medium text-foreground">{def.label}</span>
+            <span className="text-[9px] text-muted-foreground">({def.composition})</span>
+          </div>
+        ))}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-[10px] text-muted-foreground hover:text-primary hover:border-primary transition-colors">
+              <Settings2 className="w-3 h-3" /> Gerenciar
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[480px] p-3" align="end">
+            <div className="text-[11px] font-semibold text-foreground mb-2">Gerenciar Equipes</div>
+            <GerenciarEquipes project={project} onProjectChange={onProjectChange} />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {(() => {
