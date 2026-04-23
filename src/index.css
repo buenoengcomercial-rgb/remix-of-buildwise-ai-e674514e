@@ -66,6 +66,20 @@
     --status-delayed: 0 72% 51%;
     --status-purchased: 152 60% 42%;
 
+    /* Chapter hierarchy tones (light) — increasing contrast by depth */
+    --chapter-l0-bg: 230 55% 88%;
+    --chapter-l0-border: 230 65% 52%;
+    --chapter-l0-fg: 230 70% 18%;
+    --chapter-l1-bg: 205 60% 91%;
+    --chapter-l1-border: 205 70% 45%;
+    --chapter-l1-fg: 205 70% 20%;
+    --chapter-l2-bg: 152 45% 90%;
+    --chapter-l2-border: 152 50% 38%;
+    --chapter-l2-fg: 152 60% 18%;
+    --chapter-l3-bg: 38 80% 90%;
+    --chapter-l3-border: 38 80% 45%;
+    --chapter-l3-fg: 30 70% 22%;
+
     --sidebar-background: 225 35% 12%;
     --sidebar-foreground: 220 15% 85%;
     --sidebar-primary: 230 65% 52%;
