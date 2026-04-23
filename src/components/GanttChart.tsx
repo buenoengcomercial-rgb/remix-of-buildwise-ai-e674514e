@@ -1746,14 +1746,20 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                     );
                   })()}
 
-                  {displayPhases.map(phase => (
+                  {displayPhases.map(phase => {
+                    const isMainChapter = !phase.parentId;
+                    const ganttRowBg = isMainChapter ? 'hsl(220, 10%, 92%)' : 'hsl(220, 10%, 96%)';
+                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 55%)';
+                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 45%)';
+                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 38%)';
+                    return (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
                       <div
                         className="border-b border-border relative"
                         style={{
                           height: ROW_HEIGHT + 20,
-                          backgroundColor: `hsl(var(--chapter-l${Math.min(phaseDepth.get(phase.id) ?? 0, 3)}-bg) / 0.55)`,
+                          background: ganttRowBg,
                         }}
                       >
                         {(() => {
@@ -1771,8 +1777,8 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   width: chapterBar.width,
                                   top: midY - 1,
                                   height: 2,
-                                  background: phase.color || 'hsl(var(--primary))',
-                                  opacity: 0.5,
+                                  background: ganttSpanColor,
+                                  opacity: 0.9,
                                   zIndex: 5,
                                 }}
                               />
@@ -1784,7 +1790,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   top: midY - diamondSize / 2,
                                   width: diamondSize,
                                   height: diamondSize,
-                                  background: phase.color || 'hsl(var(--primary))',
+                                  background: ganttDiamondColor,
                                   transform: 'rotate(45deg)',
                                   borderRadius: 2,
                                 }}
@@ -1798,7 +1804,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   top: midY - diamondSize / 2,
                                   width: diamondSize,
                                   height: diamondSize,
-                                  background: phase.color || 'hsl(var(--primary))',
+                                  background: ganttDiamondColor,
                                   transform: 'rotate(45deg)',
                                   borderRadius: 2,
                                 }}
@@ -1806,11 +1812,11 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                               />
                               {/* Chapter name label */}
                               <div
-                                className="absolute text-[9px] font-bold z-10 whitespace-nowrap"
+                                className={`absolute z-10 whitespace-nowrap ${isMainChapter ? 'text-[9px] font-bold' : 'text-[9px] font-semibold'}`}
                                 style={{
                                   left: chapterBar.left + diamondSize + 4,
                                   top: midY - 14,
-                                  color: phase.color || 'hsl(var(--primary))',
+                                  color: ganttLabelColor,
                                 }}
                               >
                                 {phase.name}
