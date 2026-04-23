@@ -688,7 +688,8 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
                   draggable
                   onDragStart={e => handleChapterDragStart(e, phase.id)}
                   onDragEnd={handleChapterDragEnd}
-                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-2.5 hover:bg-muted/30 transition-colors cursor-move"
+                  className="flex-1 min-w-0 flex items-center gap-3 px-5 py-2.5 hover:brightness-95 dark:hover:brightness-110 transition-colors cursor-move"
+                  style={{ background: headerBg, color: headerFg }}
                   title="Arraste para mover/reordenar este capítulo"
                 >
                   <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
@@ -1229,7 +1230,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
             {(() => {
               const renderNode = (node: import('@/lib/chapters').ChapterNode, idx: number, depth: number): JSX.Element => (
                 <div key={node.phase.id} className="space-y-2" style={{ marginLeft: depth > 0 ? `${depth * 1.5}rem` : undefined }}>
-                  {renderPhaseCard(node.phase, idx, depth > 0)}
+                  {renderPhaseCard(node.phase, idx, depth > 0, depth)}
                   {expandedPhases.has(node.phase.id) && node.children.map((child, cIdx) =>
                     renderNode(child, idx * 100 + cIdx, depth + 1),
                   )}
