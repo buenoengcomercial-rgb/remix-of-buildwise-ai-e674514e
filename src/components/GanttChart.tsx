@@ -245,8 +245,32 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
   // Phases ordenadas: capítulo principal seguido de seus subcapítulos
   const allPhases = useMemo(() => flattenPhasesByChapter(project), [project]);
+  const phaseDepth = useMemo(() => {
+    const map = new Map<string, number>();
+    const byId = new Map(project.phases.map(p => [p.id, p]));
+    const compute = (id: string): number => {
+      if (map.has(id)) return map.get(id)!;
+      const ph = byId.get(id);
+      const d = ph?.parentId ? compute(ph.parentId) + 1 : 0;
+      map.set(id, d);
+      return d;
+    };
+    project.phases.forEach(p => compute(p.id));
+    return map;
+  }, [project.phases]);
   const displayPhases = useMemo(
-    () => allPhases.filter(p => !p.parentId || !collapsedPhases.has(p.parentId)),
+    () => {
+      const collapsedAncestor = (p: { parentId?: string }) => {
+        let cur = p.parentId;
+        const byId = new Map(allPhases.map(x => [x.id, x]));
+        while (cur) {
+          if (collapsedPhases.has(cur)) return true;
+          cur = byId.get(cur)?.parentId;
+        }
+        return false;
+      };
+      return allPhases.filter(p => !collapsedAncestor(p));
+    },
     [allPhases, collapsedPhases]
   );
   const chapterNumbering = useMemo(() => getChapterNumbering(project), [project]);
