@@ -1148,29 +1148,30 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                       const isSubChapter = !!phase.parentId;
                       const depth = Math.min(phaseDepth.get(phase.id) ?? 0, 3);
                       // Escala de cinza — sem cores de equipe
-                      const headerBg = isMainChapter ? 'hsl(220, 10%, 22%)' : 'hsl(220, 10%, 42%)';
-                      const headerFg = isMainChapter ? 'hsl(220, 10%, 95%)' : 'hsl(220, 10%, 90%)';
-                      const headerBorder = isMainChapter ? 'hsl(220, 10%, 12%)' : 'hsl(220, 10%, 30%)';
+                      const headerBg = isMainChapter ? 'hsl(220, 8%, 72%)' : 'hsl(220, 8%, 84%)';
+                      const headerFg = isMainChapter ? 'hsl(220, 10%, 15%)' : 'hsl(220, 10%, 20%)';
+                      const headerBorder = isMainChapter ? 'hsl(220, 8%, 50%)' : 'hsl(220, 8%, 65%)';
                       const headerStyle = {
                         background: headerBg,
                         color: headerFg,
                         borderLeft: `3px solid ${headerBorder}`,
                       } as React.CSSProperties;
-                      const dateLabelColor = 'hsl(220, 10%, 75%)';
-                      const dateValueColor = 'hsl(220, 10%, 98%)';
+                      const dateLabelColor = 'hsl(220, 8%, 40%)';
+                      const dateValueColor = 'hsl(220, 10%, 12%)';
+                      const numberColor = isMainChapter ? 'hsl(220, 8%, 35%)' : 'hsl(220, 8%, 45%)';
                       return (
                     <div className="border-b border-border" style={headerStyle}>
                       <button
                         onClick={() => togglePhase(phase.id)}
-                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-110 transition-all"
+                        className="w-full flex items-center gap-1.5 px-2 hover:brightness-95 transition-all"
                         style={{ height: ROW_HEIGHT, paddingLeft: 8 + depth * 18, color: 'inherit' }}
                       >
-                        {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3 opacity-80" /> : <ChevronDown className="w-3 h-3 opacity-80" />}
-                        <span className="text-[9px] font-mono opacity-70 tabular-nums">{chapterNumbering.get(phase.id)}</span>
+                        {collapsedPhases.has(phase.id) ? <ChevronRight className="w-3 h-3 opacity-50" /> : <ChevronDown className="w-3 h-3 opacity-50" />}
+                        <span className="text-[9px] font-mono tabular-nums" style={{ color: numberColor }}>{chapterNumbering.get(phase.id)}</span>
                         <span
                           className={`truncate ${isMainChapter ? 'text-[12px] font-bold tracking-wide uppercase' : 'text-[11px] font-semibold'}`}
                         >{phase.name}</span>
-                        <span className="text-[9px] opacity-60 ml-auto">{phase.tasks.length}</span>
+                        <span className="text-[9px] ml-auto" style={{ color: numberColor }}>{phase.tasks.length}</span>
                       </button>
                       {/* Chapter dates row */}
                       <div className="flex items-center gap-2 px-2 pb-1 text-[9px]" style={{ color: dateLabelColor }}>
@@ -1748,10 +1749,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
                   {displayPhases.map(phase => {
                     const isMainChapter = !phase.parentId;
-                    const ganttRowBg = isMainChapter ? 'hsl(220, 10%, 92%)' : 'hsl(220, 10%, 96%)';
-                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 55%)';
-                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 45%)';
-                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 38%)';
+                    const ganttRowBg = isMainChapter ? 'hsl(220, 8%, 91%)' : 'hsl(220, 8%, 95%)';
+                    const ganttSpanColor = isMainChapter ? 'hsl(220, 8%, 55%)' : 'hsl(220, 8%, 65%)';
+                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 8%, 40%)' : 'hsl(220, 8%, 55%)';
+                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 35%)';
                     return (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
@@ -1899,7 +1900,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                     borderRadius: 6,
                                     background: (() => {
                                       const teamDef = getTeamDefinition(task.team);
-                                      if (teamDef) return teamDef.barColor;
+                                      if (task.team && teamDef) return teamDef.barColor;
                                       if (bar.isDelayed) return 'hsl(var(--gantt-bar-delayed))';
                                       if (bar.isComplete) return 'hsl(var(--gantt-bar-complete))';
                                       if (bar.isCritical) return 'hsl(var(--gantt-critical))';
