@@ -1749,10 +1749,10 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
 
                   {displayPhases.map(phase => {
                     const isMainChapter = !phase.parentId;
-                    const ganttRowBg = isMainChapter ? 'hsl(220, 10%, 92%)' : 'hsl(220, 10%, 96%)';
-                    const ganttSpanColor = isMainChapter ? 'hsl(220, 10%, 35%)' : 'hsl(220, 10%, 55%)';
-                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 10%, 25%)' : 'hsl(220, 10%, 45%)';
-                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 38%)';
+                    const ganttRowBg = isMainChapter ? 'hsl(220, 8%, 91%)' : 'hsl(220, 8%, 95%)';
+                    const ganttSpanColor = isMainChapter ? 'hsl(220, 8%, 55%)' : 'hsl(220, 8%, 65%)';
+                    const ganttDiamondColor = isMainChapter ? 'hsl(220, 8%, 40%)' : 'hsl(220, 8%, 55%)';
+                    const ganttLabelColor = isMainChapter ? 'hsl(220, 10%, 20%)' : 'hsl(220, 10%, 35%)';
                     return (
                     <div key={phase.id}>
                       {/* Phase header row with milestone markers */}
