@@ -1104,16 +1104,26 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
           </div>
           <div className="flex items-center gap-3 text-[9px] text-muted-foreground flex-wrap">
             <span className="font-medium">Equipes:</span>
-            {TEAM_CODES.map(code => {
-              const def = TEAM_DEFINITIONS[code];
-              return (
-                <div key={code} className="flex items-center gap-1">
-                  <div className="w-3 h-1.5 rounded-full" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
-                  <span>{def.label}</span>
-                  <span className="text-muted-foreground/70">({def.composition})</span>
-                </div>
-              );
-            })}
+            {projectTeams.map(def => (
+              <div key={def.code} className="flex items-center gap-1">
+                <div className="w-3 h-1.5 rounded-full" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+                <span>{def.label}</span>
+                <span className="text-muted-foreground/70">({def.composition})</span>
+              </div>
+            ))}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-[9px] text-muted-foreground hover:text-primary hover:border-primary transition-colors">
+                  <Settings2 className="w-3 h-3" /> Gerenciar
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[480px] p-3" align="end">
+                <div className="text-[11px] font-semibold text-foreground mb-2">Gerenciar Equipes</div>
+                {onProjectChange && (
+                  <GerenciarEquipes project={project} onProjectChange={onProjectChange} />
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -1613,17 +1623,14 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="_none" className="text-[10px]">—</SelectItem>
-                                    {TEAM_CODES.map(code => {
-                                      const def = TEAM_DEFINITIONS[code];
-                                      return (
-                                        <SelectItem key={code} value={code} className="text-[10px]">
-                                          <span className="flex items-center gap-1">
-                                            <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
-                                            {def.label}
-                                          </span>
-                                        </SelectItem>
-                                      );
-                                    })}
+                                    {projectTeams.map(def => (
+                                      <SelectItem key={def.code} value={def.code} className="text-[10px]">
+                                        <span className="flex items-center gap-1">
+                                          <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: def.bgColor, border: `1px solid ${def.borderColor}` }} />
+                                          {def.label}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </div>
