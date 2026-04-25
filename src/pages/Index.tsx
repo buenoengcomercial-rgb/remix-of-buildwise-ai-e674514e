@@ -4,7 +4,7 @@ import AppSidebar from '@/components/AppSidebar';
 import Dashboard from '@/components/Dashboard';
 import GanttChart from '@/components/GanttChart';
 import TaskList from '@/components/TaskList';
-import Purchases from '@/components/Purchases';
+import Measurement from '@/components/Measurement';
 import { Menu, X } from 'lucide-react';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
 import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject } from '@/lib/projectStorage';
@@ -57,8 +57,8 @@ export default function Index() {
         return <GanttChart project={project} onProjectChange={setRawProject} />;
       case 'tasks':
         return <TaskList project={project} onProjectChange={setRawProject} />;
-      case 'purchases':
-        return <Purchases project={project} onProjectChange={setRawProject} />;
+      case 'measurement':
+        return <Measurement project={project} />;
     }
   };
 
