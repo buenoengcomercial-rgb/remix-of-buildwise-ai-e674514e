@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, Fragment } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Project, Task, Phase, ContractInfo } from '@/types/project';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
