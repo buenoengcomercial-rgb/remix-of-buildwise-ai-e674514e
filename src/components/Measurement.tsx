@@ -830,7 +830,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                           key={r.taskId}
                           className={`border-b border-border/60 hover:bg-muted/30 ${
                             r.hasNoLogsInPeriod
-                              ? 'bg-amber-50 dark:bg-amber-950/20'
+                              ? 'bg-warning/10'
                               : i % 2 === 0
                                 ? 'bg-background'
                                 : 'bg-muted/10'
@@ -846,7 +846,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                             <div className="font-medium flex items-center gap-1.5">
                               {r.hasNoLogsInPeriod && (
                                 <AlertCircle
-                                  className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 shrink-0 print:hidden"
+                                  className="w-3.5 h-3.5 text-warning shrink-0 print:hidden"
                                   aria-label="Sem apontamento diário no período"
                                 >
                                   <title>Sem apontamento diário no período</title>
