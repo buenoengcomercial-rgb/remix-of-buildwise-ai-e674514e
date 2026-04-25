@@ -151,4 +151,4 @@ export interface Project {
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
-export type AppView = 'dashboard' | 'gantt' | 'tasks' | 'purchases';
+export type AppView = 'dashboard' | 'gantt' | 'tasks' | 'measurement';
