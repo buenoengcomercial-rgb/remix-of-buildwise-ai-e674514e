@@ -451,26 +451,29 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
       'Valor Unitário', 'Valor Contratado', 'Valor Período', 'Valor Acumulado', 'Saldo Financeiro',
     ];
     lines.push(headers.map(escape).join(';'));
-    groups.forEach(group => {
-      lines.push(`${escape(group.number)};${escape(group.name)}`);
+    const walkCSV = (group: GroupNode) => {
+      const indent = '  '.repeat(group.depth);
+      lines.push(`${escape(group.number)};${escape(`${indent}${group.name}`)}`);
       group.rows.forEach(r => {
         lines.push([
-          r.item, r.phaseChain, r.description, r.unit,
+          r.item, '', r.description, r.unit,
           r.qtyContracted, r.qtyPriorAccum, r.qtyPeriod, r.qtyCurrentAccum,
           r.qtyBalance, r.percentExecuted.toFixed(2),
           r.unitPrice.toFixed(2), r.valueContracted.toFixed(2),
           r.valuePeriod.toFixed(2), r.valueAccum.toFixed(2), r.valueBalance.toFixed(2),
         ].map(escape).join(';'));
       });
+      group.children.forEach(walkCSV);
       lines.push([
-        '', `Subtotal ${group.number} ${group.name}`, '', '', '', '', '', '', '', '',
+        '', `${indent}Subtotal ${group.number} ${group.name}`, '', '', '', '', '', '', '', '',
         '',
-        group.subtotalContracted.toFixed(2),
-        group.subtotalPeriod.toFixed(2),
-        group.subtotalAccum.toFixed(2),
-        group.subtotalBalance.toFixed(2),
+        group.totals.contracted.toFixed(2),
+        group.totals.period.toFixed(2),
+        group.totals.accum.toFixed(2),
+        group.totals.balance.toFixed(2),
       ].map(escape).join(';'));
-    });
+    };
+    groupTree.forEach(walkCSV);
     lines.push([
       '', 'TOTAL GERAL', '', '', '', '', '', '', '', '',
       '',
