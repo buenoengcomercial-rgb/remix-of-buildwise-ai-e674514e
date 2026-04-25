@@ -370,11 +370,21 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
 
     const dataRows: (string | number)[][] = [tableHeader];
 
-    groups.forEach(group => {
-      dataRows.push([`${group.number}`, group.name, '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    const blank = (n: number) => Array.from({ length: n }, () => '');
+
+    const walkXLSX = (group: GroupNode) => {
+      const indent = '  '.repeat(group.depth);
+      // Chapter header row
+      dataRows.push([
+        group.number,
+        `${indent}${group.name}`,
+        ...blank(13),
+      ]);
+
+      // Direct rows
       group.rows.forEach(r => {
         dataRows.push([
-          r.item, r.phaseChain, r.description, r.unit,
+          r.item, '', r.description, r.unit,
           r.qtyContracted, r.qtyPriorAccum, r.qtyPeriod, r.qtyCurrentAccum,
           r.qtyBalance, Number(r.percentExecuted.toFixed(2)),
           Number(r.unitPrice.toFixed(2)),
@@ -384,15 +394,23 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
           Number(r.valueBalance.toFixed(2)),
         ]);
       });
+
+      // Recurse into children
+      group.children.forEach(walkXLSX);
+
+      // Subtotal row for this chapter (after rows + children)
       dataRows.push([
-        '', `Subtotal ${group.number} ${group.name}`, '', '', '', '', '', '', '', '',
         '',
-        Number(group.subtotalContracted.toFixed(2)),
-        Number(group.subtotalPeriod.toFixed(2)),
-        Number(group.subtotalAccum.toFixed(2)),
-        Number(group.subtotalBalance.toFixed(2)),
+        `${indent}Subtotal ${group.number} ${group.name}`,
+        ...blank(9),
+        Number(group.totals.contracted.toFixed(2)),
+        Number(group.totals.period.toFixed(2)),
+        Number(group.totals.accum.toFixed(2)),
+        Number(group.totals.balance.toFixed(2)),
       ]);
-    });
+    };
+
+    groupTree.forEach(walkXLSX);
 
     dataRows.push([
       '', 'TOTAL GERAL', '', '', '', '', '', '', '', '',
