@@ -358,6 +358,42 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
     });
   };
 
+  /**
+   * Lançamento manual da medição do período para itens sem apontamento.
+   * Cria/atualiza um único log "manual-measurement" datado em endDate.
+   */
+  const setManualPeriodQuantity = (taskId: string, value: number) => {
+    const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
+    const manualId = `manual-measurement-${startDate}-${endDate}`;
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p => ({
+        ...p,
+        tasks: p.tasks.map(t => {
+          if (t.id !== taskId) return t;
+          const existing = t.dailyLogs || [];
+          const others = existing.filter(l => l.id !== manualId);
+          if (safeValue <= 0) {
+            return { ...t, dailyLogs: others };
+          }
+          return {
+            ...t,
+            dailyLogs: [
+              ...others,
+              {
+                id: manualId,
+                date: endDate,
+                plannedQuantity: 0,
+                actualQuantity: safeValue,
+                notes: 'Lançamento manual via Planilha de Medição',
+              },
+            ],
+          };
+        }),
+      })),
+    });
+  };
+
   // ---------- EXPORTS ----------
   const exportXLSX = () => {
     const headerRows: (string | number)[][] = [
