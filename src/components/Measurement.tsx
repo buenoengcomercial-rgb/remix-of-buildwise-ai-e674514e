@@ -175,22 +175,28 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
       let qtyPeriod = 0;
 
       const logs = task.dailyLogs || [];
-      if (logs.length > 0) {
+      const hasNoLogsAtAll = logs.length === 0;
+      let hasLogsInPeriod = false;
+
+      if (!hasNoLogsAtAll) {
         for (const log of logs) {
           const d = log.date;
           if (d < startDate) {
             qtyPriorAccum += log.actualQuantity || 0;
           } else if (d >= startDate && d <= endDate) {
             qtyPeriod += log.actualQuantity || 0;
+            if ((log.actualQuantity || 0) > 0) hasLogsInPeriod = true;
           }
         }
       } else {
-        // Fallback: use percentComplete as accumulated
+        // Sem nenhum apontamento: usa percentComplete como acumulado total (anterior),
+        // sem inferir produção no período (usuário poderá lançar manualmente).
         const pct = (task.percentComplete || 0) / 100;
-        qtyPriorAccum = 0;
-        qtyPeriod = qtyContracted * pct;
+        qtyPriorAccum = qtyContracted * pct;
+        qtyPeriod = 0;
       }
 
+      const hasNoLogsInPeriod = !hasLogsInPeriod;
       const qtyCurrentAccum = qtyPriorAccum + qtyPeriod;
       const qtyBalance = Math.max(qtyContracted - qtyCurrentAccum, 0);
       const percentExecuted =
@@ -229,6 +235,8 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         valueAccum,
         valueContracted,
         valueBalance,
+        hasNoLogsInPeriod,
+        hasNoLogsAtAll,
       };
     });
   }, [orderedTasks, startDate, endDate]);
