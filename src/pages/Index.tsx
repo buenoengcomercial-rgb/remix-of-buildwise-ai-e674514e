@@ -58,7 +58,7 @@ export default function Index() {
       case 'tasks':
         return <TaskList project={project} onProjectChange={setRawProject} />;
       case 'measurement':
-        return <Measurement project={project} />;
+        return <Measurement project={project} onProjectChange={setRawProject} />;
     }
   };
 

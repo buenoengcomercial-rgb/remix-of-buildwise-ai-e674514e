@@ -1,21 +1,22 @@
-import { useMemo, useState } from 'react';
-import { Project, Task, Phase } from '@/types/project';
-import { getAllTasks } from '@/data/sampleProject';
-import { getChapterNumbering } from '@/lib/chapters';
+import { useMemo, useState, useEffect, Fragment } from 'react';
+import { Project, Task, Phase, ContractInfo } from '@/types/project';
+import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, FileSpreadsheet, FileDown, Printer, Search, CalendarDays } from 'lucide-react';
+import { ClipboardList, FileSpreadsheet, FileDown, Printer, Search, CalendarDays, Building2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface MeasurementProps {
   project: Project;
+  onProjectChange: (project: Project) => void;
 }
 
 interface Row {
-  item: string;
-  chapter: string;
+  item: string;          // numeração hierárquica (ex.: 1.1.2)
+  phaseId: string;
+  phaseChain: string;
   taskId: string;
   description: string;
   unit: string;
@@ -26,9 +27,23 @@ interface Row {
   qtyBalance: number;
   percentExecuted: number;
   unitPrice: number;
+  unitPriceIsEstimated: boolean;
   valuePeriod: number;
   valueAccum: number;
   valueContracted: number;
+  valueBalance: number;
+}
+
+interface ChapterGroup {
+  phaseId: string;
+  number: string;        // "1", "1.2"
+  name: string;
+  chain: string;
+  rows: Row[];
+  subtotalContracted: number;
+  subtotalPeriod: number;
+  subtotalAccum: number;
+  subtotalBalance: number;
 }
 
 const fmtBRL = (n: number) =>
@@ -37,17 +52,75 @@ const fmtBRL = (n: number) =>
 const fmtNum = (n: number) =>
   n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 
-/** Estimate task total cost from materials + labor (when no explicit budget). */
+const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+
+const fmtDateBR = (iso: string) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+/** Estimate task value from materials + labor (when no explicit unit price). */
 function estimateTaskValue(task: Task): number {
-  const materialsCost = (task.materials || []).reduce((s, m) => s + (m.estimatedCost || 0) * (m.quantity || 1), 0);
+  const materialsCost = (task.materials || []).reduce(
+    (s, m) => s + (m.estimatedCost || 0) * (m.quantity || 1),
+    0
+  );
   const laborCost = (task.laborCompositions || []).reduce((s, c) => {
     if (!c.hourlyRate || !task.quantity) return s;
-    return s + (task.quantity * c.rup * (c.hourlyRate || 0));
+    return s + task.quantity * c.rup * c.hourlyRate;
   }, 0);
   return materialsCost + laborCost;
 }
 
-export default function Measurement({ project }: MeasurementProps) {
+/** Order tasks following chapter tree (depth-first), generating hierarchical item numbers. */
+function buildOrderedTasks(
+  project: Project
+): Array<{ task: Task; phase: Phase; itemNumber: string; chain: string }> {
+  const tree = getChapterTree(project);
+  const numbering = getChapterNumbering(project);
+  const out: Array<{ task: Task; phase: Phase; itemNumber: string; chain: string }> = [];
+
+  const walk = (nodes: ChapterNode[], chain: string[]) => {
+    nodes.forEach(node => {
+      const phaseNumber = numbering.get(node.phase.id) || '';
+      const newChain = [...chain, node.phase.name];
+
+      // Tasks of this phase first
+      node.phase.tasks.forEach((task, idx) => {
+        out.push({
+          task,
+          phase: node.phase,
+          itemNumber: `${phaseNumber}.${idx + 1}`,
+          chain: newChain.join(' › '),
+        });
+      });
+
+      // Then descend into subchapters
+      walk(node.children, newChain);
+    });
+  };
+  walk(tree, []);
+
+  // Legacy/orphan phases not in tree
+  const visited = new Set(out.map(o => o.phase.id));
+  project.phases.forEach(phase => {
+    if (visited.has(phase.id)) return;
+    const phaseNumber = numbering.get(phase.id) || '?';
+    phase.tasks.forEach((task, idx) => {
+      out.push({
+        task,
+        phase,
+        itemNumber: `${phaseNumber}.${idx + 1}`,
+        chain: phase.name,
+      });
+    });
+  });
+
+  return out;
+}
+
+export default function Measurement({ project, onProjectChange }: MeasurementProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
@@ -56,42 +129,41 @@ export default function Measurement({ project }: MeasurementProps) {
   const [chapterFilter, setChapterFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
+  // Contract info — controlled local state synced with project
+  const contract = project.contractInfo || {};
+  const [contractor, setContractor] = useState(contract.contractor || '');
+  const [contracted, setContracted] = useState(contract.contracted || '');
+  const [measurementNumber, setMeasurementNumber] = useState(
+    contract.nextMeasurementNumber?.toString() || '1'
+  );
+  const issueDate = today;
+
+  useEffect(() => {
+    setContractor(project.contractInfo?.contractor || '');
+    setContracted(project.contractInfo?.contracted || '');
+    setMeasurementNumber(project.contractInfo?.nextMeasurementNumber?.toString() || '1');
+  }, [project.id]);
+
+  const persistContractInfo = (next: Partial<ContractInfo>) => {
+    onProjectChange({
+      ...project,
+      contractInfo: { ...(project.contractInfo || {}), ...next },
+    });
+  };
+
   const numbering = useMemo(() => getChapterNumbering(project), [project]);
-  const phasesById = useMemo(() => {
-    const m = new Map<string, Phase>();
-    project.phases.forEach(p => m.set(p.id, p));
-    return m;
-  }, [project]);
 
-  const phaseChain = (phaseId: string): string => {
-    const parts: string[] = [];
-    let current: Phase | undefined = phasesById.get(phaseId);
-    while (current) {
-      parts.unshift(current.name);
-      current = current.parentId ? phasesById.get(current.parentId) : undefined;
-    }
-    return parts.join(' › ');
-  };
+  // Build ordered/numbered task list
+  const orderedTasks = useMemo(() => buildOrderedTasks(project), [project]);
 
-  const phaseOfTask = (task: Task): Phase | undefined => {
-    return project.phases.find(p => p.tasks.some(t => t.id === task.id));
-  };
-
+  // Calculate row data
   const rows: Row[] = useMemo(() => {
-    const tasks = getAllTasks(project);
-    return tasks.map(task => {
-      const phase = phaseOfTask(task);
-      const phaseId = phase?.id;
-      const item = phaseId ? `${numbering.get(phaseId) || ''}` : '';
-      const chapter = phaseId ? phaseChain(phaseId) : task.phase || '';
-
+    return orderedTasks.map(({ task, phase, itemNumber, chain }) => {
       const qtyContracted = task.quantity ?? task.baseline?.quantity ?? 0;
       const unit = task.unit || '';
 
-      // Calculate executed quantities
       let qtyPriorAccum = 0;
       let qtyPeriod = 0;
-      let qtyCurrentAccum = 0;
 
       const logs = task.dailyLogs || [];
       if (logs.length > 0) {
@@ -103,26 +175,36 @@ export default function Measurement({ project }: MeasurementProps) {
             qtyPeriod += log.actualQuantity || 0;
           }
         }
-        qtyCurrentAccum = qtyPriorAccum + qtyPeriod;
       } else {
-        // Fallback: use percentComplete
+        // Fallback: use percentComplete as accumulated
         const pct = (task.percentComplete || 0) / 100;
-        qtyCurrentAccum = qtyContracted * pct;
         qtyPriorAccum = 0;
-        qtyPeriod = qtyCurrentAccum;
+        qtyPeriod = qtyContracted * pct;
       }
 
+      const qtyCurrentAccum = qtyPriorAccum + qtyPeriod;
       const qtyBalance = Math.max(qtyContracted - qtyCurrentAccum, 0);
-      const percentExecuted = qtyContracted > 0 ? (qtyCurrentAccum / qtyContracted) * 100 : (task.percentComplete || 0);
+      const percentExecuted =
+        qtyContracted > 0 ? (qtyCurrentAccum / qtyContracted) * 100 : task.percentComplete || 0;
 
-      const valueContracted = estimateTaskValue(task);
-      const unitPrice = qtyContracted > 0 ? valueContracted / qtyContracted : 0;
+      // Unit price: explicit, or estimated
+      let unitPrice = task.unitPrice ?? 0;
+      let unitPriceIsEstimated = false;
+      if (!unitPrice) {
+        const est = estimateTaskValue(task);
+        unitPrice = qtyContracted > 0 ? est / qtyContracted : 0;
+        unitPriceIsEstimated = unitPrice > 0;
+      }
+
+      const valueContracted = unitPrice * qtyContracted;
       const valuePeriod = unitPrice * qtyPeriod;
       const valueAccum = unitPrice * qtyCurrentAccum;
+      const valueBalance = Math.max(valueContracted - valueAccum, 0);
 
       return {
-        item,
-        chapter,
+        item: itemNumber,
+        phaseId: phase.id,
+        phaseChain: chain,
         taskId: task.id,
         description: task.name,
         unit,
@@ -133,86 +215,234 @@ export default function Measurement({ project }: MeasurementProps) {
         qtyBalance,
         percentExecuted,
         unitPrice,
+        unitPriceIsEstimated,
         valuePeriod,
         valueAccum,
         valueContracted,
+        valueBalance,
       };
     });
-  }, [project, numbering, startDate, endDate]);
+  }, [orderedTasks, startDate, endDate]);
 
+  // Apply filters
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter(r => {
       if (chapterFilter !== 'all') {
-        const phase = project.phases.find(p => p.id === chapterFilter);
-        if (phase && !r.chapter.includes(phase.name)) return false;
+        // include task if its phase or any ancestor matches the filter
+        const phase = project.phases.find(p => p.id === r.phaseId);
+        let match = false;
+        let cur: Phase | undefined = phase;
+        while (cur) {
+          if (cur.id === chapterFilter) { match = true; break; }
+          cur = cur.parentId ? project.phases.find(p => p.id === cur!.parentId) : undefined;
+        }
+        if (!match) return false;
       }
       if (q) {
-        const blob = `${r.item} ${r.chapter} ${r.description}`.toLowerCase();
+        const blob = `${r.item} ${r.phaseChain} ${r.description}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
     });
   }, [rows, chapterFilter, search, project.phases]);
 
+  // Group by top-level chapter for visual subtotals
+  const groups: ChapterGroup[] = useMemo(() => {
+    const phaseById = new Map(project.phases.map(p => [p.id, p]));
+    const topLevelOf = (phaseId: string): Phase | undefined => {
+      let cur = phaseById.get(phaseId);
+      while (cur && cur.parentId) cur = phaseById.get(cur.parentId);
+      return cur;
+    };
+
+    const map = new Map<string, ChapterGroup>();
+    filteredRows.forEach(r => {
+      const top = topLevelOf(r.phaseId);
+      const groupId = top?.id || r.phaseId;
+      const groupName = top?.name || '—';
+      const groupNumber = top ? numbering.get(top.id) || '' : '';
+      if (!map.has(groupId)) {
+        map.set(groupId, {
+          phaseId: groupId,
+          number: groupNumber,
+          name: groupName,
+          chain: groupName,
+          rows: [],
+          subtotalContracted: 0,
+          subtotalPeriod: 0,
+          subtotalAccum: 0,
+          subtotalBalance: 0,
+        });
+      }
+      const g = map.get(groupId)!;
+      g.rows.push(r);
+      g.subtotalContracted += r.valueContracted;
+      g.subtotalPeriod += r.valuePeriod;
+      g.subtotalAccum += r.valueAccum;
+      g.subtotalBalance += r.valueBalance;
+    });
+
+    // sort groups by chapter number
+    return Array.from(map.values()).sort((a, b) =>
+      a.number.localeCompare(b.number, undefined, { numeric: true })
+    );
+  }, [filteredRows, project.phases, numbering]);
+
+  // Totals
   const totals = useMemo(() => {
-    return filteredRows.reduce(
+    const totalsSum = filteredRows.reduce(
       (acc, r) => ({
         contracted: acc.contracted + r.valueContracted,
         period: acc.period + r.valuePeriod,
         accum: acc.accum + r.valueAccum,
+        balance: acc.balance + r.valueBalance,
+        qtyContracted: acc.qtyContracted + r.qtyContracted,
+        qtyAccum: acc.qtyAccum + r.qtyCurrentAccum,
       }),
-      { contracted: 0, period: 0, accum: 0 }
+      { contracted: 0, period: 0, accum: 0, balance: 0, qtyContracted: 0, qtyAccum: 0 }
     );
+    const physicalPct = totalsSum.qtyContracted > 0
+      ? (totalsSum.qtyAccum / totalsSum.qtyContracted) * 100
+      : 0;
+    const financialPct = totalsSum.contracted > 0
+      ? (totalsSum.accum / totalsSum.contracted) * 100
+      : 0;
+    return { ...totalsSum, physicalPct, financialPct };
   }, [filteredRows]);
 
-  const balance = totals.contracted - totals.accum;
+  // Update unit price for a task
+  const updateUnitPrice = (taskId: string, value: number) => {
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p => ({
+        ...p,
+        tasks: p.tasks.map(t => (t.id === taskId ? { ...t, unitPrice: value } : t)),
+      })),
+    });
+  };
 
+  // ---------- EXPORTS ----------
   const exportXLSX = () => {
-    const data = [
-      [
-        'Item', 'Capítulo', 'Descrição', 'Unidade',
-        'Qtd Contratada', 'Acum. Anterior', 'Medição Período', 'Acum. Atual',
-        'Saldo Qtd', '% Executado',
-        'Valor Unitário', 'Valor Período', 'Valor Acumulado', 'Valor Contratado',
-      ],
-      ...filteredRows.map(r => [
-        r.item, r.chapter, r.description, r.unit,
-        r.qtyContracted, r.qtyPriorAccum, r.qtyPeriod, r.qtyCurrentAccum,
-        r.qtyBalance, Number(r.percentExecuted.toFixed(2)),
-        Number(r.unitPrice.toFixed(2)), Number(r.valuePeriod.toFixed(2)),
-        Number(r.valueAccum.toFixed(2)), Number(r.valueContracted.toFixed(2)),
-      ]),
+    const headerRows: (string | number)[][] = [
+      ['BOLETIM DE MEDIÇÃO'],
+      [],
+      ['Obra:', project.name],
+      ['Contratante:', contractor],
+      ['Contratada:', contracted],
+      ['Medição Nº:', measurementNumber],
+      ['Período:', `${fmtDateBR(startDate)} a ${fmtDateBR(endDate)}`],
+      ['Data de emissão:', fmtDateBR(issueDate)],
+      [],
     ];
-    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    const tableHeader = [
+      'Item', 'Capítulo', 'Descrição', 'Unidade',
+      'Qtd Contratada', 'Acum. Anterior', 'Medição Período', 'Acum. Atual',
+      'Saldo Qtd', '% Executado',
+      'Valor Unitário (R$)', 'Valor Contratado (R$)',
+      'Valor Período (R$)', 'Valor Acumulado (R$)', 'Saldo Financeiro (R$)',
+    ];
+
+    const dataRows: (string | number)[][] = [tableHeader];
+
+    groups.forEach(group => {
+      dataRows.push([`${group.number}`, group.name, '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      group.rows.forEach(r => {
+        dataRows.push([
+          r.item, r.phaseChain, r.description, r.unit,
+          r.qtyContracted, r.qtyPriorAccum, r.qtyPeriod, r.qtyCurrentAccum,
+          r.qtyBalance, Number(r.percentExecuted.toFixed(2)),
+          Number(r.unitPrice.toFixed(2)),
+          Number(r.valueContracted.toFixed(2)),
+          Number(r.valuePeriod.toFixed(2)),
+          Number(r.valueAccum.toFixed(2)),
+          Number(r.valueBalance.toFixed(2)),
+        ]);
+      });
+      dataRows.push([
+        '', `Subtotal ${group.number} ${group.name}`, '', '', '', '', '', '', '', '',
+        '',
+        Number(group.subtotalContracted.toFixed(2)),
+        Number(group.subtotalPeriod.toFixed(2)),
+        Number(group.subtotalAccum.toFixed(2)),
+        Number(group.subtotalBalance.toFixed(2)),
+      ]);
+    });
+
+    dataRows.push([
+      '', 'TOTAL GERAL', '', '', '', '', '', '', '', '',
+      '',
+      Number(totals.contracted.toFixed(2)),
+      Number(totals.period.toFixed(2)),
+      Number(totals.accum.toFixed(2)),
+      Number(totals.balance.toFixed(2)),
+    ]);
+
+    const sheetData = [...headerRows, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 30 }, { wch: 36 }, { wch: 8 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      { wch: 12 }, { wch: 11 },
+      { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+    ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Medição');
-    XLSX.writeFile(wb, `medicao_${startDate}_a_${endDate}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `Medição ${measurementNumber}`);
+    XLSX.writeFile(wb, `medicao_${measurementNumber}_${startDate}_a_${endDate}.xlsx`);
   };
 
   const exportCSV = () => {
+    const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const lines: string[] = [];
+    lines.push(escape('BOLETIM DE MEDIÇÃO'));
+    lines.push(`${escape('Obra')};${escape(project.name)}`);
+    lines.push(`${escape('Contratante')};${escape(contractor)}`);
+    lines.push(`${escape('Contratada')};${escape(contracted)}`);
+    lines.push(`${escape('Medição Nº')};${escape(measurementNumber)}`);
+    lines.push(`${escape('Período')};${escape(`${fmtDateBR(startDate)} a ${fmtDateBR(endDate)}`)}`);
+    lines.push('');
     const headers = [
       'Item', 'Capítulo', 'Descrição', 'Unidade',
       'Qtd Contratada', 'Acum. Anterior', 'Medição Período', 'Acum. Atual',
-      'Saldo Qtd', '% Executado', 'Valor Unitário', 'Valor Período',
-      'Valor Acumulado', 'Valor Contratado',
+      'Saldo Qtd', '% Executado',
+      'Valor Unitário', 'Valor Contratado', 'Valor Período', 'Valor Acumulado', 'Saldo Financeiro',
     ];
-    const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-    const lines = [headers.join(';')];
-    filteredRows.forEach(r => {
+    lines.push(headers.map(escape).join(';'));
+    groups.forEach(group => {
+      lines.push(`${escape(group.number)};${escape(group.name)}`);
+      group.rows.forEach(r => {
+        lines.push([
+          r.item, r.phaseChain, r.description, r.unit,
+          r.qtyContracted, r.qtyPriorAccum, r.qtyPeriod, r.qtyCurrentAccum,
+          r.qtyBalance, r.percentExecuted.toFixed(2),
+          r.unitPrice.toFixed(2), r.valueContracted.toFixed(2),
+          r.valuePeriod.toFixed(2), r.valueAccum.toFixed(2), r.valueBalance.toFixed(2),
+        ].map(escape).join(';'));
+      });
       lines.push([
-        r.item, r.chapter, r.description, r.unit,
-        r.qtyContracted, r.qtyPriorAccum, r.qtyPeriod, r.qtyCurrentAccum,
-        r.qtyBalance, r.percentExecuted.toFixed(2),
-        r.unitPrice.toFixed(2), r.valuePeriod.toFixed(2),
-        r.valueAccum.toFixed(2), r.valueContracted.toFixed(2),
+        '', `Subtotal ${group.number} ${group.name}`, '', '', '', '', '', '', '', '',
+        '',
+        group.subtotalContracted.toFixed(2),
+        group.subtotalPeriod.toFixed(2),
+        group.subtotalAccum.toFixed(2),
+        group.subtotalBalance.toFixed(2),
       ].map(escape).join(';'));
     });
+    lines.push([
+      '', 'TOTAL GERAL', '', '', '', '', '', '', '', '',
+      '',
+      totals.contracted.toFixed(2),
+      totals.period.toFixed(2),
+      totals.accum.toFixed(2),
+      totals.balance.toFixed(2),
+    ].map(escape).join(';'));
+
     const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `medicao_${startDate}_a_${endDate}.csv`;
+    a.download = `medicao_${measurementNumber}_${startDate}_a_${endDate}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -220,20 +450,18 @@ export default function Measurement({ project }: MeasurementProps) {
   const handlePrint = () => window.print();
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-6 space-y-6 print:p-0">
+      <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
             <ClipboardList className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Planilha de Medição</h1>
-            <p className="text-sm text-muted-foreground">
-              Relatório físico-financeiro do período
-            </p>
+            <p className="text-sm text-muted-foreground">Boletim físico-financeiro</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={exportXLSX}>
             <FileSpreadsheet className="w-4 h-4" /> Excel
           </Button>
@@ -245,6 +473,87 @@ export default function Measurement({ project }: MeasurementProps) {
           </Button>
         </div>
       </div>
+
+      {/* Cabeçalho do boletim */}
+      <Card className="border-2">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between mb-4 pb-3 border-b border-border">
+            <div className="flex items-center gap-3">
+              <Building2 className="w-6 h-6 text-primary" />
+              <div>
+                <h2 className="text-base font-bold tracking-wide uppercase text-foreground">
+                  Boletim de Medição
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Medição Nº {measurementNumber || '—'} · Emitido em {fmtDateBR(issueDate)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Obra
+              </label>
+              <p className="text-sm font-medium text-foreground mt-1">{project.name}</p>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Contratante
+              </label>
+              <Input
+                className="mt-1 h-8 text-sm"
+                value={contractor}
+                onChange={e => setContractor(e.target.value)}
+                onBlur={() => persistContractInfo({ contractor })}
+                placeholder="Nome do contratante"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Contratada
+              </label>
+              <Input
+                className="mt-1 h-8 text-sm"
+                value={contracted}
+                onChange={e => setContracted(e.target.value)}
+                onBlur={() => persistContractInfo({ contracted })}
+                placeholder="Nome da contratada"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Medição Nº
+              </label>
+              <Input
+                className="mt-1 h-8 text-sm"
+                value={measurementNumber}
+                onChange={e => setMeasurementNumber(e.target.value)}
+                onBlur={() =>
+                  persistContractInfo({
+                    nextMeasurementNumber: Number(measurementNumber) || 1,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Período
+              </label>
+              <p className="text-sm font-medium text-foreground mt-1">
+                {fmtDateBR(startDate)} a {fmtDateBR(endDate)}
+              </p>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Data de emissão
+              </label>
+              <p className="text-sm font-medium text-foreground mt-1">{fmtDateBR(issueDate)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtros */}
       <Card className="print:hidden">
@@ -294,29 +603,65 @@ export default function Measurement({ project }: MeasurementProps) {
       </Card>
 
       {/* Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Valor contratado</p>
-            <p className="text-xl font-bold text-foreground mt-1">{fmtBRL(totals.contracted)}</p>
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              Valor contratado
+            </p>
+            <p className="text-base font-bold text-foreground mt-1 tabular-nums">
+              {fmtBRL(totals.contracted)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Valor desta medição</p>
-            <p className="text-xl font-bold text-primary mt-1">{fmtBRL(totals.period)}</p>
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              Desta medição
+            </p>
+            <p className="text-base font-bold text-primary mt-1 tabular-nums">
+              {fmtBRL(totals.period)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Valor acumulado</p>
-            <p className="text-xl font-bold text-foreground mt-1">{fmtBRL(totals.accum)}</p>
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              Acumulado
+            </p>
+            <p className="text-base font-bold text-foreground mt-1 tabular-nums">
+              {fmtBRL(totals.accum)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Saldo a medir</p>
-            <p className="text-xl font-bold text-foreground mt-1">{fmtBRL(Math.max(balance, 0))}</p>
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              Saldo a medir
+            </p>
+            <p className="text-base font-bold text-foreground mt-1 tabular-nums">
+              {fmtBRL(totals.balance)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              % Físico acumulado
+            </p>
+            <p className="text-base font-bold text-foreground mt-1 tabular-nums">
+              {fmtPct(totals.physicalPct)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              % Financeiro acumulado
+            </p>
+            <p className="text-base font-bold text-foreground mt-1 tabular-nums">
+              {fmtPct(totals.financialPct)}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -329,63 +674,149 @@ export default function Measurement({ project }: MeasurementProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr className="text-left">
-                <th className="px-3 py-2 font-semibold text-foreground">Item</th>
-                <th className="px-3 py-2 font-semibold text-foreground">Capítulo</th>
-                <th className="px-3 py-2 font-semibold text-foreground min-w-[180px]">Descrição</th>
-                <th className="px-3 py-2 font-semibold text-foreground">Un.</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Qtd Contrat.</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Acum. Ant.</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Período</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Acum. Atual</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Saldo</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">% Exec.</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Valor Unit.</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Valor Período</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Valor Acum.</th>
-                <th className="px-3 py-2 font-semibold text-foreground text-right">Valor Contrat.</th>
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-muted/60 border-y border-border text-foreground">
+                <th className="px-2 py-2 text-left font-semibold w-[60px]">Item</th>
+                <th className="px-2 py-2 text-left font-semibold min-w-[220px]">Descrição</th>
+                <th className="px-2 py-2 text-center font-semibold w-[50px]">Un.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[90px]">Qtd Contrat.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[90px]">Acum. Ant.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[90px]">Medição</th>
+                <th className="px-2 py-2 text-right font-semibold w-[90px]">Acum. Atual</th>
+                <th className="px-2 py-2 text-right font-semibold w-[80px]">Saldo</th>
+                <th className="px-2 py-2 text-right font-semibold w-[60px]">% Exec.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[110px]">Preço Unit.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[110px]">Vlr Contrat.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[110px]">Vlr Medição</th>
+                <th className="px-2 py-2 text-right font-semibold w-[110px]">Vlr Acumul.</th>
+                <th className="px-2 py-2 text-right font-semibold w-[110px]">Saldo Fin.</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length === 0 ? (
+              {groups.length === 0 ? (
                 <tr>
                   <td colSpan={14} className="text-center py-8 text-muted-foreground">
                     Nenhum item encontrado para os filtros selecionados.
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((r, i) => (
-                  <tr
-                    key={r.taskId}
-                    className={`border-b border-border hover:bg-muted/30 ${i % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
-                  >
-                    <td className="px-3 py-2 font-mono tabular-nums text-foreground">{r.item}</td>
-                    <td className="px-3 py-2 text-muted-foreground truncate max-w-[160px]" title={r.chapter}>{r.chapter}</td>
-                    <td className="px-3 py-2 text-foreground">{r.description}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.unit}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-foreground">{fmtNum(r.qtyContracted)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmtNum(r.qtyPriorAccum)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-primary">{fmtNum(r.qtyPeriod)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-foreground">{fmtNum(r.qtyCurrentAccum)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmtNum(r.qtyBalance)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-foreground">{r.percentExecuted.toFixed(1)}%</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmtBRL(r.unitPrice)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-primary">{fmtBRL(r.valuePeriod)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-foreground">{fmtBRL(r.valueAccum)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-foreground">{fmtBRL(r.valueContracted)}</td>
-                  </tr>
+                groups.map(group => (
+                  <Fragment key={group.phaseId}>
+                    <tr className="bg-primary/5 border-y border-border">
+                      <td colSpan={14} className="px-2 py-2 font-bold text-foreground text-[13px]">
+                        {group.number} — {group.name}
+                      </td>
+                    </tr>
+                    {group.rows.map((r, i) => (
+                      <tr
+                        key={r.taskId}
+                        className={`border-b border-border/60 hover:bg-muted/30 ${
+                          i % 2 === 0 ? 'bg-background' : 'bg-muted/10'
+                        }`}
+                      >
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-foreground align-top">
+                          {r.item}
+                        </td>
+                        <td className="px-2 py-1.5 text-foreground align-top">
+                          <div className="font-medium">{r.description}</div>
+                          {r.phaseChain && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate" title={r.phaseChain}>
+                              {r.phaseChain}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-center text-muted-foreground align-top">
+                          {r.unit}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                          {fmtNum(r.qtyContracted)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
+                          {fmtNum(r.qtyPriorAccum)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
+                          {fmtNum(r.qtyPeriod)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                          {fmtNum(r.qtyCurrentAccum)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
+                          {fmtNum(r.qtyBalance)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                          {fmtPct(r.percentExecuted)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right align-top print:hidden">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={r.unitPrice ? Number(r.unitPrice.toFixed(2)) : ''}
+                            placeholder="0,00"
+                            onChange={e => updateUnitPrice(r.taskId, parseFloat(e.target.value) || 0)}
+                            className={`h-7 px-2 text-right tabular-nums text-xs ${
+                              r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
+                            }`}
+                            title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Preço unitário'}
+                          />
+                        </td>
+                        <td className="hidden print:table-cell px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                          {fmtBRL(r.unitPrice)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                          {fmtBRL(r.valueContracted)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
+                          {fmtBRL(r.valuePeriod)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                          {fmtBRL(r.valueAccum)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
+                          {fmtBRL(r.valueBalance)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-muted/40 border-y border-border font-semibold">
+                      <td colSpan={10} className="px-2 py-1.5 text-right text-foreground text-[11px]">
+                        Subtotal {group.number} — {group.name}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
+                        {fmtBRL(group.subtotalContracted)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-primary">
+                        {fmtBRL(group.subtotalPeriod)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
+                        {fmtBRL(group.subtotalAccum)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
+                        {fmtBRL(group.subtotalBalance)}
+                      </td>
+                    </tr>
+                  </Fragment>
                 ))
               )}
             </tbody>
-            {filteredRows.length > 0 && (
-              <tfoot className="bg-muted/50 border-t-2 border-border font-semibold">
-                <tr>
-                  <td colSpan={11} className="px-3 py-2 text-right text-foreground">Totais:</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-primary">{fmtBRL(totals.period)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-foreground">{fmtBRL(totals.accum)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-foreground">{fmtBRL(totals.contracted)}</td>
+            {groups.length > 0 && (
+              <tfoot>
+                <tr className="bg-primary/10 border-t-2 border-primary font-bold">
+                  <td colSpan={10} className="px-2 py-2 text-right text-foreground text-[12px] uppercase tracking-wide">
+                    Total geral
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-foreground">
+                    {fmtBRL(totals.contracted)}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-primary">
+                    {fmtBRL(totals.period)}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-foreground">
+                    {fmtBRL(totals.accum)}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-foreground">
+                    {fmtBRL(totals.balance)}
+                  </td>
                 </tr>
               </tfoot>
             )}
