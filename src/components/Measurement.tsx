@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, FileSpreadsheet, FileDown, Printer, Search, CalendarDays, Building2 } from 'lucide-react';
+import { ClipboardList, FileSpreadsheet, FileDown, Printer, Search, CalendarDays, Building2, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface MeasurementProps {
@@ -32,6 +32,10 @@ interface Row {
   valueAccum: number;
   valueContracted: number;
   valueBalance: number;
+  /** true quando não há nenhum apontamento dentro do período selecionado */
+  hasNoLogsInPeriod: boolean;
+  /** true quando a tarefa não tem nenhum dailyLog cadastrado */
+  hasNoLogsAtAll: boolean;
 }
 
 interface GroupNode {
@@ -171,22 +175,28 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
       let qtyPeriod = 0;
 
       const logs = task.dailyLogs || [];
-      if (logs.length > 0) {
+      const hasNoLogsAtAll = logs.length === 0;
+      let hasLogsInPeriod = false;
+
+      if (!hasNoLogsAtAll) {
         for (const log of logs) {
           const d = log.date;
           if (d < startDate) {
             qtyPriorAccum += log.actualQuantity || 0;
           } else if (d >= startDate && d <= endDate) {
             qtyPeriod += log.actualQuantity || 0;
+            if ((log.actualQuantity || 0) > 0) hasLogsInPeriod = true;
           }
         }
       } else {
-        // Fallback: use percentComplete as accumulated
+        // Sem nenhum apontamento: usa percentComplete como acumulado total (anterior),
+        // sem inferir produção no período (usuário poderá lançar manualmente).
         const pct = (task.percentComplete || 0) / 100;
-        qtyPriorAccum = 0;
-        qtyPeriod = qtyContracted * pct;
+        qtyPriorAccum = qtyContracted * pct;
+        qtyPeriod = 0;
       }
 
+      const hasNoLogsInPeriod = !hasLogsInPeriod;
       const qtyCurrentAccum = qtyPriorAccum + qtyPeriod;
       const qtyBalance = Math.max(qtyContracted - qtyCurrentAccum, 0);
       const percentExecuted =
@@ -225,6 +235,8 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         valueAccum,
         valueContracted,
         valueBalance,
+        hasNoLogsInPeriod,
+        hasNoLogsAtAll,
       };
     });
   }, [orderedTasks, startDate, endDate]);
@@ -342,6 +354,42 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
       phases: project.phases.map(p => ({
         ...p,
         tasks: p.tasks.map(t => (t.id === taskId ? { ...t, unitPrice: value } : t)),
+      })),
+    });
+  };
+
+  /**
+   * Lançamento manual da medição do período para itens sem apontamento.
+   * Cria/atualiza um único log "manual-measurement" datado em endDate.
+   */
+  const setManualPeriodQuantity = (taskId: string, value: number) => {
+    const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
+    const manualId = `manual-measurement-${startDate}-${endDate}`;
+    onProjectChange({
+      ...project,
+      phases: project.phases.map(p => ({
+        ...p,
+        tasks: p.tasks.map(t => {
+          if (t.id !== taskId) return t;
+          const existing = t.dailyLogs || [];
+          const others = existing.filter(l => l.id !== manualId);
+          if (safeValue <= 0) {
+            return { ...t, dailyLogs: others };
+          }
+          return {
+            ...t,
+            dailyLogs: [
+              ...others,
+              {
+                id: manualId,
+                date: endDate,
+                plannedQuantity: 0,
+                actualQuantity: safeValue,
+                notes: 'Lançamento manual via Planilha de Medição',
+              },
+            ],
+          };
+        }),
       })),
     });
   };
@@ -781,7 +829,11 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                         <tr
                           key={r.taskId}
                           className={`border-b border-border/60 hover:bg-muted/30 ${
-                            i % 2 === 0 ? 'bg-background' : 'bg-muted/10'
+                            r.hasNoLogsInPeriod
+                              ? 'bg-warning/10'
+                              : i % 2 === 0
+                                ? 'bg-background'
+                                : 'bg-muted/10'
                           }`}
                         >
                           <td
@@ -791,7 +843,17 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                             {r.item}
                           </td>
                           <td className="px-2 py-1.5 text-foreground align-top">
-                            <div className="font-medium">{r.description}</div>
+                            <div className="font-medium flex items-center gap-1.5">
+                              {r.hasNoLogsInPeriod && (
+                                <AlertCircle
+                                  className="w-3.5 h-3.5 text-warning shrink-0 print:hidden"
+                                  aria-label="Sem apontamento diário no período"
+                                >
+                                  <title>Sem apontamento diário no período</title>
+                                </AlertCircle>
+                              )}
+                              <span>{r.description}</span>
+                            </div>
                           </td>
                           <td className="px-2 py-1.5 text-center text-muted-foreground align-top">
                             {r.unit}
@@ -802,8 +864,30 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                           <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
                             {fmtNum(r.qtyPriorAccum)}
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
-                            {fmtNum(r.qtyPeriod)}
+                          <td className="px-2 py-1.5 text-right align-top">
+                            {r.hasNoLogsInPeriod ? (
+                              <>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={r.qtyPeriod ? Number(r.qtyPeriod.toFixed(3)) : ''}
+                                  placeholder="0,00"
+                                  onChange={e =>
+                                    setManualPeriodQuantity(r.taskId, parseFloat(e.target.value) || 0)
+                                  }
+                                  className="h-7 px-2 text-right tabular-nums text-xs print:hidden"
+                                  title="Lançar manualmente a quantidade medida no período"
+                                />
+                                <span className="hidden print:inline tabular-nums">
+                                  {fmtNum(r.qtyPeriod)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="tabular-nums font-semibold text-primary">
+                                {fmtNum(r.qtyPeriod)}
+                              </span>
+                            )}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
                             {fmtNum(r.qtyCurrentAccum)}
