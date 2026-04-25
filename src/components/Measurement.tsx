@@ -34,16 +34,21 @@ interface Row {
   valueBalance: number;
 }
 
-interface ChapterGroup {
+interface GroupNode {
   phaseId: string;
-  number: string;        // "1", "1.2"
+  number: string;        // "1", "1.1"
   name: string;
-  chain: string;
-  rows: Row[];
-  subtotalContracted: number;
-  subtotalPeriod: number;
-  subtotalAccum: number;
-  subtotalBalance: number;
+  depth: number;         // 0 = capítulo principal, 1 = subcapítulo, ...
+  rows: Row[];           // tarefas diretas desta phase
+  children: GroupNode[]; // subgrupos
+  totals: {
+    contracted: number;
+    period: number;
+    accum: number;
+    balance: number;
+    qtyContracted: number;
+    qtyAccum: number;
+  };
 }
 
 const fmtBRL = (n: number) =>
