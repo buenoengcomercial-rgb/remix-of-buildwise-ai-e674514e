@@ -252,47 +252,66 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
     });
   }, [rows, chapterFilter, search, project.phases]);
 
-  // Group by top-level chapter for visual subtotals
-  const groups: ChapterGroup[] = useMemo(() => {
-    const phaseById = new Map(project.phases.map(p => [p.id, p]));
-    const topLevelOf = (phaseId: string): Phase | undefined => {
-      let cur = phaseById.get(phaseId);
-      while (cur && cur.parentId) cur = phaseById.get(cur.parentId);
-      return cur;
-    };
-
-    const map = new Map<string, ChapterGroup>();
+  // Build hierarchical group tree (capítulo → subcapítulo → ...) only including
+  // nodes that contain at least one filtered task (directly or via descendants).
+  const groupTree: GroupNode[] = useMemo(() => {
+    const rowsByPhase = new Map<string, Row[]>();
     filteredRows.forEach(r => {
-      const top = topLevelOf(r.phaseId);
-      const groupId = top?.id || r.phaseId;
-      const groupName = top?.name || '—';
-      const groupNumber = top ? numbering.get(top.id) || '' : '';
-      if (!map.has(groupId)) {
-        map.set(groupId, {
-          phaseId: groupId,
-          number: groupNumber,
-          name: groupName,
-          chain: groupName,
-          rows: [],
-          subtotalContracted: 0,
-          subtotalPeriod: 0,
-          subtotalAccum: 0,
-          subtotalBalance: 0,
-        });
-      }
-      const g = map.get(groupId)!;
-      g.rows.push(r);
-      g.subtotalContracted += r.valueContracted;
-      g.subtotalPeriod += r.valuePeriod;
-      g.subtotalAccum += r.valueAccum;
-      g.subtotalBalance += r.valueBalance;
+      const arr = rowsByPhase.get(r.phaseId) || [];
+      arr.push(r);
+      rowsByPhase.set(r.phaseId, arr);
     });
 
-    // sort groups by chapter number
-    return Array.from(map.values()).sort((a, b) =>
+    const tree = getChapterTree(project);
+
+    const buildNode = (chapterNode: ChapterNode, depth: number): GroupNode | null => {
+      const directRows = rowsByPhase.get(chapterNode.phase.id) || [];
+      const childGroups = chapterNode.children
+        .map(c => buildNode(c, depth + 1))
+        .filter((g): g is GroupNode => g !== null);
+
+      if (directRows.length === 0 && childGroups.length === 0) return null;
+
+      const totals = {
+        contracted: 0, period: 0, accum: 0, balance: 0,
+        qtyContracted: 0, qtyAccum: 0,
+      };
+      directRows.forEach(r => {
+        totals.contracted += r.valueContracted;
+        totals.period += r.valuePeriod;
+        totals.accum += r.valueAccum;
+        totals.balance += r.valueBalance;
+        totals.qtyContracted += r.qtyContracted;
+        totals.qtyAccum += r.qtyCurrentAccum;
+      });
+      childGroups.forEach(c => {
+        totals.contracted += c.totals.contracted;
+        totals.period += c.totals.period;
+        totals.accum += c.totals.accum;
+        totals.balance += c.totals.balance;
+        totals.qtyContracted += c.totals.qtyContracted;
+        totals.qtyAccum += c.totals.qtyAccum;
+      });
+
+      return {
+        phaseId: chapterNode.phase.id,
+        number: numbering.get(chapterNode.phase.id) || '',
+        name: chapterNode.phase.name,
+        depth,
+        rows: directRows,
+        children: childGroups,
+        totals,
+      };
+    };
+
+    const groups = tree
+      .map(n => buildNode(n, 0))
+      .filter((g): g is GroupNode => g !== null);
+
+    return groups.sort((a, b) =>
       a.number.localeCompare(b.number, undefined, { numeric: true })
     );
-  }, [filteredRows, project.phases, numbering]);
+  }, [filteredRows, project, numbering]);
 
   // Totals
   const totals = useMemo(() => {
