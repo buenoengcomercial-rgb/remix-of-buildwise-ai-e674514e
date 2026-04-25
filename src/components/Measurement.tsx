@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, FileSpreadsheet, FileDown, Printer, Search, CalendarDays, Building2 } from 'lucide-react';
+import { ClipboardList, FileSpreadsheet, FileDown, Printer, Search, CalendarDays, Building2, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface MeasurementProps {
