@@ -1188,10 +1188,27 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="measurement-table w-full text-[11px] border-collapse">
+              <colgroup>
+                <col className="col-item" />
+                <col className="col-code" />
+                <col className="col-bank" />
+                <col className="col-desc" />
+                <col className="col-und" />
+                <col className="col-qty" />
+                <col className="col-val" />
+                <col className="col-val" />
+                <col className="col-val" />
+                <col className="col-qty" />
+                <col className="col-val" />
+                <col className="col-qty" />
+                <col className="col-val" />
+                <col className="col-qty" />
+                <col className="col-val" />
+              </colgroup>
               <thead className="sticky top-0 z-10">
                 {/* Linha de grupos coloridos */}
                 <tr>
-                  <th colSpan={5} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.id} sticky left-0 z-20`}>
+                  <th colSpan={5} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.id}`}>
                     Identificação
                   </th>
                   <th colSpan={4} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.contract} ${BORDER_L}`}>
@@ -1208,26 +1225,26 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                   </th>
                 </tr>
                 <tr className="bg-foreground text-background">
-                  {/* Identificação (sticky) */}
-                  <th className="px-2 py-2 text-left font-semibold w-[64px] sticky left-0 bg-foreground z-20">Item</th>
-                  <th className="px-2 py-2 text-center font-semibold w-[90px] sticky left-[64px] bg-foreground z-20">Código</th>
-                  <th className="px-2 py-2 text-center font-semibold w-[80px] sticky left-[154px] bg-foreground z-20">Banco</th>
-                  <th className="px-2 py-2 text-left font-semibold min-w-[260px] sticky left-[234px] bg-foreground z-20">Descrição</th>
-                  <th className="px-2 py-2 text-center font-semibold w-[50px]">Und.</th>
+                  {/* Identificação */}
+                  <th className="px-2 py-2 text-left font-semibold">Item</th>
+                  <th className="px-2 py-2 text-center font-semibold">Código</th>
+                  <th className="px-2 py-2 text-center font-semibold">Banco</th>
+                  <th className="px-2 py-2 text-left font-semibold">Descrição</th>
+                  <th className="px-2 py-2 text-center font-semibold cell-und">Und.</th>
                   {/* Contrato */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. Contrat.</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[110px]">V. Unit. s/ BDI</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[110px]">V. Unit. c/ BDI</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Total Contratado</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Contrat.</th>
+                  <th className="px-2 py-2 text-right font-semibold">V. Unit. s/ BDI</th>
+                  <th className="px-2 py-2 text-right font-semibold">V. Unit. c/ BDI</th>
+                  <th className="px-2 py-2 text-right font-semibold">Total Contratado</th>
                   {/* Medição atual */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. Medição</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Subtotal Medição</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Medição</th>
+                  <th className="px-2 py-2 text-right font-semibold">Subtotal Medição</th>
                   {/* Acumulado */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. Acum.</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Subtotal Acumulado</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Acum.</th>
+                  <th className="px-2 py-2 text-right font-semibold">Subtotal Acumulado</th>
                   {/* Saldo */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. a Executar</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Subtotal a Executar</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. a Executar</th>
+                  <th className="px-2 py-2 text-right font-semibold">Subtotal a Executar</th>
                 </tr>
               </thead>
               <tbody>
