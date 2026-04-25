@@ -52,6 +52,12 @@ export interface Task {
   unit?: string;
   /** Preço unitário contratado (R$/unidade). Usado na Planilha de Medição. */
   unitPrice?: number;
+  /** Preço unitário SEM BDI (R$/unidade). Se ausente, deriva-se de unitPrice/(1+BDI). */
+  unitPriceNoBDI?: number;
+  /** Código do item (referência SINAPI/orçamento). */
+  itemCode?: string;
+  /** Banco de referência do preço (ex.: SINAPI, SBC, próprio). */
+  priceBank?: string;
   laborCompositions?: LaborComposition[];
   // CPM fields (computed)
   es?: number;
@@ -144,6 +150,14 @@ export interface ContractInfo {
   contracted?: string;     // Contratada
   contractNumber?: string;
   nextMeasurementNumber?: number;
+  /** Objeto do contrato (escopo resumido). */
+  contractObject?: string;
+  /** Local / município da obra. */
+  location?: string;
+  /** Fonte de orçamento (ex.: SINAPI 07/2024). */
+  budgetSource?: string;
+  /** BDI em % (ex.: 25 representa 25%). */
+  bdiPercent?: number;
 }
 
 export interface Project {
