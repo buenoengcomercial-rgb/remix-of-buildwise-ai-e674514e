@@ -834,12 +834,41 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
   return (
     <div className="p-6 space-y-5 print:p-0 print:space-y-3">
       <style>{`
+        .measurement-table { table-layout: fixed; min-width: 1400px; }
+        .measurement-table col.col-item { width: 70px; }
+        .measurement-table col.col-code { width: 90px; }
+        .measurement-table col.col-bank { width: 70px; }
+        .measurement-table col.col-desc { width: 360px; min-width: 280px; max-width: 460px; }
+        .measurement-table col.col-und  { width: 70px; }
+        .measurement-table col.col-qty  { width: 100px; }
+        .measurement-table col.col-val  { width: 120px; }
+        .measurement-table th, .measurement-table td { vertical-align: top; }
+        .measurement-table .cell-desc {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          white-space: normal;
+          line-height: 1.25;
+        }
+        .measurement-table .cell-und {
+          text-align: center;
+          white-space: nowrap;
+          border-left: 1px solid hsl(var(--border));
+        }
         @media print {
-          @page { size: A4 landscape; margin: 12mm; }
+          @page { size: A4 landscape; margin: 10mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-hide { display: none !important; }
-          .measurement-table { font-size: 9px !important; }
-          .measurement-table th, .measurement-table td { padding: 3px 4px !important; }
+          .measurement-table { font-size: 8.5px !important; min-width: 0 !important; width: 100% !important; }
+          .measurement-table th, .measurement-table td { padding: 2px 3px !important; }
+          .measurement-table tr { page-break-inside: avoid; }
+          .measurement-table .cell-desc {
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+          }
+          .measurement-table .cell-und { white-space: nowrap !important; text-align: center !important; }
+          /* Em impressão, desativar sticky para evitar sobreposição */
+          .measurement-table th, .measurement-table td { position: static !important; }
         }
       `}</style>
 
