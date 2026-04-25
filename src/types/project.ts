@@ -50,6 +50,8 @@ export interface Task {
   // RUP fields
   quantity?: number;
   unit?: string;
+  /** Preço unitário contratado (R$/unidade). Usado na Planilha de Medição. */
+  unitPrice?: number;
   laborCompositions?: LaborComposition[];
   // CPM fields (computed)
   es?: number;
@@ -137,6 +139,13 @@ export interface ProjectUiState {
   ganttCollapsedPhaseIds?: string[];
 }
 
+export interface ContractInfo {
+  contractor?: string;     // Contratante
+  contracted?: string;     // Contratada
+  contractNumber?: string;
+  nextMeasurementNumber?: number;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -148,6 +157,8 @@ export interface Project {
   teams?: TeamDefinition[];
   /** Estado visual persistido da UI (ex.: capítulos minimizados na EAP). */
   uiState?: ProjectUiState;
+  /** Dados contratuais usados no boletim de medição. */
+  contractInfo?: ContractInfo;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
