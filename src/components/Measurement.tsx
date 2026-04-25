@@ -829,7 +829,11 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                         <tr
                           key={r.taskId}
                           className={`border-b border-border/60 hover:bg-muted/30 ${
-                            i % 2 === 0 ? 'bg-background' : 'bg-muted/10'
+                            r.hasNoLogsInPeriod
+                              ? 'bg-amber-50 dark:bg-amber-950/20'
+                              : i % 2 === 0
+                                ? 'bg-background'
+                                : 'bg-muted/10'
                           }`}
                         >
                           <td
@@ -839,7 +843,17 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                             {r.item}
                           </td>
                           <td className="px-2 py-1.5 text-foreground align-top">
-                            <div className="font-medium">{r.description}</div>
+                            <div className="font-medium flex items-center gap-1.5">
+                              {r.hasNoLogsInPeriod && (
+                                <AlertCircle
+                                  className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 shrink-0 print:hidden"
+                                  aria-label="Sem apontamento diário no período"
+                                >
+                                  <title>Sem apontamento diário no período</title>
+                                </AlertCircle>
+                              )}
+                              <span>{r.description}</span>
+                            </div>
                           </td>
                           <td className="px-2 py-1.5 text-center text-muted-foreground align-top">
                             {r.unit}
@@ -850,8 +864,30 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                           <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
                             {fmtNum(r.qtyPriorAccum)}
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
-                            {fmtNum(r.qtyPeriod)}
+                          <td className="px-2 py-1.5 text-right align-top">
+                            {r.hasNoLogsInPeriod ? (
+                              <>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={r.qtyPeriod ? Number(r.qtyPeriod.toFixed(3)) : ''}
+                                  placeholder="0,00"
+                                  onChange={e =>
+                                    setManualPeriodQuantity(r.taskId, parseFloat(e.target.value) || 0)
+                                  }
+                                  className="h-7 px-2 text-right tabular-nums text-xs print:hidden"
+                                  title="Lançar manualmente a quantidade medida no período"
+                                />
+                                <span className="hidden print:inline tabular-nums">
+                                  {fmtNum(r.qtyPeriod)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="tabular-nums font-semibold text-primary">
+                                {fmtNum(r.qtyPeriod)}
+                              </span>
+                            )}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
                             {fmtNum(r.qtyCurrentAccum)}
