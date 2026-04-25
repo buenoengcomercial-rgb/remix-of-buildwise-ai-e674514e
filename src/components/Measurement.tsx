@@ -739,112 +739,147 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
               </tr>
             </thead>
             <tbody>
-              {groups.length === 0 ? (
+              {groupTree.length === 0 ? (
                 <tr>
                   <td colSpan={14} className="text-center py-8 text-muted-foreground">
                     Nenhum item encontrado para os filtros selecionados.
                   </td>
                 </tr>
               ) : (
-                groups.map(group => (
-                  <Fragment key={group.phaseId}>
-                    <tr className="bg-primary/5 border-y border-border">
-                      <td colSpan={14} className="px-2 py-2 font-bold text-foreground text-[13px]">
-                        {group.number} — {group.name}
-                      </td>
-                    </tr>
-                    {group.rows.map((r, i) => (
-                      <tr
-                        key={r.taskId}
-                        className={`border-b border-border/60 hover:bg-muted/30 ${
-                          i % 2 === 0 ? 'bg-background' : 'bg-muted/10'
-                        }`}
-                      >
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-foreground align-top">
-                          {r.item}
-                        </td>
-                        <td className="px-2 py-1.5 text-foreground align-top">
-                          <div className="font-medium">{r.description}</div>
-                          {r.phaseChain && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate" title={r.phaseChain}>
-                              {r.phaseChain}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-2 py-1.5 text-center text-muted-foreground align-top">
-                          {r.unit}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
-                          {fmtNum(r.qtyContracted)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
-                          {fmtNum(r.qtyPriorAccum)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
-                          {fmtNum(r.qtyPeriod)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
-                          {fmtNum(r.qtyCurrentAccum)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
-                          {fmtNum(r.qtyBalance)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
-                          {fmtPct(r.percentExecuted)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right align-top print:hidden">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={r.unitPrice ? Number(r.unitPrice.toFixed(2)) : ''}
-                            placeholder="0,00"
-                            onChange={e => updateUnitPrice(r.taskId, parseFloat(e.target.value) || 0)}
-                            className={`h-7 px-2 text-right tabular-nums text-xs ${
-                              r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
-                            }`}
-                            title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Preço unitário'}
-                          />
-                        </td>
-                        <td className="hidden print:table-cell px-2 py-1.5 text-right tabular-nums text-foreground align-top">
-                          {fmtBRL(r.unitPrice)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
-                          {fmtBRL(r.valueContracted)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
-                          {fmtBRL(r.valuePeriod)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
-                          {fmtBRL(r.valueAccum)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
-                          {fmtBRL(r.valueBalance)}
+                (() => {
+                  const out: JSX.Element[] = [];
+
+                  const headerStyleByDepth = (depth: number) => {
+                    if (depth === 0) return 'bg-primary/10 text-foreground text-[13px] font-bold border-y border-primary/30';
+                    if (depth === 1) return 'bg-muted/60 text-foreground text-[12px] font-semibold border-y border-border';
+                    return 'bg-muted/30 text-foreground text-[11px] font-semibold border-y border-border';
+                  };
+                  const subtotalStyleByDepth = (depth: number) => {
+                    if (depth === 0) return 'bg-primary/5 border-y border-primary/30 font-bold text-[12px]';
+                    if (depth === 1) return 'bg-muted/40 border-y border-border font-semibold text-[11px]';
+                    return 'bg-muted/20 border-y border-border font-semibold text-[11px]';
+                  };
+
+                  const renderGroup = (g: GroupNode) => {
+                    const indentPx = g.depth * 14;
+
+                    // Chapter header row
+                    out.push(
+                      <tr key={`h-${g.phaseId}`} className={headerStyleByDepth(g.depth)}>
+                        <td colSpan={14} className="px-2 py-2">
+                          <span className="font-mono tabular-nums mr-2" style={{ paddingLeft: indentPx }}>
+                            {g.number}
+                          </span>
+                          <span>{g.name}</span>
                         </td>
                       </tr>
-                    ))}
-                    <tr className="bg-muted/40 border-y border-border font-semibold">
-                      <td colSpan={10} className="px-2 py-1.5 text-right text-foreground text-[11px]">
-                        Subtotal {group.number} — {group.name}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
-                        {fmtBRL(group.subtotalContracted)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-primary">
-                        {fmtBRL(group.subtotalPeriod)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
-                        {fmtBRL(group.subtotalAccum)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
-                        {fmtBRL(group.subtotalBalance)}
-                      </td>
-                    </tr>
-                  </Fragment>
-                ))
+                    );
+
+                    // Direct rows
+                    g.rows.forEach((r, i) => {
+                      out.push(
+                        <tr
+                          key={r.taskId}
+                          className={`border-b border-border/60 hover:bg-muted/30 ${
+                            i % 2 === 0 ? 'bg-background' : 'bg-muted/10'
+                          }`}
+                        >
+                          <td
+                            className="px-2 py-1.5 font-mono tabular-nums text-foreground align-top"
+                            style={{ paddingLeft: indentPx + 8 }}
+                          >
+                            {r.item}
+                          </td>
+                          <td className="px-2 py-1.5 text-foreground align-top">
+                            <div className="font-medium">{r.description}</div>
+                          </td>
+                          <td className="px-2 py-1.5 text-center text-muted-foreground align-top">
+                            {r.unit}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                            {fmtNum(r.qtyContracted)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
+                            {fmtNum(r.qtyPriorAccum)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
+                            {fmtNum(r.qtyPeriod)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                            {fmtNum(r.qtyCurrentAccum)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
+                            {fmtNum(r.qtyBalance)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                            {fmtPct(r.percentExecuted)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right align-top print:hidden">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={r.unitPrice ? Number(r.unitPrice.toFixed(2)) : ''}
+                              placeholder="0,00"
+                              onChange={e => updateUnitPrice(r.taskId, parseFloat(e.target.value) || 0)}
+                              className={`h-7 px-2 text-right tabular-nums text-xs ${
+                                r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
+                              }`}
+                              title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Preço unitário'}
+                            />
+                          </td>
+                          <td className="hidden print:table-cell px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                            {fmtBRL(r.unitPrice)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                            {fmtBRL(r.valueContracted)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary align-top">
+                            {fmtBRL(r.valuePeriod)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground align-top">
+                            {fmtBRL(r.valueAccum)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top">
+                            {fmtBRL(r.valueBalance)}
+                          </td>
+                        </tr>
+                      );
+                    });
+
+                    // Recurse into children
+                    g.children.forEach(renderGroup);
+
+                    // Subtotal row
+                    out.push(
+                      <tr key={`s-${g.phaseId}`} className={subtotalStyleByDepth(g.depth)}>
+                        <td colSpan={10} className="px-2 py-1.5 text-right text-foreground">
+                          <span style={{ paddingLeft: indentPx }}>
+                            Subtotal {g.number} — {g.name}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
+                          {fmtBRL(g.totals.contracted)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-primary">
+                          {fmtBRL(g.totals.period)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
+                          {fmtBRL(g.totals.accum)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-foreground">
+                          {fmtBRL(g.totals.balance)}
+                        </td>
+                      </tr>
+                    );
+                  };
+
+                  groupTree.forEach(renderGroup);
+                  return out;
+                })()
               )}
             </tbody>
-            {groups.length > 0 && (
+            {groupTree.length > 0 && (
               <tfoot>
                 <tr className="bg-primary/10 border-t-2 border-primary font-bold">
                   <td colSpan={10} className="px-2 py-2 text-right text-foreground text-[12px] uppercase tracking-wide">
