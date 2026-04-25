@@ -1291,14 +1291,14 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
 
                           out.push(
                             <tr key={r.taskId} className={`border-b border-border/60 hover:bg-muted/30 ${baseBg}`}>
-                              {/* Identificação — sticky */}
+                              {/* Identificação */}
                               <td
-                                className={`px-2 py-1.5 font-mono tabular-nums text-foreground align-top sticky left-0 z-10 ${stickyBg}`}
+                                className={`px-2 py-1.5 font-mono tabular-nums text-foreground align-top ${stickyBg}`}
                                 style={{ paddingLeft: indentPx + 8 }}
                               >
                                 {r.item}
                               </td>
-                              <td className={`px-1 py-1 align-top text-center sticky left-[64px] z-10 ${stickyBg}`}>
+                              <td className={`px-1 py-1 align-top text-center ${stickyBg}`}>
                                 <Input
                                   className="h-7 px-1.5 text-[11px] text-center border-transparent hover:border-input focus-visible:ring-1 print:hidden"
                                   value={r.itemCode}
@@ -1310,7 +1310,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                 />
                                 <span className="hidden print:inline">{r.itemCode || '—'}</span>
                               </td>
-                              <td className={`px-1 py-1 align-top text-center sticky left-[154px] z-10 ${stickyBg}`}>
+                              <td className={`px-1 py-1 align-top text-center ${stickyBg}`}>
                                 <Input
                                   className="h-7 px-1.5 text-[11px] text-center border-transparent hover:border-input focus-visible:ring-1 print:hidden"
                                   value={r.priceBank}
@@ -1322,7 +1322,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                 />
                                 <span className="hidden print:inline">{r.priceBank || '—'}</span>
                               </td>
-                              <td className={`px-2 py-1.5 text-foreground align-top sticky left-[234px] z-10 ${stickyBg}`}>
+                              <td className={`px-2 py-1.5 text-foreground align-top cell-desc ${stickyBg}`}>
                                 <div className="flex items-start gap-1.5">
                                   {r.hasNoLogsInPeriod && (
                                     <AlertCircle
@@ -1330,10 +1330,10 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                       aria-label="Sem apontamento no período"
                                     />
                                   )}
-                                  <span className="leading-snug">{r.description}</span>
+                                  <span className="leading-snug break-words">{r.description}</span>
                                 </div>
                               </td>
-                              <td className={`px-2 py-1.5 text-center text-muted-foreground align-top ${G_BG.id}`}>
+                              <td className={`px-2 py-1.5 text-muted-foreground align-top cell-und ${G_BG.id}`}>
                                 {r.unit}
                               </td>
 
