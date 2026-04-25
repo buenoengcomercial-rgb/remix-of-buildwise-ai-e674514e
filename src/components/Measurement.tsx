@@ -32,6 +32,10 @@ interface Row {
   valueAccum: number;
   valueContracted: number;
   valueBalance: number;
+  /** true quando não há nenhum apontamento dentro do período selecionado */
+  hasNoLogsInPeriod: boolean;
+  /** true quando a tarefa não tem nenhum dailyLog cadastrado */
+  hasNoLogsAtAll: boolean;
 }
 
 interface GroupNode {
