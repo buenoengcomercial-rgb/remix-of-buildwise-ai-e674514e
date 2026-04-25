@@ -160,6 +160,62 @@ export interface ContractInfo {
   bdiPercent?: number;
 }
 
+export type MeasurementStatus =
+  | 'draft'         // Rascunho — totalmente editável
+  | 'generated'     // Gerada — bloqueada para edição
+  | 'in_review'     // Em análise fiscal — bloqueada
+  | 'approved'      // Aprovada — bloqueada
+  | 'rejected';     // Reprovada / Ajustar — destrava edição limitada
+
+export interface MeasurementSnapshotItem {
+  item: string;
+  phaseId: string;
+  phaseChain: string;
+  taskId: string;
+  description: string;
+  unit: string;
+  itemCode: string;
+  priceBank: string;
+  qtyContracted: number;
+  unitPriceNoBDI: number;
+  unitPriceWithBDI: number;
+  /** Quantidade originalmente proposta na geração da medição. */
+  qtyProposed: number;
+  /** Quantidade aprovada pelo fiscal (opcional). Quando preenchida, prevalece nos cálculos. */
+  qtyApproved?: number;
+  /** Acumulado anterior (somatório fora do período). */
+  qtyPriorAccum: number;
+  /** Observação livre por item. */
+  notes?: string;
+}
+
+export interface MeasurementChangeLog {
+  at: string;          // ISO
+  field: string;
+  itemId?: string;     // taskId quando aplicável
+  previous: string;
+  next: string;
+  reason?: string;
+}
+
+export interface SavedMeasurement {
+  id: string;
+  number: number;
+  startDate: string;
+  endDate: string;
+  issueDate: string;
+  status: MeasurementStatus;
+  bdiPercent: number;
+  notes?: string;
+  items: MeasurementSnapshotItem[];
+  /** Histórico de alterações após a geração. */
+  history?: MeasurementChangeLog[];
+  /** Capturado no momento da geração para o cabeçalho do boletim. */
+  contractSnapshot?: ContractInfo;
+  /** Carimbo de geração. */
+  generatedAt?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -173,6 +229,8 @@ export interface Project {
   uiState?: ProjectUiState;
   /** Dados contratuais usados no boletim de medição. */
   contractInfo?: ContractInfo;
+  /** Medições geradas e salvas (snapshots). */
+  measurements?: SavedMeasurement[];
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
