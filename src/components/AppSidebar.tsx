@@ -1,5 +1,5 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ShoppingCart, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { listProjects, ProjectMeta } from '@/lib/projectStorage';
@@ -19,7 +19,7 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { view: 'gantt', label: 'Cronograma', icon: GanttChart },
   { view: 'tasks', label: 'Tarefas (EAP)', icon: ListTodo },
-  { view: 'purchases', label: 'Compras', icon: ShoppingCart },
+  { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
 export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, activeProjectId }: AppSidebarProps) {
