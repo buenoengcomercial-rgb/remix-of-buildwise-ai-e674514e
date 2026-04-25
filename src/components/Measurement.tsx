@@ -834,12 +834,41 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
   return (
     <div className="p-6 space-y-5 print:p-0 print:space-y-3">
       <style>{`
+        .measurement-table { table-layout: fixed; min-width: 1400px; }
+        .measurement-table col.col-item { width: 70px; }
+        .measurement-table col.col-code { width: 90px; }
+        .measurement-table col.col-bank { width: 70px; }
+        .measurement-table col.col-desc { width: 360px; min-width: 280px; max-width: 460px; }
+        .measurement-table col.col-und  { width: 70px; }
+        .measurement-table col.col-qty  { width: 100px; }
+        .measurement-table col.col-val  { width: 120px; }
+        .measurement-table th, .measurement-table td { vertical-align: top; }
+        .measurement-table .cell-desc {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          white-space: normal;
+          line-height: 1.25;
+        }
+        .measurement-table .cell-und {
+          text-align: center;
+          white-space: nowrap;
+          border-left: 1px solid hsl(var(--border));
+        }
         @media print {
-          @page { size: A4 landscape; margin: 12mm; }
+          @page { size: A4 landscape; margin: 10mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-hide { display: none !important; }
-          .measurement-table { font-size: 9px !important; }
-          .measurement-table th, .measurement-table td { padding: 3px 4px !important; }
+          .measurement-table { font-size: 8.5px !important; min-width: 0 !important; width: 100% !important; }
+          .measurement-table th, .measurement-table td { padding: 2px 3px !important; }
+          .measurement-table tr { page-break-inside: avoid; }
+          .measurement-table .cell-desc {
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+          }
+          .measurement-table .cell-und { white-space: nowrap !important; text-align: center !important; }
+          /* Em impressão, desativar sticky para evitar sobreposição */
+          .measurement-table th, .measurement-table td { position: static !important; }
         }
       `}</style>
 
@@ -1159,10 +1188,27 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="measurement-table w-full text-[11px] border-collapse">
+              <colgroup>
+                <col className="col-item" />
+                <col className="col-code" />
+                <col className="col-bank" />
+                <col className="col-desc" />
+                <col className="col-und" />
+                <col className="col-qty" />
+                <col className="col-val" />
+                <col className="col-val" />
+                <col className="col-val" />
+                <col className="col-qty" />
+                <col className="col-val" />
+                <col className="col-qty" />
+                <col className="col-val" />
+                <col className="col-qty" />
+                <col className="col-val" />
+              </colgroup>
               <thead className="sticky top-0 z-10">
                 {/* Linha de grupos coloridos */}
                 <tr>
-                  <th colSpan={5} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.id} sticky left-0 z-20`}>
+                  <th colSpan={5} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.id}`}>
                     Identificação
                   </th>
                   <th colSpan={4} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.contract} ${BORDER_L}`}>
@@ -1179,26 +1225,26 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                   </th>
                 </tr>
                 <tr className="bg-foreground text-background">
-                  {/* Identificação (sticky) */}
-                  <th className="px-2 py-2 text-left font-semibold w-[64px] sticky left-0 bg-foreground z-20">Item</th>
-                  <th className="px-2 py-2 text-center font-semibold w-[90px] sticky left-[64px] bg-foreground z-20">Código</th>
-                  <th className="px-2 py-2 text-center font-semibold w-[80px] sticky left-[154px] bg-foreground z-20">Banco</th>
-                  <th className="px-2 py-2 text-left font-semibold min-w-[260px] sticky left-[234px] bg-foreground z-20">Descrição</th>
-                  <th className="px-2 py-2 text-center font-semibold w-[50px]">Und.</th>
+                  {/* Identificação */}
+                  <th className="px-2 py-2 text-left font-semibold">Item</th>
+                  <th className="px-2 py-2 text-center font-semibold">Código</th>
+                  <th className="px-2 py-2 text-center font-semibold">Banco</th>
+                  <th className="px-2 py-2 text-left font-semibold">Descrição</th>
+                  <th className="px-2 py-2 text-center font-semibold cell-und">Und.</th>
                   {/* Contrato */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. Contrat.</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[110px]">V. Unit. s/ BDI</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[110px]">V. Unit. c/ BDI</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Total Contratado</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Contrat.</th>
+                  <th className="px-2 py-2 text-right font-semibold">V. Unit. s/ BDI</th>
+                  <th className="px-2 py-2 text-right font-semibold">V. Unit. c/ BDI</th>
+                  <th className="px-2 py-2 text-right font-semibold">Total Contratado</th>
                   {/* Medição atual */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. Medição</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Subtotal Medição</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Medição</th>
+                  <th className="px-2 py-2 text-right font-semibold">Subtotal Medição</th>
                   {/* Acumulado */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. Acum.</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Subtotal Acumulado</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Acum.</th>
+                  <th className="px-2 py-2 text-right font-semibold">Subtotal Acumulado</th>
                   {/* Saldo */}
-                  <th className={`px-2 py-2 text-right font-semibold w-[100px] ${BORDER_L}`}>Quant. a Executar</th>
-                  <th className="px-2 py-2 text-right font-semibold w-[120px]">Subtotal a Executar</th>
+                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. a Executar</th>
+                  <th className="px-2 py-2 text-right font-semibold">Subtotal a Executar</th>
                 </tr>
               </thead>
               <tbody>
@@ -1245,14 +1291,14 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
 
                           out.push(
                             <tr key={r.taskId} className={`border-b border-border/60 hover:bg-muted/30 ${baseBg}`}>
-                              {/* Identificação — sticky */}
+                              {/* Identificação */}
                               <td
-                                className={`px-2 py-1.5 font-mono tabular-nums text-foreground align-top sticky left-0 z-10 ${stickyBg}`}
+                                className={`px-2 py-1.5 font-mono tabular-nums text-foreground align-top ${stickyBg}`}
                                 style={{ paddingLeft: indentPx + 8 }}
                               >
                                 {r.item}
                               </td>
-                              <td className={`px-1 py-1 align-top text-center sticky left-[64px] z-10 ${stickyBg}`}>
+                              <td className={`px-1 py-1 align-top text-center ${stickyBg}`}>
                                 <Input
                                   className="h-7 px-1.5 text-[11px] text-center border-transparent hover:border-input focus-visible:ring-1 print:hidden"
                                   value={r.itemCode}
@@ -1264,7 +1310,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                 />
                                 <span className="hidden print:inline">{r.itemCode || '—'}</span>
                               </td>
-                              <td className={`px-1 py-1 align-top text-center sticky left-[154px] z-10 ${stickyBg}`}>
+                              <td className={`px-1 py-1 align-top text-center ${stickyBg}`}>
                                 <Input
                                   className="h-7 px-1.5 text-[11px] text-center border-transparent hover:border-input focus-visible:ring-1 print:hidden"
                                   value={r.priceBank}
@@ -1276,7 +1322,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                 />
                                 <span className="hidden print:inline">{r.priceBank || '—'}</span>
                               </td>
-                              <td className={`px-2 py-1.5 text-foreground align-top sticky left-[234px] z-10 ${stickyBg}`}>
+                              <td className={`px-2 py-1.5 text-foreground align-top cell-desc ${stickyBg}`}>
                                 <div className="flex items-start gap-1.5">
                                   {r.hasNoLogsInPeriod && (
                                     <AlertCircle
@@ -1284,10 +1330,10 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                       aria-label="Sem apontamento no período"
                                     />
                                   )}
-                                  <span className="leading-snug">{r.description}</span>
+                                  <span className="leading-snug break-words">{r.description}</span>
                                 </div>
                               </td>
-                              <td className={`px-2 py-1.5 text-center text-muted-foreground align-top ${G_BG.id}`}>
+                              <td className={`px-2 py-1.5 text-muted-foreground align-top cell-und ${G_BG.id}`}>
                                 {r.unit}
                               </td>
 
