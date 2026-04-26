@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
+import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
 import jsPDF from 'jspdf';
 
 interface DailyReportProps {
