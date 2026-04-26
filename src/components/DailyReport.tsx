@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
+import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
 import jsPDF from 'jspdf';
 
 interface DailyReportProps {
@@ -65,6 +66,8 @@ interface ProductionEntry {
   actualQuantity: number;
   plannedQuantity: number;
   notes?: string;
+  /** Equipe vinculada à tarefa (para sugestão automática de equipes presentes). */
+  teamCode?: string;
 }
 
 /** Coleta todos os apontamentos da data, respeitando hierarquia capítulo/subcapítulo. */
@@ -93,6 +96,7 @@ function collectProductionForDate(project: Project, dateISO: string): Production
           actualQuantity: log.actualQuantity || 0,
           plannedQuantity: log.plannedQuantity || 0,
           notes: log.notes,
+          teamCode: task.team,
         });
       });
     });
@@ -268,11 +272,34 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     persist(r => ({ ...r, [key]: value }));
   };
 
+  // Equipes cadastradas no projeto (fallback para defaults se ainda não definidas)
+  const projectTeams: TeamDefinition[] = useMemo(
+    () => (project.teams && project.teams.length > 0) ? project.teams : DEFAULT_TEAMS,
+    [project.teams],
+  );
+  const teamByCode = useMemo(
+    () => new Map(projectTeams.map(t => [t.code, t])),
+    [projectTeams],
+  );
+
+  // Equipes sugeridas: códigos vindos das tarefas com produção no dia
+  const suggestedTeamCodes = useMemo(() => {
+    const set = new Set<string>();
+    production.forEach(p => { if (p.teamCode) set.add(p.teamCode); });
+    return Array.from(set);
+  }, [production]);
+
   // Equipes
-  const addTeamRow = () => persist(r => ({
-    ...r,
-    teamsPresent: [...(r.teamsPresent || []), { id: uid('tm'), name: '', role: '', count: 1 }],
-  }));
+  const addTeamRow = (teamCode?: string) => persist(r => {
+    const def = teamCode ? teamByCode.get(teamCode) : undefined;
+    return {
+      ...r,
+      teamsPresent: [
+        ...(r.teamsPresent || []),
+        { id: uid('tm'), teamCode, name: def?.label || '', role: def?.composition || '', count: 1 },
+      ],
+    };
+  });
   const updateTeamRow = (id: string, patch: Partial<DailyReportTeamRow>) => persist(r => ({
     ...r,
     teamsPresent: (r.teamsPresent || []).map(t => t.id === id ? { ...t, ...patch } : t),
@@ -281,6 +308,18 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     ...r,
     teamsPresent: (r.teamsPresent || []).filter(t => t.id !== id),
   }));
+
+  /** Adiciona em lote as equipes sugeridas pelo apontamento, evitando duplicar códigos já presentes. */
+  const addSuggestedTeams = () => persist(r => {
+    const existingCodes = new Set((r.teamsPresent || []).map(t => t.teamCode).filter(Boolean) as string[]);
+    const toAdd = suggestedTeamCodes.filter(c => !existingCodes.has(c));
+    if (toAdd.length === 0) return r;
+    const newRows: DailyReportTeamRow[] = toAdd.map(code => {
+      const def = teamByCode.get(code);
+      return { id: uid('tm'), teamCode: code, name: def?.label || code, role: def?.composition || '', count: 1 };
+    });
+    return { ...r, teamsPresent: [...(r.teamsPresent || []), ...newRows] };
+  });
 
   // Equipamentos
   const addEqRow = () => persist(r => ({
@@ -347,7 +386,10 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       doc.setFont('helvetica', 'normal');
       currentReport.teamsPresent!.forEach(t => {
         if (y > 275) { doc.addPage(); y = margin; }
-        doc.text(`• ${t.name || '—'}${t.role ? ` (${t.role})` : ''} — ${t.count ?? 1}`, margin + 4, y);
+        const label = (t.teamCode && teamByCode.get(t.teamCode)?.label) || t.name || '—';
+        const role = t.role ? ` (${t.role})` : '';
+        const notes = t.notes ? ` — ${t.notes}` : '';
+        doc.text(`• ${label}${role} — ${t.count ?? 1}${notes}`, margin + 4, y);
         y += 5;
       });
     }
@@ -386,7 +428,6 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
           entries.forEach(e => {
             if (y > 280) { doc.addPage(); y = margin; }
             const txt = `• ${e.taskName} — ${e.actualQuantity.toFixed(2)} ${e.unit}` +
-              (e.plannedQuantity ? ` (meta ${e.plannedQuantity.toFixed(2)})` : '') +
               (e.notes ? ` — ${e.notes}` : '');
             const lines = doc.splitTextToSize(txt, pageW - margin * 2 - indent);
             doc.text(lines, margin + indent, y);
@@ -589,26 +630,64 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       {/* Equipes / Equipamentos lado a lado */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="w-4 h-4 text-info" /> Equipe presente
             </CardTitle>
-            <Button size="sm" variant="ghost" onClick={addTeamRow}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
-            </Button>
+            <div className="flex items-center gap-1">
+              {suggestedTeamCodes.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={addSuggestedTeams} title="Adiciona as equipes vinculadas às tarefas com produção no dia">
+                  <Activity className="w-3.5 h-3.5 mr-1" /> Sugerir do dia
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => addTeamRow()}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {(currentReport.teamsPresent || []).length === 0 && (
-              <p className="text-xs text-muted-foreground italic">Nenhuma equipe lançada.</p>
+              <p className="text-xs text-muted-foreground italic">
+                Nenhuma equipe lançada.
+                {suggestedTeamCodes.length > 0 && (
+                  <> Há {suggestedTeamCodes.length} equipe(s) com produção no dia — clique em <strong>Sugerir do dia</strong>.</>
+                )}
+              </p>
             )}
             {(currentReport.teamsPresent || []).map(t => (
-              <div key={t.id} className="grid grid-cols-[1fr_1fr_70px_auto] gap-2 items-center">
-                <Input placeholder="Nome" value={t.name}
-                  onChange={e => updateTeamRow(t.id, { name: e.target.value })} />
-                <Input placeholder="Função" value={t.role || ''}
-                  onChange={e => updateTeamRow(t.id, { role: e.target.value })} />
+              <div key={t.id} className="grid grid-cols-[minmax(0,1.6fr)_70px_minmax(0,1.4fr)_auto] gap-2 items-center">
+                <Select
+                  value={t.teamCode || ''}
+                  onValueChange={(v) => {
+                    const def = teamByCode.get(v);
+                    updateTeamRow(t.id, { teamCode: v, name: def?.label || t.name, role: def?.composition || t.role });
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder={t.name || 'Selecionar equipe...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projectTeams.map(team => (
+                      <SelectItem key={team.code} value={team.code}>
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-sm border"
+                            style={{ backgroundColor: team.barColor, borderColor: team.borderColor }}
+                          />
+                          <span>{team.label}</span>
+                          <span className="text-muted-foreground text-[10px]">— {team.composition}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input type="number" min={0} placeholder="Qtd" value={t.count ?? ''}
-                  onChange={e => updateTeamRow(t.id, { count: Number(e.target.value) })} />
+                  onChange={e => {
+                    const n = Number(e.target.value);
+                    updateTeamRow(t.id, { count: Number.isFinite(n) && n >= 0 ? n : 0 });
+                  }} />
+                <Input placeholder="Observação" value={t.notes || ''}
+                  onChange={e => updateTeamRow(t.id, { notes: e.target.value })} />
                 <Button size="icon" variant="ghost" onClick={() => removeTeamRow(t.id)}>
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>
@@ -745,28 +824,19 @@ function ProductionTable({ entries }: { entries: ProductionEntry[] }) {
           <tr>
             <th className="text-left px-2 py-1.5 font-medium">Tarefa</th>
             <th className="text-center px-2 py-1.5 font-medium w-20">Unid.</th>
-            <th className="text-right px-2 py-1.5 font-medium w-24">Realizado</th>
-            <th className="text-right px-2 py-1.5 font-medium w-24">Meta</th>
-            <th className="text-right px-2 py-1.5 font-medium w-24">Saldo</th>
+            <th className="text-right px-2 py-1.5 font-medium w-28">Qtd. executada</th>
             <th className="text-left px-2 py-1.5 font-medium">Observação</th>
           </tr>
         </thead>
         <tbody>
-          {entries.map(e => {
-            const saldo = (e.plannedQuantity || 0) - (e.actualQuantity || 0);
-            return (
-              <tr key={e.taskId + e.notes} className="border-t border-border">
-                <td className="px-2 py-1.5">{e.taskName}</td>
-                <td className="px-2 py-1.5 text-center text-muted-foreground">{e.unit}</td>
-                <td className="px-2 py-1.5 text-right font-semibold">{e.actualQuantity.toFixed(2)}</td>
-                <td className="px-2 py-1.5 text-right">{e.plannedQuantity.toFixed(2)}</td>
-                <td className={`px-2 py-1.5 text-right ${saldo > 0 ? 'text-warning' : 'text-success'}`}>
-                  {saldo.toFixed(2)}
-                </td>
-                <td className="px-2 py-1.5 text-muted-foreground">{e.notes || '—'}</td>
-              </tr>
-            );
-          })}
+          {entries.map(e => (
+            <tr key={e.taskId + (e.notes || '')} className="border-t border-border">
+              <td className="px-2 py-1.5">{e.taskName}</td>
+              <td className="px-2 py-1.5 text-center text-muted-foreground">{e.unit}</td>
+              <td className="px-2 py-1.5 text-right font-semibold">{e.actualQuantity.toFixed(2)}</td>
+              <td className="px-2 py-1.5 text-muted-foreground">{e.notes || '—'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
