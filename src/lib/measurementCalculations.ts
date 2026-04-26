@@ -41,6 +41,10 @@ export interface MeasurementLineResult {
   totalPeriod: number;
   totalAccumulated: number;
   totalBalance: number;
+  totalContractedNoBDI: number;
+  totalPeriodNoBDI: number;
+  totalAccumulatedNoBDI: number;
+  totalBalanceNoBDI: number;
   percentExecuted: number;
 }
 
@@ -61,6 +65,11 @@ export function calculateMeasurementLine(input: MeasurementLineInput): Measureme
   const totalAccumulated = trunc2(unitPriceWithBDI * quantityCurrentAccum);
   const totalBalance = Math.max(0, trunc2(totalContracted - totalAccumulated));
 
+  const totalContractedNoBDI = trunc2(unitPriceNoBDI * qtyContracted);
+  const totalPeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
+  const totalAccumulatedNoBDI = trunc2(unitPriceNoBDI * quantityCurrentAccum);
+  const totalBalanceNoBDI = Math.max(0, trunc2(totalContractedNoBDI - totalAccumulatedNoBDI));
+
   const percentExecuted = qtyContracted > 0
     ? trunc2((quantityCurrentAccum / qtyContracted) * 100)
     : 0;
@@ -74,6 +83,10 @@ export function calculateMeasurementLine(input: MeasurementLineInput): Measureme
     totalPeriod,
     totalAccumulated,
     totalBalance,
+    totalContractedNoBDI,
+    totalPeriodNoBDI,
+    totalAccumulatedNoBDI,
+    totalBalanceNoBDI,
     percentExecuted,
   };
 }

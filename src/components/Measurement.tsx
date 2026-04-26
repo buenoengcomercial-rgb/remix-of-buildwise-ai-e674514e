@@ -10,6 +10,7 @@ import {
   MeasurementChangeLog,
 } from '@/types/project';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
+import { trunc2, calculateUnitPriceWithBDI, calculateMeasurementLine } from '@/lib/measurementCalculations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,8 +122,6 @@ const fmtBRL = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const fmtPct = (n: number) => `${n.toFixed(2)}%`;
-/** Truncamento financeiro em 2 casas decimais (NUNCA arredonda). */
-const trunc2 = (value: number): number => Math.trunc((value || 0) * 100) / 100;
 const fmtDateBR = (iso: string) => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
@@ -439,19 +438,17 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       // Snapshot: não recalcula da EAP — usa o que foi salvo
       return activeMeasurement.items.map(it => {
         const qtyPeriod = it.qtyApproved ?? it.qtyProposed ?? 0;
-        const qtyCurrentAccum = it.qtyPriorAccum + qtyPeriod;
-        const qtyBalance = Math.max(it.qtyContracted - qtyCurrentAccum, 0);
-        const pct = it.qtyContracted > 0 ? (qtyCurrentAccum / it.qtyContracted) * 100 : 0;
-        const unitPriceWithBDI = trunc2(it.unitPriceWithBDI);
-        const unitPriceNoBDI = trunc2(it.unitPriceNoBDI);
-        const valueContracted = trunc2(unitPriceWithBDI * it.qtyContracted);
-        const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
-        const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
-        const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
-        const valueContractedNoBDI = trunc2(unitPriceNoBDI * it.qtyContracted);
-        const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
-        const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
-        const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
+        // Snapshot: preserva preços já congelados — derivamos BDI implícito p/ manter c/BDI exato
+        const snapNoBDI = trunc2(it.unitPriceNoBDI);
+        const snapWithBDI = trunc2(it.unitPriceWithBDI);
+        const implicitBdi = snapNoBDI > 0 ? ((snapWithBDI / snapNoBDI) - 1) * 100 : 0;
+        const calc = calculateMeasurementLine({
+          quantityContracted: it.qtyContracted,
+          quantityPeriod: qtyPeriod,
+          quantityPriorAccum: it.qtyPriorAccum,
+          unitPriceNoBDI: snapNoBDI,
+          bdiPercent: implicitBdi,
+        });
         return {
           item: it.item,
           phaseId: it.phaseId,
@@ -466,14 +463,20 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
           qtyPeriod,
           qtyProposed: it.qtyProposed,
           qtyApproved: it.qtyApproved,
-          qtyCurrentAccum,
-          qtyBalance,
-          percentExecuted: pct,
-          unitPriceNoBDI,
-          unitPriceWithBDI,
+          qtyCurrentAccum: calc.quantityCurrentAccum,
+          qtyBalance: calc.quantityBalance,
+          percentExecuted: calc.percentExecuted,
+          unitPriceNoBDI: calc.unitPriceNoBDI,
+          unitPriceWithBDI: calc.unitPriceWithBDI,
           unitPriceIsEstimated: false,
-          valueContractedNoBDI, valuePeriodNoBDI, valueAccumNoBDI, valueBalanceNoBDI,
-          valueContracted, valuePeriod, valueAccum, valueBalance,
+          valueContractedNoBDI: calc.totalContractedNoBDI,
+          valuePeriodNoBDI: calc.totalPeriodNoBDI,
+          valueAccumNoBDI: calc.totalAccumulatedNoBDI,
+          valueBalanceNoBDI: calc.totalBalanceNoBDI,
+          valueContracted: calc.totalContracted,
+          valuePeriod: calc.totalPeriod,
+          valueAccum: calc.totalAccumulated,
+          valueBalance: calc.totalBalance,
           hasNoLogsInPeriod: qtyPeriod === 0,
           hasNoLogsAtAll: false,
           notes: it.notes,
@@ -513,40 +516,33 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       const qtyPriorAccum = Math.max(qtyPriorAccumLogs, priorFromMeas);
 
       const hasNoLogsInPeriod = !hasLogsInPeriod;
-      const qtyCurrentAccum = qtyPriorAccum + qtyPeriod;
-      const qtyBalance = Math.max(qtyContracted - qtyCurrentAccum, 0);
-      const percentExecuted =
-        qtyContracted > 0 ? (qtyCurrentAccum / qtyContracted) * 100 : task.percentComplete || 0;
 
+      // Determinar preço s/ BDI base
       // Prioridade: 1) unitPriceNoBDI importado/manual → c/BDI sempre derivado do BDI editável
       //             2) unitPrice c/BDI manual (sem s/BDI) → s/BDI = c/BDI / (1+BDI)
       //             3) Estimativa por materiais/mão de obra
-      let unitPriceNoBDI = task.unitPriceNoBDI ?? 0;
-      let unitPriceWithBDI = 0;
+      let unitPriceNoBDIBase = task.unitPriceNoBDI ?? 0;
       let unitPriceIsEstimated = false;
 
-      if (unitPriceNoBDI > 0) {
-        // Sempre recalcular c/BDI a partir do BDI vigente — nunca substituir o preço importado
-        unitPriceWithBDI = trunc2(unitPriceNoBDI * effBdiFactor);
+      if (unitPriceNoBDIBase > 0) {
+        // já temos s/ BDI
       } else if ((task.unitPrice ?? 0) > 0) {
-        unitPriceWithBDI = trunc2(task.unitPrice!);
-        unitPriceNoBDI = trunc2(unitPriceWithBDI / effBdiFactor);
+        const withBDI = trunc2(task.unitPrice!);
+        unitPriceNoBDIBase = trunc2(withBDI / effBdiFactor);
       } else {
         const est = estimateTaskValue(task);
-        unitPriceWithBDI = qtyContracted > 0 ? trunc2(est / qtyContracted) : 0;
-        unitPriceNoBDI = trunc2(unitPriceWithBDI / effBdiFactor);
-        unitPriceIsEstimated = unitPriceWithBDI > 0;
+        const withBDI = qtyContracted > 0 ? trunc2(est / qtyContracted) : 0;
+        unitPriceNoBDIBase = trunc2(withBDI / effBdiFactor);
+        unitPriceIsEstimated = withBDI > 0;
       }
-      unitPriceNoBDI = trunc2(unitPriceNoBDI);
 
-      const valueContracted = trunc2(unitPriceWithBDI * qtyContracted);
-      const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
-      const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
-      const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
-      const valueContractedNoBDI = trunc2(unitPriceNoBDI * qtyContracted);
-      const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
-      const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
-      const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
+      const calc = calculateMeasurementLine({
+        quantityContracted: qtyContracted,
+        quantityPeriod: qtyPeriod,
+        quantityPriorAccum: qtyPriorAccum,
+        unitPriceNoBDI: unitPriceNoBDIBase,
+        bdiPercent: effBdi,
+      });
 
       return {
         item: itemNumber, phaseId: phase.id, phaseChain: chain, taskId: task.id,
@@ -555,14 +551,24 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         qtyContracted, qtyPriorAccum, qtyPeriod,
         qtyProposed: qtyPeriod,
         qtyApproved: undefined,
-        qtyCurrentAccum, qtyBalance, percentExecuted,
-        unitPriceNoBDI, unitPriceWithBDI, unitPriceIsEstimated,
-        valueContractedNoBDI, valuePeriodNoBDI, valueAccumNoBDI, valueBalanceNoBDI,
-        valueContracted, valuePeriod, valueAccum, valueBalance,
+        qtyCurrentAccum: calc.quantityCurrentAccum,
+        qtyBalance: calc.quantityBalance,
+        percentExecuted: qtyContracted > 0 ? calc.percentExecuted : (task.percentComplete || 0),
+        unitPriceNoBDI: calc.unitPriceNoBDI,
+        unitPriceWithBDI: calc.unitPriceWithBDI,
+        unitPriceIsEstimated,
+        valueContractedNoBDI: calc.totalContractedNoBDI,
+        valuePeriodNoBDI: calc.totalPeriodNoBDI,
+        valueAccumNoBDI: calc.totalAccumulatedNoBDI,
+        valueBalanceNoBDI: calc.totalBalanceNoBDI,
+        valueContracted: calc.totalContracted,
+        valuePeriod: calc.totalPeriod,
+        valueAccum: calc.totalAccumulated,
+        valueBalance: calc.totalBalance,
         hasNoLogsInPeriod, hasNoLogsAtAll,
       };
     });
-  }, [isSnapshotMode, activeMeasurement, orderedTasks, effStart, effEnd, effBdiFactor, priorAccumByTask]);
+  }, [isSnapshotMode, activeMeasurement, orderedTasks, effStart, effEnd, effBdi, effBdiFactor, priorAccumByTask]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -698,10 +704,11 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     });
   };
   const updateUnitPriceNoBDI = (taskId: string, value: number) => {
+    const noBDI = trunc2(value);
     if (isSnapshotMode) {
-      patchSnapshotItem(taskId, { unitPriceNoBDI: value, unitPriceWithBDI: value * effBdiFactor }, 'Valor unit. s/ BDI');
+      patchSnapshotItem(taskId, { unitPriceNoBDI: noBDI, unitPriceWithBDI: calculateUnitPriceWithBDI(noBDI, effBdi) }, 'Valor unit. s/ BDI');
     } else {
-      updateTaskField(taskId, { unitPriceNoBDI: value, unitPrice: value * bdiFactor });
+      updateTaskField(taskId, { unitPriceNoBDI: noBDI, unitPrice: calculateUnitPriceWithBDI(noBDI, bdiPercent) });
     }
   };
   const updateUnitPriceWithBDI = (taskId: string, value: number) => {
