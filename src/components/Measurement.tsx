@@ -823,10 +823,10 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       measurementDraft: undefined,
     });
     // Prepara automaticamente a próxima medição (volta ao modo "live")
-    const nextStart = new Date(endDate);
-    nextStart.setDate(nextStart.getDate() + 1);
-    setStartDate(nextStart.toISOString().slice(0, 10));
-    setEndDate(today);
+    const nextStartIso = isoAddDays(endDate, 1);
+    const nextEndIso = isoAddDays(nextStartIso, 30);
+    setStartDate(nextStartIso);
+    setEndDate(nextEndIso);
     setMeasurementNumber(String(number + 1));
     setActiveId('live');
     setConfirmGenerate(false);
