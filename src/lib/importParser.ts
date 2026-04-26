@@ -10,6 +10,21 @@ export interface ParsedLabor {
   workerCount: number;
 }
 
+export type IssueLevel = 'error' | 'warning' | 'info';
+
+export interface ImportIssue {
+  level: IssueLevel;
+  line?: number;
+  code?: string;
+  bank?: string;
+  type?: string;
+  description?: string;
+  message: string;
+  suggestion?: string;
+  /** Stable key to associate the issue with a composition in the preview */
+  compKey?: string;
+}
+
 export interface ParsedComposition {
   code: string;
   bank?: string;
@@ -20,6 +35,10 @@ export interface ParsedComposition {
   labor: ParsedLabor[];
   needsReview: boolean;
   reviewReason?: string;
+  /** Source row in the spreadsheet (1-indexed) */
+  sourceLine?: number;
+  /** Issues attached directly to this composition */
+  issues?: ImportIssue[];
 }
 
 export interface ParsedChapter {
@@ -27,12 +46,29 @@ export interface ParsedChapter {
   name: string;
   children: ParsedChapter[];
   compositions: ParsedComposition[];
+  /** Source row in the spreadsheet (1-indexed) */
+  sourceLine?: number;
+  /** Type as detected ("Capítulo" / "Subcapítulo") */
+  kind?: 'chapter' | 'subchapter';
+}
+
+export interface ImportSummary {
+  chapters: number;
+  subchapters: number;
+  compositions: number;
+  selectedCompositions: number;
+  labors: number;
+  errors: number;
+  warnings: number;
+  withPrice: number;
+  withoutPrice: number;
 }
 
 export interface ParseResult {
   chapters: ParsedChapter[];
   flatCompositions: ParsedComposition[];
   warnings: string[];
+  issues: ImportIssue[];
 }
 
 // ─── Excel structured parsing (column-based rules) ────────────
