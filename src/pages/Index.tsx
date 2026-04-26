@@ -1,12 +1,7 @@
-import { useState, useMemo, useEffect, useDeferredValue, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useDeferredValue, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppView, Project } from '@/types/project';
 import AppSidebar from '@/components/AppSidebar';
-import Dashboard from '@/components/Dashboard';
-import GanttChart from '@/components/GanttChart';
-import TaskList from '@/components/TaskList';
-import Measurement from '@/components/Measurement';
-import DailyReport from '@/components/DailyReport';
 import UndoButton from '@/components/UndoButton';
 import SaveStatusIndicator, { SaveStatus } from '@/components/SaveStatusIndicator';
 import MigrationDialog from '@/components/MigrationDialog';
@@ -14,6 +9,13 @@ import { Menu, X, Loader2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
 import { loadObraConfig } from '@/components/ConfiguracaoObra';
+
+// Lazy load: cada aba só baixa seu bundle quando aberta pela primeira vez.
+const Dashboard = lazy(() => import('@/components/Dashboard'));
+const GanttChart = lazy(() => import('@/components/GanttChart'));
+const TaskList = lazy(() => import('@/components/TaskList'));
+const Measurement = lazy(() => import('@/components/Measurement'));
+const DailyReport = lazy(() => import('@/components/DailyReport'));
 import { useAuth } from '@/hooks/useAuth';
 import { useOrganization } from '@/hooks/useOrganization';
 import { canCreateProject, canDeleteProject, canEditProject, ROLE_LABELS } from '@/lib/organizations';
@@ -33,7 +35,7 @@ import {
 import type { ProjectMeta } from '@/lib/projectStorage';
 
 const UNDO_LIMIT = 20;
-const SAVE_DEBOUNCE_MS = 800;
+const SAVE_DEBOUNCE_MS = 1200;
 
 type UndoStacks = Record<AppView, Project[]>;
 
@@ -147,21 +149,26 @@ export default function Index() {
 
   const deferredRawProject = useDeferredValue(rawProject);
 
+  // Recálculo condicional: o `settleAllDependencies` (mais caro, varre dependências)
+  // só roda quando o usuário está nas abas que dependem dele (Cronograma/Dashboard).
+  // Nas demais abas (Tarefas/Medição/Diário) usa-se o pipeline leve, evitando trabalho
+  // pesado a cada digitação. CPM continua rodando porque é barato e fornece `isCritical`.
+  const needsDependencySettle = currentView === 'gantt' || currentView === 'dashboard';
+
   const project = useMemo(() => {
     if (!deferredRawProject) return null;
-    const cfg = loadObraConfig();
-    const cal = { uf: cfg.uf, municipio: cfg.municipio, trabalhaSabado: cfg.trabalhaSabado, jornadaDiaria: cfg.jornadaDiaria };
-    return calculateCPM(
-      settleAllDependencies(
-        applyDailyLogsToProject(
-          syncBaselineWithRup(
-            applyRupToProject(captureBaseline(deferredRawProject))
-          )
-        ),
-        cal
+    const enriched = applyDailyLogsToProject(
+      syncBaselineWithRup(
+        applyRupToProject(captureBaseline(deferredRawProject))
       )
     );
-  }, [deferredRawProject]);
+    if (needsDependencySettle) {
+      const cfg = loadObraConfig();
+      const cal = { uf: cfg.uf, municipio: cfg.municipio, trabalhaSabado: cfg.trabalhaSabado, jornadaDiaria: cfg.jornadaDiaria };
+      return calculateCPM(settleAllDependencies(enriched, cal));
+    }
+    return calculateCPM(enriched);
+  }, [deferredRawProject, needsDependencySettle]);
 
   const makeViewSetter = useCallback((view: AppView) => {
     return (next: Project | ((prev: Project) => Project)) => {
