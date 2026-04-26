@@ -392,9 +392,10 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const bdiFactor = 1 + bdiPercent / 100;
 
   const persistContractInfo = (next: Partial<ContractInfo>) => {
+    const latestProject = projectRef.current;
     onProjectChange({
-      ...project,
-      contractInfo: { ...(project.contractInfo || {}), ...next },
+      ...latestProject,
+      contractInfo: { ...(latestProject.contractInfo || {}), ...next },
     });
   };
 
