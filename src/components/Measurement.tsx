@@ -1073,7 +1073,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       ['Acumulado', fmtBRL(totals.accum)],
       ['Saldo', fmtBRL(totals.balance)],
     ];
-    const sumH = 6.5;
+    const sumH = 7.5;
     const sumCellW = usable / summary.length;
     // fundo discreto + borda fina
     doc.setDrawColor(180);
@@ -1087,13 +1087,21 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     }
     summary.forEach((s, i) => {
       const cx = margin + i * sumCellW + sumCellW / 2;
-      const cy = y + sumH / 2 + 1.4;
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(8.2);
       doc.setTextColor(20);
-      doc.text(`${s[0]}: ${s[1]}`, cx, cy, { align: 'center' });
+      // garantir que "Rótulo: valor" caiba na célula
+      const text = `${s[0]}: ${s[1]}`;
+      const maxW = sumCellW - 4;
+      let fontSize = 8.2;
+      while (doc.getTextWidth(text) > maxW && fontSize > 6) {
+        fontSize -= 0.3;
+        doc.setFontSize(fontSize);
+      }
+      const cy = y + sumH / 2 + fontSize * 0.18;
+      doc.text(text, cx, cy, { align: 'center' });
     });
-    y += sumH + 1.5;
+    y += sumH + 1.8;
 
     // ── Tabela ──
     const head = [[
@@ -1169,8 +1177,10 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       startY: y + 1,
       head,
       body,
-      margin: { left: margin, right: margin, top: margin, bottom: margin + 14 },
+      margin: { left: margin, right: margin, top: margin + 4, bottom: margin + 14 },
       theme: 'grid',
+      showHead: 'everyPage',
+      rowPageBreak: 'avoid',
       styles: {
         font: 'helvetica',
         fontSize: 6.2,
