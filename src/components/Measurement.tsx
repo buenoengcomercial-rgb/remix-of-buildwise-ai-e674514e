@@ -963,7 +963,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   };
 
   // ───────── EXPORT XLSX ─────────
-  const exportXLSX = () => {
+  const exportXLSX = async () => {
+    const XLSX = await loadXLSX();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
       contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
     };
@@ -1041,6 +1042,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
   const exportPDF = async () => {
+    const { jsPDF, autoTable } = await loadPdfDeps();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
       contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
     };
