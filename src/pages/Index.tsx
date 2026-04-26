@@ -48,6 +48,13 @@ export default function Index() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [dailyReportInitialDate, setDailyReportInitialDate] = useState<string | undefined>(undefined);
+
+  const handleOpenDailyReport = useCallback((dateISO: string) => {
+    setDailyReportInitialDate(dateISO);
+    setCurrentView('dailyReport');
+    setSidebarOpen(false);
+  }, []);
 
   const undoStacksRef = useRef<UndoStacks>({ dashboard: [], gantt: [], tasks: [], measurement: [], dailyReport: [] });
   const [undoVersion, setUndoVersion] = useState(0);
