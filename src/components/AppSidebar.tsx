@@ -457,7 +457,7 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
         })}
       </nav>
 
-      <div className="p-2 border-t border-[hsl(var(--sidebar-border))]">
+      <div className="p-2 border-t border-[hsl(var(--sidebar-border))] space-y-1">
         <button
           className={`w-full flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors`}
           title={collapsed ? 'Gerar com IA' : undefined}
@@ -465,6 +465,20 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
           <Sparkles className="w-4 h-4" />
           {!collapsed && 'Gerar com IA'}
         </button>
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className={`w-full flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-[hsl(var(--sidebar-hover))] transition-colors opacity-80`}
+            title={collapsed ? `Sair (${userEmail ?? ''})` : 'Sair'}
+          >
+            <X className="w-4 h-4" />
+            {!collapsed && (
+              <span className="truncate flex-1 text-left">
+                Sair{userEmail ? ` · ${userEmail}` : ''}
+              </span>
+            )}
+          </button>
+        )}
       </div>
     </aside>
   );
