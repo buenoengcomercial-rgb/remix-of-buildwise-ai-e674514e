@@ -45,10 +45,11 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
   const rootChapters: ParsedChapter[] = [];
   const flatCompositions: ParsedComposition[] = [];
 
-  // Code → chapter for hierarchy lookup
+  // Sequential trackers (Tipo column drives hierarchy)
   const codeToChapter = new Map<string, ParsedChapter>();
-  let lastChapter: ParsedChapter | null = null;
-  let lastComposition: ParsedComposition | null = null;
+  let currentChapter: ParsedChapter | null = null;
+  let currentSubchapter: ParsedChapter | null = null;
+  let currentComposition: ParsedComposition | null = null;
 
   // Detect header row + dynamic column indices
   const { startRow, cols } = detectHeaderAndColumns(rows);
@@ -105,32 +106,48 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
     const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
 
-    // ── CHAPTER / SUBCHAPTER ──
-    if (classifiedAsChapter) {
-      if (!colA) {
-        warnings.push(`Linha ${i + 1}: capítulo sem código, ignorado`);
-        continue;
-      }
-
+    // ── CHAPTER (top-level) ──
+    if (hasTypeHint ? isTypeCap : (classifiedAsChapter && getCodeDepth(colA) === 0)) {
+      if (!colA && !desc) continue;
       const chapter: ParsedChapter = {
-        code: colA,
+        code: colA || `cap-${i}`,
+        name: (colC || colB || colA).trim(),
+        children: [],
+        compositions: [],
+      };
+      rootChapters.push(chapter);
+      if (colA) codeToChapter.set(colA, chapter);
+      currentChapter = chapter;
+      currentSubchapter = null;
+      currentComposition = null;
+      continue;
+    }
+
+    // ── SUBCHAPTER ──
+    if (hasTypeHint ? isTypeSub : (classifiedAsChapter && getCodeDepth(colA) >= 1)) {
+      if (!colA && !desc) continue;
+      const subchapter: ParsedChapter = {
+        code: colA || `sub-${i}`,
         name: (colC || colB || colA).trim(),
         children: [],
         compositions: [],
       };
 
+      // Try to find parent chapter by code first, fall back to current chapter
       const parentCode = getParentCode(colA);
-      const parent = parentCode ? codeToChapter.get(parentCode) : null;
+      const parent = (parentCode && codeToChapter.get(parentCode)) || currentChapter;
 
       if (parent) {
-        parent.children.push(chapter);
+        parent.children.push(subchapter);
       } else {
-        rootChapters.push(chapter);
+        // Orphan subchapter — promote to root
+        rootChapters.push(subchapter);
+        warnings.push(`Linha ${i + 1}: subcapítulo "${subchapter.name}" sem capítulo pai — promovido a capítulo`);
       }
 
-      codeToChapter.set(colA, chapter);
-      lastChapter = chapter;
-      lastComposition = null;
+      if (colA) codeToChapter.set(colA, subchapter);
+      currentSubchapter = subchapter;
+      currentComposition = null;
       continue;
     }
 
@@ -147,14 +164,14 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
+      const parentChapter = currentSubchapter || currentChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
       } else {
         warnings.push(`Linha ${i + 1}: composição "${comp.name}" sem capítulo associado`);
       }
       flatCompositions.push(comp);
-      lastComposition = comp;
+      currentComposition = comp;
       continue;
     }
 
@@ -169,9 +186,8 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         workerCount: 1,
       };
 
-      // Always attach to the last composition seen (sequential order)
-      if (lastComposition) {
-        lastComposition.labor.push(labor);
+      if (currentComposition) {
+        currentComposition.labor.push(labor);
       } else {
         warnings.push(`Linha ${i + 1}: mão de obra "${labor.role}" sem composição associada`);
       }
@@ -196,12 +212,12 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
+      const parentChapter = currentSubchapter || currentChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
       }
       flatCompositions.push(comp);
-      lastComposition = comp;
+      currentComposition = comp;
       continue;
     }
   }
@@ -386,9 +402,9 @@ function parseSinapiText(text: string): ParsedTask[] {
   return tasks;
 }
 
-// ─── Convert structured result to project phases ──────────────
+// ─── Convert structured result to project phases (preserves hierarchy via parentId) ──
 export function convertStructuredToProject(result: ParseResult, startDate: string) {
-  const phases: { id: string; name: string; color: string; tasks: Task[] }[] = [];
+  const phases: { id: string; name: string; color: string; tasks: Task[]; parentId?: string; customNumber?: string; order?: number }[] = [];
   const COLORS = [
     'hsl(var(--primary))', 'hsl(var(--info))', 'hsl(var(--warning))',
     'hsl(var(--success))', 'hsl(var(--destructive))', 'hsl(210, 60%, 50%)',
@@ -397,80 +413,80 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
 
   let dayOffset = 0;
   let colorIdx = 0;
+  let phaseSeq = 0;
 
-  function processChapter(chapter: ParsedChapter, parentName?: string) {
-    // Use code to ensure uniqueness — never merge by name
-    const phaseName = parentName ? `${parentName} > ${chapter.name}` : chapter.name;
-    const phaseId = `phase-${chapter.code || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  function buildTasks(chapter: ParsedChapter): Task[] {
+    return chapter.compositions.map(comp => {
+      const laborComps: LaborComposition[] = comp.labor.map((l, i) => ({
+        id: `lc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${i}`,
+        role: l.role,
+        rup: l.rup,
+        workerCount: l.workerCount,
+      }));
 
-    if (chapter.compositions.length > 0) {
-      const tasks: Task[] = chapter.compositions.map(comp => {
-        const laborComps: LaborComposition[] = comp.labor.map((l, i) => ({
-          id: `lc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${i}`,
-          role: l.role,
-          rup: l.rup,
-          workerCount: l.workerCount,
-        }));
-
-        let duration = 5;
-        if (laborComps.length > 0 && comp.quantity > 0) {
-          let maxH = 0;
-          for (const c of laborComps) {
-            const eff = (comp.quantity * c.rup) / c.workerCount;
-            if (eff > maxH) maxH = eff;
-          }
-          duration = Math.max(1, Math.ceil(maxH / 8));
+      let duration = 5;
+      if (laborComps.length > 0 && comp.quantity > 0) {
+        let maxH = 0;
+        for (const c of laborComps) {
+          const eff = (comp.quantity * c.rup) / c.workerCount;
+          if (eff > maxH) maxH = eff;
         }
-        const maxDays = Math.max(0, ...comp.labor.map(l => l.days));
-        if (maxDays > 0) duration = Math.ceil(maxDays);
+        duration = Math.max(1, Math.ceil(maxH / 8));
+      }
+      const maxDays = Math.max(0, ...comp.labor.map(l => l.days));
+      if (maxDays > 0) duration = Math.ceil(maxDays);
 
-        const taskStart = new Date(startDate);
-        taskStart.setDate(taskStart.getDate() + dayOffset);
+      const taskStart = new Date(startDate);
+      taskStart.setDate(taskStart.getDate() + dayOffset);
 
-        const task: Task = {
-          id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: comp.name,
-          phase: `[${chapter.code}] ${chapter.name}`,
-          startDate: taskStart.toISOString().split('T')[0],
-          duration,
-          dependencies: [],
-          responsible: '',
-          percentComplete: 0,
-          level: 0,
-          quantity: comp.quantity,
-          unit: comp.unit,
-          itemCode: comp.code || undefined,
-          priceBank: comp.bank || undefined,
-          unitPriceNoBDI: comp.unitPriceNoBDI,
-          laborCompositions: laborComps,
-          materials: [],
-          observations: comp.code ? `Código: ${comp.code}` : undefined,
-        };
+      const task: Task = {
+        id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${phaseSeq}`,
+        name: comp.name,
+        phase: `[${chapter.code}] ${chapter.name}`,
+        startDate: taskStart.toISOString().split('T')[0],
+        duration,
+        dependencies: [],
+        responsible: '',
+        percentComplete: 0,
+        level: 0,
+        quantity: comp.quantity,
+        unit: comp.unit,
+        itemCode: comp.code || undefined,
+        priceBank: comp.bank || undefined,
+        unitPriceNoBDI: comp.unitPriceNoBDI,
+        laborCompositions: laborComps,
+        materials: [],
+        observations: comp.code ? `Código: ${comp.code}` : undefined,
+      };
 
-        dayOffset += duration;
-        return task;
-      });
-
-      phases.push({
-        id: phaseId,
-        name: `[${chapter.code}] ${chapter.name}`,
-        color: COLORS[colorIdx % COLORS.length],
-        tasks,
-      });
-      colorIdx++;
-    }
-
-    for (const child of chapter.children) {
-      processChapter(child, phaseName);
-    }
+      dayOffset += duration;
+      return task;
+    });
   }
 
-  for (const ch of result.chapters) {
-    processChapter(ch);
+  function processChapter(chapter: ParsedChapter, parentPhaseId: string | undefined, order: number) {
+    const phaseId = `phase-${(chapter.code || 'x').replace(/[^A-Za-z0-9]/g, '_')}-${Date.now().toString(36)}-${(phaseSeq++).toString(36)}`;
+    const displayName = chapter.name || chapter.code || 'Capítulo';
+
+    phases.push({
+      id: phaseId,
+      name: displayName,
+      color: COLORS[colorIdx % COLORS.length],
+      tasks: buildTasks(chapter),
+      parentId: parentPhaseId,
+      customNumber: chapter.code || undefined,
+      order,
+    });
+    colorIdx++;
+
+    chapter.children.forEach((child, idx) => processChapter(child, phaseId, idx));
   }
+
+  result.chapters.forEach((ch, idx) => processChapter(ch, undefined, idx));
 
   return phases;
 }
+
 
 // ─── Legacy convert (flat tasks) ──────────────────────────────
 export function convertToProjectTasks(parsed: ParsedTask[], startDate: string) {
