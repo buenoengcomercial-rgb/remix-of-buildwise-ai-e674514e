@@ -855,7 +855,88 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       longBlock('Ocorrências', report?.occurrences);
       longBlock('Impedimentos', report?.impediments);
       longBlock('Observações', report?.observations);
-    });
+
+      // ───── Fotos do dia ─────
+      const dayPhotos = (report?.attachments || []).filter(a => (a.type ?? 'image') === 'image');
+      if (dayPhotos.length > 0) {
+        ensureSpace(14);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+        doc.text(`Fotos da Obra (${dayPhotos.length})`, margin, y); y += 2;
+
+        // Agrupar por tarefa
+        const byTask = new Map<string, { taskName: string; phaseChain?: string; photos: DailyReportAttachment[] }>();
+        dayPhotos.forEach(p => {
+          const k = p.taskId || GENERAL_TASK_VALUE;
+          if (!byTask.has(k)) {
+            byTask.set(k, {
+              taskName: p.taskName || (k === GENERAL_TASK_VALUE ? 'Geral / Sem atividade específica' : '—'),
+              phaseChain: p.phaseChain,
+              photos: [],
+            });
+          }
+          byTask.get(k)!.photos.push(p);
+        });
+
+        const cols = 3;
+        const gap = 3;
+        const thumbW = (usable - gap * (cols - 1)) / cols;
+        const thumbH = thumbW * 0.72;
+        const captionH = 9;
+
+        for (const group of byTask.values()) {
+          ensureSpace(8);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(31, 41, 55);
+          const groupTitle = group.phaseChain
+            ? `${group.taskName}  —  ${group.phaseChain}`
+            : group.taskName;
+          doc.text(groupTitle, margin, y); y += 3.4;
+          doc.setTextColor(20);
+
+          for (let pIdx = 0; pIdx < group.photos.length; pIdx += cols) {
+            ensureSpace(thumbH + captionH + 2);
+            const rowPhotos = group.photos.slice(pIdx, pIdx + cols);
+            for (let c = 0; c < rowPhotos.length; c++) {
+              const ph = rowPhotos[c];
+              const x = margin + c * (thumbW + gap);
+              // Carrega imagem (publicUrl ou dataUrl)
+              let dataUrl: string | null = ph.dataUrl || null;
+              if (!dataUrl && ph.publicUrl) {
+                dataUrl = await fetchAsDataURL(ph.publicUrl);
+              }
+              if (dataUrl) {
+                try {
+                  const fmt = (ph.mimeType || '').includes('png') ? 'PNG' : 'JPEG';
+                  doc.addImage(dataUrl, fmt, x, y, thumbW, thumbH, undefined, 'FAST');
+                } catch {
+                  doc.setDrawColor(220); doc.rect(x, y, thumbW, thumbH);
+                  doc.setFontSize(6); doc.setTextColor(150);
+                  doc.text('Imagem indisponível', x + thumbW / 2, y + thumbH / 2, { align: 'center' });
+                  doc.setTextColor(20);
+                }
+              } else {
+                doc.setDrawColor(220); doc.rect(x, y, thumbW, thumbH);
+                doc.setFontSize(6); doc.setTextColor(150);
+                doc.text('Imagem indisponível', x + thumbW / 2, y + thumbH / 2, { align: 'center' });
+                doc.setTextColor(20);
+              }
+              // Legenda
+              doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(70);
+              const cap = ph.caption?.trim() || '—';
+              const when = ph.uploadedAt ? new Date(ph.uploadedAt).toLocaleString('pt-BR') : '';
+              const capLines = doc.splitTextToSize(cap, thumbW);
+              doc.text(capLines.slice(0, 2), x, y + thumbH + 2.6);
+              if (when) {
+                doc.setFontSize(5.6); doc.setTextColor(140);
+                doc.text(when, x, y + thumbH + captionH - 1);
+              }
+              doc.setTextColor(20);
+            }
+            y += thumbH + captionH + 1;
+          }
+          y += 1;
+        }
+      }
+    }
 
     // ───── Rodapé fixo em todas as páginas ─────
     const total = doc.getNumberOfPages();
