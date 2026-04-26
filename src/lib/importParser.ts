@@ -96,15 +96,17 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const colG = hours;
     const colH = days;
 
-    // ── Classification: Column B PRIORITY, columns D-H as fallback ──
-    const classifiedAsChapter = hasTypeHint ? isTypeCap : (!hasD && !hasE && !hasF && !hasG && !hasH && !!desc);
+    // ── Classification: Column Tipo PRIORITY, columns as fallback ──
+    const classifiedAsChapter = hasTypeHint
+      ? (isTypeCap || isTypeSub)
+      : (!hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice && !!desc);
     const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
     const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
 
     // ── CHAPTER / SUBCHAPTER ──
     if (classifiedAsChapter) {
       if (!colA) {
-        warnings.push(`Linha ${i + 1}: capítulo sem código na coluna A, ignorado`);
+        warnings.push(`Linha ${i + 1}: capítulo sem código, ignorado`);
         continue;
       }
 
@@ -115,7 +117,6 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         compositions: [],
       };
 
-      // Use code hierarchy (column A) to find parent
       const parentCode = getParentCode(colA);
       const parent = parentCode ? codeToChapter.get(parentCode) : null;
 
@@ -125,10 +126,9 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         rootChapters.push(chapter);
       }
 
-      // Register by unique code — NEVER merge by name
       codeToChapter.set(colA, chapter);
       lastChapter = chapter;
-      lastComposition = null; // reset composition context on new chapter
+      lastComposition = null;
       continue;
     }
 
@@ -136,14 +136,15 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     if (classifiedAsComposition) {
       const comp: ParsedComposition = {
         code: colA,
+        bank: bank || undefined,
         name: (colC || colB || '').trim(),
         unit: colD || 'un',
         quantity: colE || 1,
+        unitPriceNoBdi: hasPrice ? unitPriceNoBdi : undefined,
         labor: [],
         needsReview: false,
       };
 
-      // Try code-based parent first, then fall back to last active chapter
       const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
