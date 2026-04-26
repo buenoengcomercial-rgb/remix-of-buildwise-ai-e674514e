@@ -560,8 +560,106 @@ export function propagateAllDependencies(
           break;
       }
 
+export function propagateAllDependencies(
+  tasks: Task[],
+  changedTaskId: string,
+  cal?: WorkCalendar,
+): { tasks: Task[]; changed: boolean; adjustedTypes: Set<DependencyType> } {
+  const taskMap = new Map(tasks.map(t => [t.id, { ...t }]));
+  const visited = new Set<string>();
+  let anyChanged = false;
+  const adjustedTypes = new Set<DependencyType>();
+
+  // Build successor index: predId -> [{successorId, type}]
+  const successorIndex = new Map<string, { successorId: string; type: DependencyType }[]>();
+  tasks.forEach(t => {
+    const details = (t.dependencyDetails && t.dependencyDetails.length)
+      ? t.dependencyDetails
+      : (t.dependencies || []).map(id => ({ taskId: id, type: 'TI' as DependencyType }));
+    details.forEach(dep => {
+      if (!successorIndex.has(dep.taskId)) successorIndex.set(dep.taskId, []);
+      successorIndex.get(dep.taskId)!.push({ successorId: t.id, type: dep.type });
+    });
+  });
+
+  function propagate(predId: string, depth: number) {
+    if (depth > 50 || visited.has(predId)) return;
+    visited.add(predId);
+
+    const succs = successorIndex.get(predId);
+    if (!succs) return;
+
+    for (const { successorId, type } of succs) {
+      const pred = taskMap.get(predId)!;
+      const succ = taskMap.get(successorId)!;
+      if (!pred || !succ) continue;
+
+      const predStart = nextWorkDay(parseISODateLocal(pred.startDate), cal);
+      // Último dia trabalhado da predecessora respeitando o calendário
+      const predLastWorkDay = workEndDate(pred.startDate, pred.duration, cal);
+      // Próximo dia útil estritamente após o término real da predecessora
+      const predNextStart = nextWorkDayAfter(predLastWorkDay, cal);
+
+      let newStartDate: Date | null = null;
+
+      switch (type) {
+        case 'TI':
+          // Sucessora começa NO PRÓXIMO DIA ÚTIL após o último dia trabalhado da predecessora
+          newStartDate = predNextStart;
+          break;
+        case 'II':
+          // Início da sucessora = início (útil) da predecessora
+          newStartDate = predStart;
+          break;
+        case 'TT': {
+          // Fim da sucessora = fim da predecessora
+          // Calculamos o início que produz esse fim, recuando dias úteis.
+          // Aproximação: encontrar start tal que workEndDate(start, succ.duration) == predLastWorkDay
+          // Recuamos a partir de predLastWorkDay duration−1 dias úteis.
+          const dur = Math.max(1, Math.ceil(succ.duration));
+          let cur = new Date(predLastWorkDay);
+          let remaining = dur - 1;
+          let safety = 0;
+          while (remaining > 0 && safety < 5000) {
+            safety++;
+            cur.setDate(cur.getDate() - 1);
+            if (cal) {
+              if (!isDiaUtil(cur, cal.uf, cal.municipio, cal.trabalhaSabado)) continue;
+              if (cur.getDay() === 6 && cal.trabalhaSabado) remaining -= 0.5;
+              else remaining -= 1;
+            } else {
+              if (cur.getDay() === 0) continue;
+              remaining -= 1;
+            }
+          }
+          newStartDate = nextWorkDay(cur, cal);
+          break;
+        }
+        case 'IT': {
+          // Fim da sucessora = início da predecessora (rara; mantém comportamento)
+          const dur = Math.max(1, Math.ceil(succ.duration));
+          let cur = new Date(predStart);
+          let remaining = dur;
+          let safety = 0;
+          while (remaining > 0 && safety < 5000) {
+            safety++;
+            cur.setDate(cur.getDate() - 1);
+            if (cal) {
+              if (!isDiaUtil(cur, cal.uf, cal.municipio, cal.trabalhaSabado)) continue;
+              if (cur.getDay() === 6 && cal.trabalhaSabado) remaining -= 0.5;
+              else remaining -= 1;
+            } else {
+              if (cur.getDay() === 0) continue;
+              remaining -= 1;
+            }
+          }
+          newStartDate = nextWorkDay(cur, cal);
+          break;
+        }
+      }
+
       if (newStartDate !== null) {
-        const newISO = dateToISO(newStartDate);
+        const newISO = toISODateLocal(newStartDate);
         if (newISO !== succ.startDate) {
           taskMap.set(successorId, { ...succ, startDate: newISO });
           anyChanged = true;
@@ -583,15 +681,11 @@ export function propagateAllDependencies(
 
 /**
  * Settle ALL dependency relationships in the project.
- * Iteratively propagates from every task until no more changes occur (or safety cap).
- * Use this after bulk edits (RUP recompute, baseline sync, daily logs) to ensure
- * every TI/II/TT/IT link is honored regardless of edit origin.
  */
-export function settleAllDependencies(project: Project): Project {
+export function settleAllDependencies(project: Project, cal?: WorkCalendar): Project {
   let allTasks = getAllTasks(project);
   if (allTasks.length === 0) return project;
 
-  // Topologically order so predecessors are propagated before successors when possible.
   const order = allTasks.map(t => t.id);
 
   let safety = 0;
@@ -600,7 +694,7 @@ export function settleAllDependencies(project: Project): Project {
     safety++;
     changedAny = false;
     for (const id of order) {
-      const result = propagateAllDependencies(allTasks, id);
+      const result = propagateAllDependencies(allTasks, id, cal);
       if (result.changed) {
         allTasks = result.tasks;
         changedAny = true;
@@ -619,13 +713,13 @@ export function settleAllDependencies(project: Project): Project {
 }
 
 /**
- * Check if dragging a successor to a position violates its dependency.
- * Returns the violated dependency info or null.
+ * Check if a successor's start violates dependency relative to predecessors.
  */
 export function checkDependencyViolation(
   task: Task,
   newStartDate: string,
   allTasks: Task[],
+  cal?: WorkCalendar,
 ): { predName: string; predId: string; type: DependencyType } | null {
   const details = (task.dependencyDetails && task.dependencyDetails.length)
     ? task.dependencyDetails
@@ -636,17 +730,18 @@ export function checkDependencyViolation(
     const pred = taskMap.get(dep.taskId);
     if (!pred) continue;
 
-    const predStart = parseISODateLocal(pred.startDate);
-    const predEnd = addDaysCalc(predStart, pred.duration);
-    const newStart = new Date(newStartDate);
-    const newEnd = addDaysCalc(newStart, task.duration);
+    const predStart = nextWorkDay(parseISODateLocal(pred.startDate), cal);
+    const predLast = workEndDate(pred.startDate, pred.duration, cal);
+    const predNext = nextWorkDayAfter(predLast, cal); // primeiro dia útil válido para sucessora TI
+    const newStart = parseISODateLocal(newStartDate);
+    const newLast = workEndDate(newStartDate, task.duration, cal);
 
     let violated = false;
     switch (dep.type) {
-      case 'TI': violated = newStart < predEnd; break;
+      case 'TI': violated = newStart < predNext; break;
       case 'II': violated = newStart < predStart; break;
-      case 'TT': violated = newEnd < predEnd; break;
-      case 'IT': violated = newEnd < predStart; break;
+      case 'TT': violated = newLast < predLast; break;
+      case 'IT': violated = newLast < predStart; break;
     }
 
     if (violated) {
