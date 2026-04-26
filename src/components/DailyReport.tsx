@@ -502,7 +502,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
    * - mode='day': apenas a data atualmente selecionada.
    * - mode='period': todos os dias do período da medição filtrada (ou da data atual, como fallback).
    */
-  const generatePDF = useCallback((mode: 'day' | 'period') => {
+  const generatePDF = useCallback(async (mode: 'day' | 'period') => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
