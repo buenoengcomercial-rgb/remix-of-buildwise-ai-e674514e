@@ -62,6 +62,11 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
   const [editingName, setEditingName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Estado de import (preview/confirmação)
+  const [pendingBackup, setPendingBackup] = useState<BackupFile | null>(null);
+  const [pendingSummaries, setPendingSummaries] = useState<ProjectSummary[]>([]);
 
   useEffect(() => {
     setProjects(listProjects());
