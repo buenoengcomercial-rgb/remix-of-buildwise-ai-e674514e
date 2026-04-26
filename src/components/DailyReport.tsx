@@ -185,6 +185,14 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     [project, selectedDate]
   );
 
+  // Sincroniza data quando a Medição navega para o Diário com uma data específica.
+  useEffect(() => {
+    if (initialDate && initialDate !== selectedDate) {
+      setSelectedDate(initialDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDate]);
+
   // Agrupa por capítulo > subcapítulo > tarefa
   const grouped = useMemo(() => {
     const byChapter = new Map<string, {
