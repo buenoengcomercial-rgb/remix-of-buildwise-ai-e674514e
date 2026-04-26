@@ -309,14 +309,16 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         const qtyCurrentAccum = it.qtyPriorAccum + qtyPeriod;
         const qtyBalance = Math.max(it.qtyContracted - qtyCurrentAccum, 0);
         const pct = it.qtyContracted > 0 ? (qtyCurrentAccum / it.qtyContracted) * 100 : 0;
-        const valueContracted = it.unitPriceWithBDI * it.qtyContracted;
-        const valuePeriod = it.unitPriceWithBDI * qtyPeriod;
-        const valueAccum = it.unitPriceWithBDI * qtyCurrentAccum;
-        const valueBalance = Math.max(valueContracted - valueAccum, 0);
-        const valueContractedNoBDI = it.unitPriceNoBDI * it.qtyContracted;
-        const valuePeriodNoBDI = it.unitPriceNoBDI * qtyPeriod;
-        const valueAccumNoBDI = it.unitPriceNoBDI * qtyCurrentAccum;
-        const valueBalanceNoBDI = Math.max(valueContractedNoBDI - valueAccumNoBDI, 0);
+        const unitPriceWithBDI = trunc2(it.unitPriceWithBDI);
+        const unitPriceNoBDI = trunc2(it.unitPriceNoBDI);
+        const valueContracted = trunc2(unitPriceWithBDI * it.qtyContracted);
+        const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
+        const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
+        const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
+        const valueContractedNoBDI = trunc2(unitPriceNoBDI * it.qtyContracted);
+        const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
+        const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
+        const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
         return {
           item: it.item,
           phaseId: it.phaseId,
