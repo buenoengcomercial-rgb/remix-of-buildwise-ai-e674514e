@@ -1108,7 +1108,6 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       doc.setTextColor(0);
     };
     drawSignatures();
-    });
 
     const safe = (s: string) => (s || '').replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '');
     const num = String(effNumber).padStart(2, '0');
