@@ -595,6 +595,12 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     });
   }, [rows, chapterFilter, search, project.phases, isSnapshotMode]);
 
+  // ───────── Diários de Obra do período ─────────
+  const dailyReportsSummary = useMemo(
+    () => summarizeDailyReportsForPeriod(project, effStart, effEnd),
+    [project, effStart, effEnd],
+  );
+
   // ───────── Validação da medição (somente no modo "live") ─────────
   const validationIssues: ValidationIssue[] = useMemo(() => {
     if (activeMeasurement) return [];
@@ -619,9 +625,22 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         contractor, contracted, contractNumber, contractObject, location,
         budgetSource, bdiPercent,
       },
+      dailyReports: {
+        missingReports: dailyReportsSummary.missingReports,
+        productionWithoutReportDays: dailyReportsSummary.productionWithoutReportDates.length,
+        impedimentDays: dailyReportsSummary.impedimentDays,
+      },
     });
-  }, [activeMeasurement, startDate, endDate, measurementNumber, rows, measurements, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent]);
+  }, [activeMeasurement, startDate, endDate, measurementNumber, rows, measurements, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent, dailyReportsSummary]);
   const validationSummary = useMemo(() => summarizeIssues(validationIssues), [validationIssues]);
+
+  /** Tem avisos não-bloqueantes específicos de diário/impedimento que requerem confirmação extra. */
+  const hasDailyWarnings =
+    !activeMeasurement && (
+      dailyReportsSummary.missingReports > 0 ||
+      dailyReportsSummary.productionWithoutReportDates.length > 0 ||
+      dailyReportsSummary.impedimentDays > 0
+    );
 
   // ───────── Árvore de grupos ─────────
   const groupTree: GroupNode[] = useMemo(() => {
