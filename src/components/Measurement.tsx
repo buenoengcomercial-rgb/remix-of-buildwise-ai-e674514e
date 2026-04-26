@@ -240,7 +240,7 @@ function suggestPeriodForNext(
   return { startDate: start, endDate: end };
 }
 
-export default function Measurement({ project, onProjectChange, undoButton }: MeasurementProps) {
+export default function Measurement({ project, onProjectChange, undoButton, onOpenDailyReport }: MeasurementProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
