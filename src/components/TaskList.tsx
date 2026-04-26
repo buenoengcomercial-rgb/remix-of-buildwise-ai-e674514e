@@ -1428,6 +1428,7 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
           </div>
         );
       })()}
+      {confirmDialog}
     </div>
   );
 }
