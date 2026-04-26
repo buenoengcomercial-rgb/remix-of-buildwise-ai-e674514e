@@ -297,7 +297,26 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
             />
             <div className="text-center">
               <button
-                onClick={(e) => { e.stopPropagation(); removeLog(row.id); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirm(
+                    {
+                      title: 'Deseja excluir este lançamento diário?',
+                      description: (
+                        <>
+                          <p>
+                            Lançamento de <strong>{row.date}</strong> — Realizado: <strong>{row.actualQuantity ?? 0}</strong>.
+                          </p>
+                          <p>
+                            Isso pode alterar o progresso físico, saldo, previsão de término, cronograma e medição.
+                          </p>
+                        </>
+                      ),
+                      confirmLabel: 'Excluir lançamento',
+                    },
+                    () => removeLog(row.id),
+                  );
+                }}
                 className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
                 title="Excluir lançamento"
               >
@@ -307,6 +326,7 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
           </div>
         ))}
       </div>
+      {confirmDialog}
     </motion.div>
   );
 }
