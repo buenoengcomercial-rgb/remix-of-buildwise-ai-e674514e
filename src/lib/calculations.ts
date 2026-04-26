@@ -1,6 +1,70 @@
 import { Task, Project, DependencyType, TaskBaseline } from '@/types/project';
 import { getAllTasks } from '@/data/sampleProject';
-import { parseISODateLocal } from '@/components/gantt/utils';
+import { parseISODateLocal, toISODateLocal } from '@/components/gantt/utils';
+import { isDiaUtil, getFeriadosMap } from '@/lib/feriados';
+
+/** Calendário de trabalho usado pelo motor de dependências. */
+export interface WorkCalendar {
+  uf: string;
+  municipio: string;
+  trabalhaSabado: boolean;
+  jornadaDiaria?: number;
+}
+
+/** Próximo dia útil ≥ `date` respeitando feriados, domingos e sábados conforme config. */
+export function nextWorkDay(date: Date, cal?: WorkCalendar): Date {
+  let d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (!cal) {
+    // Legado: pula apenas domingo.
+    while (d.getDay() === 0) d.setDate(d.getDate() + 1);
+    return d;
+  }
+  let safety = 0;
+  while (!isDiaUtil(d, cal.uf, cal.municipio, cal.trabalhaSabado) && safety < 400) {
+    d.setDate(d.getDate() + 1);
+    safety++;
+  }
+  return d;
+}
+
+/** Soma N dias úteis a partir de `start` (inclusivo). N=1 retorna o próprio start (após ajuste). */
+function addWorkDaysCal(start: Date, days: number, cal?: WorkCalendar): Date {
+  // Posiciona no primeiro dia útil ≥ start
+  let current = nextWorkDay(start, cal);
+  let remaining = days - 1;
+  // Sábado conta como meio dia quando habilitado
+  let safety = 0;
+  while (remaining > 0 && safety < 5000) {
+    safety++;
+    current.setDate(current.getDate() + 1);
+    if (cal) {
+      if (!isDiaUtil(current, cal.uf, cal.municipio, cal.trabalhaSabado)) continue;
+      if (current.getDay() === 6 && cal.trabalhaSabado) {
+        remaining -= 0.5;
+      } else {
+        remaining -= 1;
+      }
+    } else {
+      const dow = current.getDay();
+      if (dow === 0) continue;
+      remaining -= 1;
+    }
+  }
+  return current;
+}
+
+/** Último dia trabalhado da tarefa (start + duration−1 em dias úteis). */
+function workEndDate(startISO: string, duration: number, cal?: WorkCalendar): Date {
+  const start = parseISODateLocal(startISO);
+  const dur = Math.max(1, Math.ceil(duration));
+  return addWorkDaysCal(start, dur, cal);
+}
+
+/** Próximo dia útil estritamente APÓS `date`. */
+function nextWorkDayAfter(date: Date, cal?: WorkCalendar): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  return nextWorkDay(d, cal);
+}
 
 const DAILY_HOURS = 8;
 
