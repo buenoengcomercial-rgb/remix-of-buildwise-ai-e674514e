@@ -428,7 +428,6 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
           entries.forEach(e => {
             if (y > 280) { doc.addPage(); y = margin; }
             const txt = `• ${e.taskName} — ${e.actualQuantity.toFixed(2)} ${e.unit}` +
-              (e.plannedQuantity ? ` (meta ${e.plannedQuantity.toFixed(2)})` : '') +
               (e.notes ? ` — ${e.notes}` : '');
             const lines = doc.splitTextToSize(txt, pageW - margin * 2 - indent);
             doc.text(lines, margin + indent, y);
