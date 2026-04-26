@@ -1036,11 +1036,24 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                               {/* Ações */}
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() => setExpandedDaily(expandedDaily === task.id ? null : task.id)}
+                                  onClick={() => {
+                                    setExpandedDaily(expandedDaily === task.id ? null : task.id);
+                                    if (expandedRup === task.id) setExpandedRup(null);
+                                  }}
                                   className={`p-1 rounded transition-colors ${expandedDaily === task.id ? 'bg-info/30 text-info' : 'hover:bg-info/20 text-info'}`}
-                                  title="Apontamento diário de produção"
+                                  title="Apontamento diário"
                                 >
                                   <ClipboardList className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setExpandedRup(expandedRup === task.id ? null : task.id);
+                                    if (expandedDaily === task.id) setExpandedDaily(null);
+                                  }}
+                                  className={`p-1 rounded transition-colors ${expandedRup === task.id ? 'bg-warning/30 text-warning' : 'hover:bg-warning/20 text-warning'}`}
+                                  title="Ver composição RUP"
+                                >
+                                  <Zap className="w-3 h-3" />
                                 </button>
                                 <button onClick={() => deleteTask(phase.id, task.id)} className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors" title="Excluir">
                                   <Trash2 className="w-3 h-3" />
