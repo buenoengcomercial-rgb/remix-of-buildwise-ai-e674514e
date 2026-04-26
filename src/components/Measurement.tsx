@@ -1029,7 +1029,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   };
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
-  const exportPDF = () => {
+  const exportPDF = async () => {
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
       contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
     };
@@ -1038,6 +1038,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 5;
+
+    // ── Logo da empresa (canto superior esquerdo) ──
+    const logo = await loadCompanyLogoForPdf();
+    const logoTargetW = 30; // mm
+    let logoH = 0;
+    if (logo) {
+      const ratio = logo.width / logo.height;
+      logoH = logoTargetW / ratio;
+      try { doc.addImage(logo.dataUrl, 'PNG', margin, margin, logoTargetW, logoH, undefined, 'FAST'); } catch {}
+    }
 
     // ── Título do boletim (com nº da medição) ──
     const numStr = String(effNumber || '');
@@ -1048,7 +1058,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       pageW / 2, margin + 4, { align: 'center' },
     );
 
-    let y = margin + 7;
+    let y = Math.max(margin + 7, margin + logoH + 1);
 
     // ── Cabeçalho em grade (autoTable) ──
     // 4 colunas (label/valor pares) com larguras alocadas para acomodar campos longos.
