@@ -27,6 +27,7 @@ const STATUS_BG: Record<string, string> = {
 
 export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) {
   const logs = task.dailyLogs || [];
+  const { confirm, dialog: confirmDialog } = useConfirmDelete();
   const baseDuration = task.originalDuration ?? task.duration;
   const plannedDailyProduction = task.quantity && baseDuration > 0
     ? task.quantity / baseDuration
