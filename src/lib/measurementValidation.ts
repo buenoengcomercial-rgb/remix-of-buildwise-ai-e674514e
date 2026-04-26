@@ -55,7 +55,7 @@ function intervalsOverlap(aStart: string, aEnd: string, bStart: string, bEnd: st
 /** Roda toda a bateria de validações da medição. */
 export function validateMeasurement(ctx: ValidationContext): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const { startDate, endDate, measurementNumber, rows, measurements, contract } = ctx;
+  const { startDate, endDate, measurementNumber, rows, measurements, contract, dailyReports } = ctx;
 
   // 1) Período
   if (!startDate || !endDate) {
