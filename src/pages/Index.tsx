@@ -149,13 +149,16 @@ export default function Index() {
 
   const project = useMemo(() => {
     if (!deferredRawProject) return null;
+    const cfg = loadObraConfig();
+    const cal = { uf: cfg.uf, municipio: cfg.municipio, trabalhaSabado: cfg.trabalhaSabado, jornadaDiaria: cfg.jornadaDiaria };
     return calculateCPM(
       settleAllDependencies(
         applyDailyLogsToProject(
           syncBaselineWithRup(
             applyRupToProject(captureBaseline(deferredRawProject))
           )
-        )
+        ),
+        cal
       )
     );
   }, [deferredRawProject]);
