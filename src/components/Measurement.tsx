@@ -1341,7 +1341,15 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
 
             <div className="ml-auto flex items-center gap-2">
               {!activeMeasurement && (
-                <Button size="sm" variant="default" onClick={() => setConfirmGenerate(true)}>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => setConfirmGenerate(true)}
+                  disabled={validationSummary.hasBlocking}
+                  title={validationSummary.hasBlocking
+                    ? 'Existem erros de validação que impedem gerar a medição.'
+                    : undefined}
+                >
                   <FileCheck2 className="w-4 h-4 mr-1" /> Gerar Medição
                 </Button>
               )}
