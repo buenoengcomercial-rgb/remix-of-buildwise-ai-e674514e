@@ -492,6 +492,16 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
         </div>
       )}
 
+      {/* Diários por Medição (quando há período selecionado) */}
+      {activePeriod && periodSummary && (
+        <PeriodReportsSection
+          period={activePeriod}
+          summary={periodSummary}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+        />
+      )}
+
       {/* Resumo */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <SummaryCard icon={ListChecks} label="Tarefas com produção" value={summary.tasks} />
