@@ -66,7 +66,9 @@ export default function TeamManagement() {
       toast.success('Usuário liberado.');
       setInviteEmail('');
       void reload();
-    } else if (res.reason === 'not_registered') {
+      return;
+    }
+    if (res.reason === 'not_registered') {
       toast.error('Este e-mail ainda não tem cadastro. Peça que a pessoa crie a conta primeiro.');
     } else if (res.reason === 'already_member') {
       toast.error('Esta pessoa já é membro da empresa.');
