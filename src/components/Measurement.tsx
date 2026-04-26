@@ -1001,17 +1001,25 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         fontStyle: 'bold',
         halign: 'center',
       },
-      columnStyles: {
-        0: { cellWidth: (pageW - margin * 2) * 0.04, halign: 'center' },
-        1: { cellWidth: (pageW - margin * 2) * 0.06 },
-        2: { cellWidth: (pageW - margin * 2) * 0.05 },
-        3: { cellWidth: (pageW - margin * 2) * 0.22 },
-        4: { cellWidth: (pageW - margin * 2) * 0.04, halign: 'center' },
-        5: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        6: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
-        7: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
-        8: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
-        9: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
+      tableWidth: pageW - margin * 2,
+      columnStyles: (() => {
+        // Larguras proporcionais (somam 108) — normalizadas para a largura útil.
+        const pct = [4, 5, 5, 20, 4, 6, 7, 7, 8, 6, 8, 6, 8, 6, 8];
+        const sum = pct.reduce((a, b) => a + b, 0);
+        const usable = pageW - margin * 2;
+        const aligns: Array<'left' | 'right' | 'center'> = [
+          'center', 'left', 'left', 'left', 'center',
+          'right', 'right', 'right', 'right',
+          'right', 'right', 'right', 'right', 'right', 'right',
+        ];
+        const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
+        pct.forEach((p, i) => {
+          styles[i] = { cellWidth: (usable * p) / sum, halign: aligns[i] };
+        });
+        return styles;
+      })(),
+      _LEGACY_REMOVED: {
+        9: { cellWidth: 0, halign: 'right' },
         10: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
         11: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
         12: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
