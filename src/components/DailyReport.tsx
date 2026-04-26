@@ -12,6 +12,7 @@ import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface DailyReportProps {
   project: Project;
@@ -339,130 +340,396 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
   }));
 
   // ───── PDF ─────
-  const handlePrint = () => {
+  /**
+   * Gera o PDF do Diário de Obra.
+   * - mode='day': apenas a data atualmente selecionada.
+   * - mode='period': todos os dias do período da medição filtrada (ou da data atual, como fallback).
+   */
+  const generatePDF = useCallback((mode: 'day' | 'period') => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
-    const margin = 14;
-    let y = margin;
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const footerReserved = 14;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('DIÁRIO DE OBRA', pageW / 2, y, { align: 'center' });
-    y += 6;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Obra: ${project.name}`, margin, y);
-    doc.text(`Data: ${formatBR(selectedDate)}`, pageW - margin, y, { align: 'right' });
-    y += 5;
-    if (project.contractInfo?.contracted) {
-      doc.text(`Contratada: ${project.contractInfo.contracted}`, margin, y);
-      y += 5;
+    // Define escopo (datas e título contextual)
+    let dates: string[];
+    let scopeTitle: string;
+    let fileName: string;
+    const safeName = project.name.replace(/[^a-z0-9]+/gi, '_');
+
+    if (mode === 'period' && activePeriod && periodDates.length > 0) {
+      dates = periodDates;
+      const isDraft = activePeriod.id === 'draft';
+      scopeTitle = isDraft
+        ? 'DIÁRIO DE OBRA — MEDIÇÃO EM PREPARAÇÃO'
+        : `DIÁRIO DE OBRA — ${activePeriod.label.toUpperCase()}`;
+      fileName = isDraft
+        ? `Diario_Obra_Medicao_Preparacao_${safeName}.pdf`
+        : `Diario_Obra_${activePeriod.label.replace(/[^a-z0-9]+/gi, '_')}_${safeName}.pdf`;
+    } else {
+      dates = [selectedDate];
+      scopeTitle = `DIÁRIO DE OBRA — ${formatBR(selectedDate)}`;
+      fileName = `Diario_Obra_${safeName}_${selectedDate}.pdf`;
     }
-    doc.setDrawColor(180);
-    doc.line(margin, y, pageW - margin, y);
-    y += 5;
 
-    const writeKV = (label: string, value: string) => {
-      if (y > 270) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${label}:`, margin, y);
-      doc.setFont('helvetica', 'normal');
-      const lines = doc.splitTextToSize(value || '—', pageW - margin * 2 - 35);
-      doc.text(lines, margin + 35, y);
-      y += Math.max(5, lines.length * 5);
+    // Snapshot da medição (para cabeçalho)
+    const ci = project.contractInfo || {};
+    const periodoStr = mode === 'period' && activePeriod
+      ? `${formatBR(activePeriod.startDate)} a ${formatBR(activePeriod.endDate)}`
+      : formatBR(selectedDate);
+    const issueStr = formatBR(todayISO());
+
+    // ───── Cabeçalho ─────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(scopeTitle, pageW / 2, margin + 4, { align: 'center' });
+
+    let y = margin + 7;
+    const usable = pageW - margin * 2;
+    const headerColWidths = [usable * 0.18, usable * 0.32, usable * 0.18, usable * 0.32];
+    const headerRows: [string, string, string, string][] = [
+      ['Obra:', project.name || '-', 'Período:', periodoStr],
+      ['Contratante:', ci.contractor || '-', 'Contratada:', ci.contracted || '-'],
+      ['Local/Município:', ci.location || '-', 'Nº Contrato:', ci.contractNumber || '-'],
+      ['Objeto:', ci.contractObject || '-', 'Fonte de orçamento:', ci.budgetSource || '-'],
+      ['Data emissão:', issueStr, 'BDI %:', ci.bdiPercent != null ? String(ci.bdiPercent) : '-'],
+    ];
+    autoTable(doc, {
+      startY: y,
+      body: headerRows,
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.4, overflow: 'linebreak', valign: 'middle', lineColor: [180, 180, 180], lineWidth: 0.15, textColor: 20 },
+      columnStyles: {
+        0: { cellWidth: headerColWidths[0], fontStyle: 'bold', fillColor: [243, 244, 246] },
+        1: { cellWidth: headerColWidths[1] },
+        2: { cellWidth: headerColWidths[2], fontStyle: 'bold', fillColor: [243, 244, 246] },
+        3: { cellWidth: headerColWidths[3] },
+      },
+      margin: { left: margin, right: margin },
+      tableWidth: usable,
+    });
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 3;
+
+    // ───── Resumo geral do período ─────
+    const periodSum = summarizeDailyReportsForPeriod(
+      project,
+      dates[0],
+      dates[dates.length - 1],
+    );
+
+    // Totaliza equipes / ocorrências / impedimentos no período
+    let totalTeams = 0;
+    let totalOccurrences = 0;
+    let totalImpediments = 0;
+    const reportsByDate = new Map<string, DailyReportEntry>();
+    (project.dailyReports || []).forEach(r => reportsByDate.set(r.date, r));
+    dates.forEach(d => {
+      const r = reportsByDate.get(d);
+      if (!r) return;
+      totalTeams += (r.teamsPresent || []).reduce((a, t) => a + (t.count || 0), 0);
+      if (r.occurrences?.trim()) totalOccurrences++;
+      if (r.impediments?.trim()) totalImpediments++;
+    });
+
+    const cards: [string, string][] = [
+      ['Total de dias', String(periodSum.totalDays)],
+      ['Diários preench.', String(periodSum.filledReports)],
+      ['Diários pendentes', String(periodSum.missingReports)],
+      ['Dias c/ produção', String(periodSum.productionDays)],
+      ['Dias s/ produção', String(periodSum.noProductionDays)],
+      ['Dias c/ impedim.', String(periodSum.impedimentDays)],
+      ['Equipes (qtd)', String(totalTeams)],
+      ['Ocorrências', String(totalOccurrences)],
+    ];
+    const cardH = 9;
+    const perRow = 4;
+    const cardW = usable / perRow;
+    for (let i = 0; i < cards.length; i++) {
+      const col = i % perRow;
+      const row = Math.floor(i / perRow);
+      const cx = margin + col * cardW;
+      const cy = y + row * cardH;
+      doc.setDrawColor(180); doc.setLineWidth(0.15);
+      doc.setFillColor(249, 250, 251);
+      doc.rect(cx, cy, cardW, cardH, 'FD');
+      doc.setTextColor(110); doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6);
+      doc.text(cards[i][0], cx + 2, cy + 3.4);
+      doc.setTextColor(20); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+      doc.text(cards[i][1], cx + cardW - 2, cy + 6.6, { align: 'right' });
+    }
+    y += Math.ceil(cards.length / perRow) * cardH + 3;
+
+    // ───── Pendências do Período ─────
+    const pendingDates = periodSum.entries.filter(e => e.status === 'pending').map(e => e.date);
+    const prodNoReport = periodSum.productionWithoutReportDates;
+    const impedimentDates = periodSum.entries.filter(e => e.hasImpediment).map(e => e.date);
+    const hasAnyPending = pendingDates.length || prodNoReport.length || impedimentDates.length;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(20);
+    if (y + 12 > pageH - footerReserved) { doc.addPage(); y = margin; }
+    doc.text('Pendências do Período', margin, y); y += 4;
+
+    if (!hasAnyPending) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(90);
+      doc.text('Não há pendências no período.', margin, y); y += 6;
+    } else {
+      const pendRows: [string, string][] = [];
+      if (pendingDates.length) pendRows.push(['Sem diário', pendingDates.map(formatBR).join(', ')]);
+      if (prodNoReport.length) pendRows.push(['Produção sem diário', prodNoReport.map(formatBR).join(', ')]);
+      if (impedimentDates.length) pendRows.push(['Com impedimento', impedimentDates.map(formatBR).join(', ')]);
+      autoTable(doc, {
+        startY: y,
+        body: pendRows,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.3, overflow: 'linebreak', lineColor: [200, 200, 200], lineWidth: 0.12 },
+        columnStyles: {
+          0: { cellWidth: usable * 0.22, fontStyle: 'bold', fillColor: [254, 243, 199] },
+          1: { cellWidth: usable * 0.78 },
+        },
+        margin: { left: margin, right: margin },
+      });
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 4;
+    }
+
+    // ───── Conteúdo de cada dia ─────
+    const STATUS_LABEL: Record<string, string> = {
+      filled: 'Preenchido',
+      pending: 'Pendente',
+      noProduction: 'Produção sem diário',
+      impediment: 'Com impedimento',
     };
 
-    const weatherLabel = currentReport.weather === 'outro'
-      ? `Outro: ${currentReport.weatherOther || ''}`
-      : (WEATHER_OPTIONS.find(w => w.value === currentReport.weather)?.label || '—');
-    const workLabel = currentReport.workCondition === 'outro'
-      ? `Outro: ${currentReport.workConditionOther || ''}`
-      : (WORK_OPTIONS.find(w => w.value === currentReport.workCondition)?.label || '—');
+    const ensureSpace = (h: number) => {
+      if (y + h > pageH - footerReserved) { doc.addPage(); y = margin; }
+    };
 
-    writeKV('Responsável', currentReport.responsible || '—');
-    writeKV('Clima', weatherLabel);
-    writeKV('Condição de trabalho', workLabel);
+    dates.forEach((dateISO, idx) => {
+      const entry = periodSum.entries.find(e => e.date === dateISO);
+      const report = reportsByDate.get(dateISO);
+      const dayProduction = collectProductionForDate(project, dateISO);
 
-    if ((currentReport.teamsPresent || []).length) {
-      y += 2;
-      doc.setFont('helvetica', 'bold'); doc.text('Equipe presente:', margin, y); y += 5;
-      doc.setFont('helvetica', 'normal');
-      currentReport.teamsPresent!.forEach(t => {
-        if (y > 275) { doc.addPage(); y = margin; }
-        const label = (t.teamCode && teamByCode.get(t.teamCode)?.label) || t.name || '—';
-        const role = t.role ? ` (${t.role})` : '';
-        const notes = t.notes ? ` — ${t.notes}` : '';
-        doc.text(`• ${label}${role} — ${t.count ?? 1}${notes}`, margin + 4, y);
-        y += 5;
+      // Quebra de página a cada novo dia (exceto o primeiro), para visual limpo.
+      if (idx > 0) { doc.addPage(); y = margin; }
+      else { ensureSpace(20); }
+
+      // Cabeçalho do dia
+      doc.setFillColor(31, 41, 55); // slate-800
+      doc.setTextColor(255);
+      doc.rect(margin, y, usable, 7, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+      doc.text(`Diário de Obra — ${formatBR(dateISO)}`, margin + 2, y + 4.8);
+      const statusLabel = entry ? STATUS_LABEL[entry.status] : 'Pendente';
+      doc.setFontSize(8);
+      doc.text(`Status: ${statusLabel}`, margin + usable - 2, y + 4.8, { align: 'right' });
+      doc.setTextColor(20);
+      y += 9;
+
+      // Aviso de pendência / produção sem diário
+      const hasReport = !!report;
+      const hasProd = dayProduction.length > 0;
+      if (!hasReport) {
+        doc.setFillColor(254, 243, 199);
+        doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.2);
+        doc.rect(margin, y, usable, 6, 'FD');
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(120, 53, 15);
+        const msg = hasProd
+          ? 'Produção apontada, mas diário não preenchido.'
+          : 'Diário pendente de preenchimento.';
+        doc.text(msg, margin + 2, y + 4);
+        doc.setTextColor(20);
+        y += 8;
+      }
+
+      // Cabeçalho do dia (responsável / clima / condição)
+      const weatherLabel = report?.weather === 'outro'
+        ? `Outro: ${report?.weatherOther || ''}`
+        : (WEATHER_OPTIONS.find(w => w.value === report?.weather)?.label || '—');
+      const workLabel = report?.workCondition === 'outro'
+        ? `Outro: ${report?.workConditionOther || ''}`
+        : (WORK_OPTIONS.find(w => w.value === report?.workCondition)?.label || '—');
+
+      autoTable(doc, {
+        startY: y,
+        body: [
+          ['Responsável:', report?.responsible || '—', 'Clima:', weatherLabel],
+          ['Condição:', workLabel, 'Apontamentos:', String(dayProduction.length)],
+        ],
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.2, lineColor: [200, 200, 200], lineWidth: 0.12 },
+        columnStyles: {
+          0: { cellWidth: usable * 0.16, fontStyle: 'bold', fillColor: [243, 244, 246] },
+          1: { cellWidth: usable * 0.34 },
+          2: { cellWidth: usable * 0.16, fontStyle: 'bold', fillColor: [243, 244, 246] },
+          3: { cellWidth: usable * 0.34 },
+        },
+        margin: { left: margin, right: margin },
       });
-    }
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 2;
 
-    if ((currentReport.equipment || []).length) {
-      y += 2;
-      doc.setFont('helvetica', 'bold'); doc.text('Equipamentos:', margin, y); y += 5;
-      doc.setFont('helvetica', 'normal');
-      currentReport.equipment!.forEach(e => {
-        if (y > 275) { doc.addPage(); y = margin; }
-        doc.text(`• ${e.name || '—'} — ${e.count ?? 1}${e.notes ? ` (${e.notes})` : ''}`, margin + 4, y);
-        y += 5;
-      });
-    }
-
-    if (currentReport.occurrences) { y += 2; writeKV('Ocorrências', currentReport.occurrences); }
-    if (currentReport.impediments) { writeKV('Impedimentos', currentReport.impediments); }
-    if (currentReport.observations) { writeKV('Observações', currentReport.observations); }
-
-    y += 4;
-    if (y > 260) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text('Produção executada no dia', margin, y); y += 6;
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-
-    if (grouped.length === 0) {
-      doc.text('Nenhum apontamento de produção lançado nesta data.', margin, y);
-      y += 5;
-    } else {
-      grouped.forEach(ch => {
-        if (y > 275) { doc.addPage(); y = margin; }
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${ch.chapterNumber} ${ch.chapterName}`, margin, y); y += 5;
-        doc.setFont('helvetica', 'normal');
-        const renderEntries = (entries: ProductionEntry[], indent: number) => {
-          entries.forEach(e => {
-            if (y > 280) { doc.addPage(); y = margin; }
-            const txt = `• ${e.taskName} — ${e.actualQuantity.toFixed(2)} ${e.unit}` +
-              (e.notes ? ` — ${e.notes}` : '');
-            const lines = doc.splitTextToSize(txt, pageW - margin * 2 - indent);
-            doc.text(lines, margin + indent, y);
-            y += lines.length * 4.5;
-          });
-        };
-        renderEntries(ch.direct, 4);
-        ch.subs.forEach(sub => {
-          if (y > 275) { doc.addPage(); y = margin; }
-          doc.setFont('helvetica', 'bold');
-          doc.text(`  ${sub.number} ${sub.name}`, margin + 2, y); y += 5;
-          doc.setFont('helvetica', 'normal');
-          renderEntries(sub.entries, 8);
+      // Equipe presente
+      const teams = report?.teamsPresent || [];
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      doc.text('Equipe presente', margin, y); y += 1.5;
+      if (teams.length === 0) {
+        autoTable(doc, {
+          startY: y,
+          body: [['—']],
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.2, textColor: 120, lineColor: [220, 220, 220], lineWidth: 0.12 },
+          margin: { left: margin, right: margin },
         });
-        y += 2;
-      });
-    }
+      } else {
+        autoTable(doc, {
+          startY: y,
+          head: [['Equipe', 'Qtd.', 'Observação']],
+          body: teams.map(t => {
+            const label = (t.teamCode && teamByCode.get(t.teamCode)?.label) || t.name || '—';
+            return [label, String(t.count ?? 1), t.notes || ''];
+          }),
+          theme: 'grid',
+          headStyles: { fillColor: [55, 65, 81], textColor: 255, fontSize: 7.5 },
+          styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.2, lineColor: [220, 220, 220], lineWidth: 0.12 },
+          columnStyles: {
+            0: { cellWidth: usable * 0.40 },
+            1: { cellWidth: usable * 0.10, halign: 'center' },
+            2: { cellWidth: usable * 0.50 },
+          },
+          margin: { left: margin, right: margin },
+        });
+      }
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 2;
 
-    // Rodapé em todas as páginas
+      // Equipamentos
+      const equipments = report?.equipment || [];
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      doc.text('Equipamentos', margin, y); y += 1.5;
+      if (equipments.length === 0) {
+        autoTable(doc, {
+          startY: y,
+          body: [['—']],
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.2, textColor: 120, lineColor: [220, 220, 220], lineWidth: 0.12 },
+          margin: { left: margin, right: margin },
+        });
+      } else {
+        autoTable(doc, {
+          startY: y,
+          head: [['Equipamento', 'Qtd.', 'Observação']],
+          body: equipments.map(e => [e.name || '—', String(e.count ?? 1), e.notes || '']),
+          theme: 'grid',
+          headStyles: { fillColor: [55, 65, 81], textColor: 255, fontSize: 7.5 },
+          styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.2, lineColor: [220, 220, 220], lineWidth: 0.12 },
+          columnStyles: {
+            0: { cellWidth: usable * 0.40 },
+            1: { cellWidth: usable * 0.10, halign: 'center' },
+            2: { cellWidth: usable * 0.50 },
+          },
+          margin: { left: margin, right: margin },
+        });
+      }
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 2;
+
+      // Produção executada
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      doc.text('Produção executada', margin, y); y += 1.5;
+      if (dayProduction.length === 0) {
+        autoTable(doc, {
+          startY: y,
+          body: [['Nenhuma produção apontada nesta data.']],
+          theme: 'grid',
+          styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.2, textColor: 120, fontStyle: 'italic', lineColor: [220, 220, 220], lineWidth: 0.12 },
+          margin: { left: margin, right: margin },
+        });
+      } else {
+        autoTable(doc, {
+          startY: y,
+          head: [['Capítulo', 'Subcapítulo', 'Tarefa', 'Und.', 'Qtd. exec.', 'Observação']],
+          body: dayProduction.map(p => [
+            `${p.chapterNumber} ${p.chapterName}`,
+            p.subChapterName ? `${p.subChapterNumber} ${p.subChapterName}` : '',
+            p.taskName,
+            p.unit || 'un',
+            p.actualQuantity.toFixed(2),
+            p.notes || '',
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [55, 65, 81], textColor: 255, fontSize: 7.3 },
+          styles: { font: 'helvetica', fontSize: 7.3, cellPadding: 1.2, lineColor: [220, 220, 220], lineWidth: 0.12, overflow: 'linebreak' },
+          columnStyles: {
+            0: { cellWidth: usable * 0.18 },
+            1: { cellWidth: usable * 0.18 },
+            2: { cellWidth: usable * 0.28 },
+            3: { cellWidth: usable * 0.07, halign: 'center' },
+            4: { cellWidth: usable * 0.10, halign: 'right' },
+            5: { cellWidth: usable * 0.19 },
+          },
+          margin: { left: margin, right: margin },
+          // Repetir cabeçalho ao quebrar página
+          showHead: 'everyPage',
+        });
+      }
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 2;
+
+      // Ocorrências / Impedimentos / Observações
+      const longBlock = (title: string, value?: string) => {
+        ensureSpace(14);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+        doc.text(title, margin, y); y += 1.5;
+        autoTable(doc, {
+          startY: y,
+          body: [[value?.trim() ? value : '—']],
+          theme: 'grid',
+          styles: {
+            font: 'helvetica', fontSize: 8, cellPadding: 1.6,
+            textColor: value?.trim() ? 20 : 120,
+            fontStyle: value?.trim() ? 'normal' : 'italic',
+            lineColor: [220, 220, 220], lineWidth: 0.12, overflow: 'linebreak',
+            minCellHeight: 8,
+          },
+          margin: { left: margin, right: margin },
+        });
+        y = ((doc as any).lastAutoTable?.finalY ?? y) + 2;
+      };
+      longBlock('Ocorrências', report?.occurrences);
+      longBlock('Impedimentos', report?.impediments);
+      longBlock('Observações', report?.observations);
+    });
+
+    // ───── Rodapé fixo em todas as páginas ─────
     const total = doc.getNumberOfPages();
     for (let i = 1; i <= total; i++) {
       doc.setPage(i);
-      doc.setFontSize(8); doc.setTextColor(120);
-      const orgLine = project.contractInfo?.contracted || '';
-      doc.text(orgLine, margin, 290);
-      doc.text(`Página ${i}/${total}`, pageW - margin, 290, { align: 'right' });
+      const footerTop = pageH - margin - 10;
+      doc.setDrawColor(180); doc.setLineWidth(0.2);
+      doc.line(margin, footerTop, pageW - margin, footerTop);
+
+      doc.setTextColor(80);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.4);
+      doc.text('K. C. BUENO DE GODOY OLIVEIRA LTDA', pageW / 2, footerTop + 2.8, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+      doc.text(
+        'CNPJ: 39.973.085/0001-20  •  Rua Getúlio Vargas, 2533, São Cristóvão  •  Porto Velho/RO',
+        pageW / 2, footerTop + 5.4, { align: 'center' }
+      );
+
+      doc.setFontSize(6); doc.setTextColor(120);
+      const leftFoot = mode === 'period' && activePeriod
+        ? `${scopeTitle} — ${project.name || ''}`
+        : `Diário de Obra — ${project.name || ''}`;
+      doc.text(leftFoot, margin, pageH - 1.5);
+      doc.text(`Página ${i}/${total}`, pageW - margin, pageH - 1.5, { align: 'right' });
       doc.setTextColor(0);
     }
 
-    const safeName = project.name.replace(/[^a-z0-9]+/gi, '_');
-    doc.save(`Diario_${selectedDate}_${safeName}.pdf`);
-  };
+    doc.save(fileName);
+  }, [project, activePeriod, periodDates, selectedDate, teamByCode]);
+
+  const handlePrintDay = () => generatePDF('day');
+  const handlePrintPeriod = () => generatePDF('period');
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-[1400px] mx-auto">
@@ -514,9 +781,14 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
               />
             </div>
           )}
-          <Button onClick={handlePrint} variant="outline" size="sm">
-            <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF
+          <Button onClick={handlePrintDay} variant="outline" size="sm" title="Exporta apenas a data selecionada">
+            <Printer className="w-4 h-4 mr-1.5" /> PDF do dia
           </Button>
+          {activePeriod && (
+            <Button onClick={handlePrintPeriod} variant="default" size="sm" title="Exporta todos os dias do período da medição">
+              <Printer className="w-4 h-4 mr-1.5" /> PDF da medição
+            </Button>
+          )}
         </div>
       </div>
 
