@@ -142,52 +142,110 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
 
         {showProjects && !collapsed && (
           <div className="px-2 pb-2 space-y-0.5">
-            {projects.map(p => (
-              <button
-                key={p.id}
-                onClick={() => { onSwitchProject(p.id); setShowProjects(false); }}
-                className={`w-full text-left px-2 py-1.5 rounded text-[11px] transition-colors truncate ${
-                  p.id === activeProjectId
-                    ? 'bg-primary text-primary-foreground font-semibold'
-                    : 'hover:bg-[hsl(var(--sidebar-hover))] text-[hsl(var(--sidebar-fg))]'
-                }`}
-                title={p.name}
-              >
-                {p.name}
-              </button>
-            ))}
-
-            {creatingProject ? (
-              <div className="flex items-center gap-1 pt-1">
-                <input
-                  autoFocus
-                  value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleCreate();
-                    if (e.key === 'Escape') { setCreatingProject(false); setNewProjectName(''); }
-                  }}
-                  placeholder="Nome da obra..."
-                  className="flex-1 min-w-0 text-[11px] bg-[hsl(var(--sidebar-hover))] border border-[hsl(var(--sidebar-border))] rounded px-2 py-1 focus:outline-none focus:border-primary text-[hsl(var(--sidebar-fg))]"
-                />
-                <button
-                  onClick={handleCreate}
-                  className="text-[11px] px-2 py-1 rounded bg-primary text-primary-foreground hover:opacity-90"
+            {projects.map(p => {
+              const isActive = p.id === activeProjectId;
+              const isEditing = editingId === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className={`group relative rounded text-[11px] transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground font-semibold'
+                      : 'hover:bg-[hsl(var(--sidebar-hover))] text-[hsl(var(--sidebar-fg))]'
+                  }`}
                 >
-                  OK
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setCreatingProject(true)}
-                className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] text-primary hover:bg-primary/10 transition-colors font-medium"
-              >
-                <Plus className="w-3 h-3" /> Nova obra
-              </button>
-            )}
+                  {isEditing ? (
+                    <div className="flex items-center gap-1 px-1.5 py-1">
+                      <input
+                        ref={editInputRef}
+                        value={editingName}
+                        onChange={e => setEditingName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveEdit();
+                          if (e.key === 'Escape') cancelEdit();
+                        }}
+                        className="flex-1 min-w-0 text-[11px] bg-[hsl(var(--sidebar-hover))] border border-[hsl(var(--sidebar-border))] rounded px-1.5 py-0.5 focus:outline-none focus:border-primary text-[hsl(var(--sidebar-fg))]"
+                      />
+                      <button
+                        onClick={saveEdit}
+                        title="Salvar"
+                        className="p-1 rounded hover:bg-primary/20 text-primary"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        title="Cancelar"
+                        className="p-1 rounded hover:bg-destructive/20 text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => onSwitchProject(p.id)}
+                        className="flex-1 min-w-0 text-left px-2 py-1.5 truncate"
+                        title={p.name}
+                      >
+                        {p.name}
+                      </button>
+                      <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startEdit(p); }}
+                          title="Renomear"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDuplicateProject(p.id); }}
+                          title="Duplicar"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id); }}
+                          title="Excluir"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-destructive/20 text-destructive'}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <button
+              onClick={handleNewProject}
+              className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] text-primary hover:bg-primary/10 transition-colors font-medium mt-1"
+            >
+              <Plus className="w-3 h-3" /> Nova obra
+            </button>
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todos os dados da obra <strong>{projectToDelete?.name}</strong> (tarefas, medições, configurações)
+              serão removidos permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmedDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <nav className="flex-1 p-2 space-y-1">
         {navItems.map(({ view, label, icon: Icon }) => {
