@@ -38,6 +38,12 @@ export interface ValidationContext {
     budgetSource?: string;
     bdiPercent?: number;
   };
+  /** Resumo opcional dos Diários de Obra do período (para gerar avisos). */
+  dailyReports?: {
+    missingReports: number;
+    productionWithoutReportDays: number;
+    impedimentDays: number;
+  };
 }
 
 /** Retorna verdadeiro se [aStart..aEnd] e [bStart..bEnd] se cruzam. */
