@@ -580,14 +580,72 @@ export function detectExcelFormat(data: ArrayBuffer): 'structured' | 'flat' {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
-function detectHeaderRow(rows: any[][]): number {
-  if (rows.length === 0) return 0;
-  const first = rows[0];
-  if (!first) return 0;
-  const textCells = first.filter((c: any) => typeof c === 'string' && c.trim().length > 0).length;
-  const numCells = first.filter((c: any) => typeof c === 'number').length;
-  // If first row is mostly text, it's a header
-  return textCells > numCells && textCells >= 2 ? 1 : 0;
+interface ColumnMap {
+  code: number;
+  bank: number;
+  type: number;
+  description: number;
+  unit: number;
+  quantity: number;
+  productivity: number;
+  unitPriceNoBdi: number;
+  hours: number;
+  days: number;
+}
+
+const DEFAULT_COLS: ColumnMap = {
+  code: 0, bank: -1, type: 1, description: 2, unit: 3,
+  quantity: 4, productivity: 5, unitPriceNoBdi: -1, hours: 6, days: 7,
+};
+
+function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: ColumnMap } {
+  // Search for the header row in first 20 rows
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+    const headerNorm = row.map(c => normalizeText(c));
+    const hasCode = headerNorm.some(h => h === 'codigo' || h === 'cod' || h === 'code');
+    const hasType = headerNorm.some(h => h === 'tipo' || h === 'type');
+    const hasDesc = headerNorm.some(h => h === 'resumo' || h === 'descricao' || h === 'description' || h === 'nome');
+    if (hasCode && hasType && hasDesc) {
+      const cols: ColumnMap = {
+        code: findCol(headerNorm, ['codigo', 'cod', 'code', 'id']),
+        bank: findCol(headerNorm, ['banco', 'fonte', 'origem']),
+        type: findCol(headerNorm, ['tipo', 'type']),
+        description: findCol(headerNorm, ['resumo', 'descricao', 'description', 'nome', 'servico']),
+        unit: findCol(headerNorm, ['ud', 'und', 'unidade', 'unit', 'un']),
+        quantity: findCol(headerNorm, ['quant', 'qtd', 'quantidade', 'qty']),
+        productivity: findCol(headerNorm, ['prod', 'rup', 'coeficiente', 'produtividade']),
+        unitPriceNoBdi: findCol(headerNorm, ['preco s/ bdi', 'preco sem bdi', 'preco unit', 'p. unit', 'valor unit', 'preco', 'unit price']),
+        hours: findCol(headerNorm, ['horas trabalhadas', 'horas', 'hrs', 'h trab']),
+        days: findCol(headerNorm, ['dias trabalhados', 'dias', 'd trab']),
+      };
+      // Apply sensible defaults for missing columns
+      if (cols.code < 0) cols.code = 0;
+      if (cols.type < 0) cols.type = 1;
+      if (cols.description < 0) cols.description = 2;
+      if (cols.unit < 0) cols.unit = 3;
+      if (cols.quantity < 0) cols.quantity = 4;
+      if (cols.productivity < 0) cols.productivity = 5;
+      if (cols.hours < 0) cols.hours = 6;
+      if (cols.days < 0) cols.days = 7;
+      return { startRow: i + 1, cols };
+    }
+  }
+  // Fallback: assume legacy 8-column layout, no header row detection
+  return { startRow: 0, cols: { ...DEFAULT_COLS } };
+}
+
+function normalizeText(value: any): string {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function safeText(value: any): string {
+  return String(value ?? '').trim();
 }
 
 function getCodeDepth(code: string): number {
@@ -597,7 +655,6 @@ function getCodeDepth(code: string): number {
   return Math.max(0, parts.length - 1);
 }
 
-// Get parent code by removing the last segment (e.g., "1.1.1" → "1.1", "1.1" → "1")
 function getParentCode(code: string): string | null {
   if (!code) return null;
   const clean = code.replace(/\s/g, '');
@@ -606,7 +663,6 @@ function getParentCode(code: string): string | null {
   return clean.substring(0, lastDot);
 }
 
-// Find the closest parent chapter by walking up the code hierarchy
 function findParentChapter(code: string, codeMap: Map<string, ParsedChapter>): ParsedChapter | null {
   if (!code) return null;
   let parentCode = getParentCode(code);
@@ -631,7 +687,7 @@ function cellNum(val: any): number {
 
 function findCol(header: string[], keys: string[]): number {
   for (const key of keys) {
-    const idx = header.findIndex(h => h.includes(key));
+    const idx = header.findIndex(h => String(h ?? '').toLowerCase().includes(key));
     if (idx >= 0) return idx;
   }
   return -1;
