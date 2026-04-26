@@ -1060,7 +1060,26 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                                 >
                                   <Zap className="w-3 h-3" />
                                 </button>
-                                <button onClick={() => deleteTask(phase.id, task.id)} className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors" title="Excluir">
+                                <button
+                                  onClick={() => confirmDelete(
+                                    {
+                                      title: 'Deseja realmente excluir esta tarefa?',
+                                      description: (
+                                        <>
+                                          <p>Tarefa: <strong>{task.name}</strong>.</p>
+                                          <p>
+                                            Serão removidos: composição RUP, apontamentos diários,
+                                            vínculo com cronograma e dados que podem impactar medições futuras.
+                                          </p>
+                                        </>
+                                      ),
+                                      confirmLabel: 'Excluir tarefa',
+                                    },
+                                    () => deleteTask(phase.id, task.id),
+                                  )}
+                                  className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
+                                  title="Excluir tarefa"
+                                >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                                 <div className="hidden group-hover:flex items-center gap-1">
