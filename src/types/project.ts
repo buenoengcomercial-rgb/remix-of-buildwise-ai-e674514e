@@ -245,9 +245,13 @@ export type WorkCondition = 'normal' | 'parcialmente_prejudicada' | 'paralisada'
 
 export interface DailyReportTeamRow {
   id: string;
+  /** Código da equipe cadastrada no projeto (preferencial). */
+  teamCode?: string;
+  /** Nome livre — fallback para diários antigos sem teamCode. */
   name: string;
   role?: string;
   count?: number;
+  notes?: string;
 }
 
 export interface DailyReportEquipmentRow {
