@@ -244,6 +244,12 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     hasImpediments: !!currentReport.impediments?.trim(),
   }), [production, currentReport]);
 
+  // Resumo do período (só calcula quando há período ativo)
+  const periodSummary = useMemo(
+    () => activePeriod ? summarizeDailyReportsForPeriod(project, activePeriod.startDate, activePeriod.endDate) : null,
+    [activePeriod, project],
+  );
+
   // ───── Persistência ─────
   const persist = useCallback((mutator: (r: DailyReportEntry) => DailyReportEntry) => {
     onProjectChange(prev => {
