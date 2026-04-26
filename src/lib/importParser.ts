@@ -626,7 +626,7 @@ function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: Column
         unit: findCol(headerNorm, ['ud', 'und', 'unidade', 'unit', 'un']),
         quantity: findCol(headerNorm, ['quant', 'qtd', 'quantidade', 'qty']),
         productivity: findCol(headerNorm, ['prod', 'rup', 'coeficiente', 'produtividade']),
-        unitPriceNoBdi: findCol(headerNorm, ['preco s/ bdi', 'preco sem bdi', 'preco unit', 'p. unit', 'valor unit', 'preco', 'unit price']),
+        unitPriceNoBDI: findCol(headerNorm, ['preco s/ bdi', 'preco sem bdi', 'preco unit', 'p. unit', 'valor unit', 'preco', 'unit price']),
         hours: findCol(headerNorm, ['horas trabalhadas', 'horas', 'hrs', 'h trab']),
         days: findCol(headerNorm, ['dias trabalhados', 'dias', 'd trab']),
       };
