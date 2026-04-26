@@ -1,0 +1,163 @@
+import type { SavedMeasurement } from '@/types/project';
+
+export type ValidationLevel = 'error' | 'warning' | 'info';
+
+export interface ValidationIssue {
+  level: ValidationLevel;
+  code: string;
+  message: string;
+  /** taskIds afetados (quando aplicável). */
+  affectedTaskIds?: string[];
+}
+
+export interface MinimalRow {
+  taskId: string;
+  description: string;
+  itemCode: string;
+  priceBank: string;
+  unitPriceNoBDI: number;
+  qtyContracted: number;
+  qtyPeriod: number;
+  qtyPriorAccum: number;
+  qtyCurrentAccum: number;
+  qtyBalance: number;
+}
+
+export interface ValidationContext {
+  startDate: string;
+  endDate: string;
+  measurementNumber: string | number;
+  rows: MinimalRow[];
+  measurements: SavedMeasurement[];
+  contract: {
+    contractor?: string;
+    contracted?: string;
+    contractNumber?: string;
+    contractObject?: string;
+    location?: string;
+    budgetSource?: string;
+    bdiPercent?: number;
+  };
+}
+
+/** Retorna verdadeiro se [aStart..aEnd] e [bStart..bEnd] se cruzam. */
+function intervalsOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  if (!aStart || !aEnd || !bStart || !bEnd) return false;
+  return aStart <= bEnd && bStart <= aEnd;
+}
+
+/** Roda toda a bateria de validações da medição. */
+export function validateMeasurement(ctx: ValidationContext): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const { startDate, endDate, measurementNumber, rows, measurements, contract } = ctx;
+
+  // 1) Período
+  if (!startDate || !endDate) {
+    issues.push({ level: 'error', code: 'period-missing', message: 'Período da medição inválido. Preencha as datas inicial e final.' });
+  } else if (startDate > endDate) {
+    issues.push({ level: 'error', code: 'period-inverted', message: 'Período da medição inválido. A data inicial não pode ser maior que a data final.' });
+  }
+
+  // 2) Sobreposição com medições já geradas
+  if (startDate && endDate && startDate <= endDate) {
+    const overlapping = measurements.filter(m => intervalsOverlap(startDate, endDate, m.startDate, m.endDate));
+    if (overlapping.length > 0) {
+      const numbers = overlapping.map(m => `Nº ${m.number}`).join(', ');
+      issues.push({
+        level: 'error',
+        code: 'period-overlap',
+        message: `Este período cruza com medição(ões) já gerada(s): ${numbers}.`,
+      });
+    }
+  }
+
+  // 3) Número duplicado
+  const num = Number(measurementNumber);
+  if (Number.isFinite(num) && num > 0) {
+    const dup = measurements.find(m => m.number === num);
+    if (dup) {
+      issues.push({ level: 'error', code: 'number-duplicated', message: `Já existe uma medição com este número (Nº ${num}).` });
+    }
+  }
+
+  // Itens medidos no período
+  const measuredRows = rows.filter(r => (r.qtyPeriod || 0) > 0);
+
+  // 9) Sem itens medidos
+  if (measuredRows.length === 0) {
+    issues.push({ level: 'error', code: 'no-items', message: 'Não há itens medidos neste período.' });
+  }
+
+  // 5) Itens sem preço
+  const noPrice = measuredRows.filter(r => !r.unitPriceNoBDI || r.unitPriceNoBDI <= 0);
+  if (noPrice.length > 0) {
+    issues.push({
+      level: 'warning',
+      code: 'items-without-price',
+      message: `Existem ${noPrice.length} item(ns) sem preço unitário s/ BDI.`,
+      affectedTaskIds: noPrice.map(r => r.taskId),
+    });
+  }
+
+  // 6) Itens sem código/banco
+  const noCodeOrBank = measuredRows.filter(r => !r.itemCode?.trim() || !r.priceBank?.trim());
+  if (noCodeOrBank.length > 0) {
+    issues.push({
+      level: 'warning',
+      code: 'items-without-code',
+      message: `Existem ${noCodeOrBank.length} item(ns) sem código ou banco de referência.`,
+      affectedTaskIds: noCodeOrBank.map(r => r.taskId),
+    });
+  }
+
+  // 7) Quantidade do período > saldo a executar
+  const overBalance = rows.filter(r => {
+    const balance = (r.qtyContracted || 0) - (r.qtyPriorAccum || 0);
+    return (r.qtyPeriod || 0) > balance + 1e-9;
+  });
+  if (overBalance.length > 0) {
+    issues.push({
+      level: 'error',
+      code: 'qty-over-balance',
+      message: `Existem ${overBalance.length} item(ns) com quantidade medida maior que o saldo a executar.`,
+      affectedTaskIds: overBalance.map(r => r.taskId),
+    });
+  }
+
+  // 8) Acumulado > contratado
+  const overContracted = rows.filter(r => (r.qtyCurrentAccum || 0) > (r.qtyContracted || 0) + 1e-9);
+  if (overContracted.length > 0) {
+    issues.push({
+      level: 'error',
+      code: 'accum-over-contracted',
+      message: `Existem ${overContracted.length} item(ns) com acumulado maior que a quantidade contratada.`,
+      affectedTaskIds: overContracted.map(r => r.taskId),
+    });
+  }
+
+  // 10) Dados contratuais
+  const missingContract: string[] = [];
+  if (!contract.contractor?.trim()) missingContract.push('Contratante');
+  if (!contract.contracted?.trim()) missingContract.push('Contratada');
+  if (!contract.contractNumber?.trim()) missingContract.push('Nº do contrato');
+  if (!contract.budgetSource?.trim()) missingContract.push('Fonte de orçamento');
+  if (contract.bdiPercent === undefined || contract.bdiPercent === null) missingContract.push('BDI');
+  if (!contract.contractObject?.trim()) missingContract.push('Objeto');
+  if (!contract.location?.trim()) missingContract.push('Local/Município');
+  if (missingContract.length > 0) {
+    issues.push({
+      level: 'warning',
+      code: 'contract-incomplete',
+      message: `Dados contratuais incompletos: ${missingContract.join(', ')}.`,
+    });
+  }
+
+  return issues;
+}
+
+export function summarizeIssues(issues: ValidationIssue[]) {
+  const errors = issues.filter(i => i.level === 'error').length;
+  const warnings = issues.filter(i => i.level === 'warning').length;
+  const infos = issues.filter(i => i.level === 'info').length;
+  return { errors, warnings, infos, hasBlocking: errors > 0 };
+}
