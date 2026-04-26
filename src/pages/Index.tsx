@@ -9,7 +9,7 @@ import UndoButton from '@/components/UndoButton';
 import { Menu, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
-import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject } from '@/lib/projectStorage';
+import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject, renameProject, duplicateProject, deleteProject, generateUniqueProjectName, listProjects } from '@/lib/projectStorage';
 
 const UNDO_LIMIT = 20;
 
