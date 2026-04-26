@@ -1,6 +1,6 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
-import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, CheckCircle2, Clock4, Activity, ArrowRight } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, DailyReportAttachment, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
+import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, CheckCircle2, Clock4, Activity, ArrowRight, Camera, Image as ImageIcon, X, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,11 +8,28 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+const PHOTO_BUCKET = 'daily-report-photos';
+const GENERAL_TASK_VALUE = '__general__';
+
+/** Lê arquivo como dataURL (usado para preview e fallback). */
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 interface DailyReportProps {
   project: Project;
@@ -344,13 +361,148 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     equipment: (r.equipment || []).filter(e => e.id !== id),
   }));
 
+  // ───── Fotos / Anexos ─────
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<string>(GENERAL_TASK_VALUE);
+  const [photoFilter, setPhotoFilter] = useState<string>('all'); // 'all' | taskId | GENERAL_TASK_VALUE
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [lightbox, setLightbox] = useState<DailyReportAttachment | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<DailyReportAttachment | null>(null);
+
+  const photos: DailyReportAttachment[] = useMemo(
+    () => (currentReport.attachments || []).filter(a => (a.type ?? 'image') === 'image'),
+    [currentReport.attachments],
+  );
+
+  const photosByTask = useMemo(() => {
+    const m = new Map<string, number>();
+    photos.forEach(p => {
+      const key = p.taskId || GENERAL_TASK_VALUE;
+      m.set(key, (m.get(key) || 0) + 1);
+    });
+    return m;
+  }, [photos]);
+
+  const visiblePhotos = useMemo(() => {
+    if (photoFilter === 'all') return photos;
+    return photos.filter(p => (p.taskId || GENERAL_TASK_VALUE) === photoFilter);
+  }, [photos, photoFilter]);
+
+  const photoTaskOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const opts: { value: string; label: string; phaseChain: string; quantity: number; unit: string; taskName: string }[] = [];
+    production.forEach(p => {
+      if (seen.has(p.taskId)) return;
+      seen.add(p.taskId);
+      const chain = p.subChapterName
+        ? `${p.chapterNumber} ${p.chapterName} > ${p.subChapterNumber} ${p.subChapterName}`
+        : `${p.chapterNumber} ${p.chapterName}`;
+      const numero = p.subChapterNumber ? `${p.subChapterNumber}` : `${p.chapterNumber}`;
+      opts.push({
+        value: p.taskId,
+        label: `${numero} — ${p.taskName} — ${p.actualQuantity.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${p.unit}`,
+        phaseChain: chain,
+        quantity: p.actualQuantity,
+        unit: p.unit,
+        taskName: p.taskName,
+      });
+    });
+    return opts;
+  }, [production]);
+
+  const uploadOne = useCallback(async (file: File): Promise<DailyReportAttachment> => {
+    const id = uid('att');
+    const safeExt = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `${project.id || 'local'}/${selectedDate}/${id}.${safeExt}`;
+    const taskMeta = pendingTaskId !== GENERAL_TASK_VALUE
+      ? photoTaskOptions.find(o => o.value === pendingTaskId)
+      : undefined;
+    const base: DailyReportAttachment = {
+      id,
+      type: 'image',
+      fileName: file.name,
+      mimeType: file.type || 'image/jpeg',
+      caption: '',
+      taskId: taskMeta?.value,
+      taskName: taskMeta?.taskName,
+      phaseChain: taskMeta?.phaseChain,
+      quantity: taskMeta?.quantity,
+      unit: taskMeta?.unit,
+      uploadedBy: currentReport.responsible || undefined,
+      uploadedAt: new Date().toISOString(),
+    };
+    try {
+      const { error } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+      return { ...base, storagePath: path, publicUrl: pub.publicUrl };
+    } catch (err) {
+      const dataUrl = await readFileAsDataURL(file);
+      return { ...base, dataUrl };
+    }
+  }, [project.id, selectedDate, pendingTaskId, photoTaskOptions, currentReport.responsible]);
+
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(f.name));
+    if (arr.length === 0) return;
+    setUploadingCount(c => c + arr.length);
+    try {
+      const uploaded: DailyReportAttachment[] = [];
+      for (const f of arr) {
+        try {
+          const att = await uploadOne(f);
+          uploaded.push(att);
+        } catch (err) {
+          console.error('Falha ao anexar foto', err);
+        }
+      }
+      if (uploaded.length > 0) {
+        persist(r => ({ ...r, attachments: [...(r.attachments || []), ...uploaded] }));
+        toast({ title: `${uploaded.length} foto(s) anexada(s)`, description: 'A galeria do dia foi atualizada.' });
+      }
+    } finally {
+      setUploadingCount(c => Math.max(0, c - arr.length));
+    }
+  }, [uploadOne, persist]);
+
+  const updatePhoto = (id: string, patch: Partial<DailyReportAttachment>) => persist(r => ({
+    ...r,
+    attachments: (r.attachments || []).map(a => a.id === id ? { ...a, ...patch } : a),
+  }));
+
+  const removePhoto = useCallback(async (att: DailyReportAttachment) => {
+    if (att.storagePath) {
+      try { await supabase.storage.from(PHOTO_BUCKET).remove([att.storagePath]); } catch { /* ignore */ }
+    }
+    persist(r => ({ ...r, attachments: (r.attachments || []).filter(a => a.id !== att.id) }));
+    toast({ title: 'Foto removida' });
+  }, [persist]);
+
+  /** Carrega URL como dataURL (necessário para embed no PDF). */
+  const fetchAsDataURL = async (url: string): Promise<string | null> => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
   // ───── PDF ─────
   /**
    * Gera o PDF do Diário de Obra.
    * - mode='day': apenas a data atualmente selecionada.
    * - mode='period': todos os dias do período da medição filtrada (ou da data atual, como fallback).
    */
-  const generatePDF = useCallback((mode: 'day' | 'period') => {
+  const generatePDF = useCallback(async (mode: 'day' | 'period') => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
@@ -509,7 +661,8 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       if (y + h > pageH - footerReserved) { doc.addPage(); y = margin; }
     };
 
-    dates.forEach((dateISO, idx) => {
+    for (let idx = 0; idx < dates.length; idx++) {
+      const dateISO = dates[idx];
       const entry = periodSum.entries.find(e => e.date === dateISO);
       const report = reportsByDate.get(dateISO);
       const dayProduction = collectProductionForDate(project, dateISO);
@@ -702,7 +855,88 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       longBlock('Ocorrências', report?.occurrences);
       longBlock('Impedimentos', report?.impediments);
       longBlock('Observações', report?.observations);
-    });
+
+      // ───── Fotos do dia ─────
+      const dayPhotos = (report?.attachments || []).filter(a => (a.type ?? 'image') === 'image');
+      if (dayPhotos.length > 0) {
+        ensureSpace(14);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+        doc.text(`Fotos da Obra (${dayPhotos.length})`, margin, y); y += 2;
+
+        // Agrupar por tarefa
+        const byTask = new Map<string, { taskName: string; phaseChain?: string; photos: DailyReportAttachment[] }>();
+        dayPhotos.forEach(p => {
+          const k = p.taskId || GENERAL_TASK_VALUE;
+          if (!byTask.has(k)) {
+            byTask.set(k, {
+              taskName: p.taskName || (k === GENERAL_TASK_VALUE ? 'Geral / Sem atividade específica' : '—'),
+              phaseChain: p.phaseChain,
+              photos: [],
+            });
+          }
+          byTask.get(k)!.photos.push(p);
+        });
+
+        const cols = 3;
+        const gap = 3;
+        const thumbW = (usable - gap * (cols - 1)) / cols;
+        const thumbH = thumbW * 0.72;
+        const captionH = 9;
+
+        for (const group of byTask.values()) {
+          ensureSpace(8);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(31, 41, 55);
+          const groupTitle = group.phaseChain
+            ? `${group.taskName}  —  ${group.phaseChain}`
+            : group.taskName;
+          doc.text(groupTitle, margin, y); y += 3.4;
+          doc.setTextColor(20);
+
+          for (let pIdx = 0; pIdx < group.photos.length; pIdx += cols) {
+            ensureSpace(thumbH + captionH + 2);
+            const rowPhotos = group.photos.slice(pIdx, pIdx + cols);
+            for (let c = 0; c < rowPhotos.length; c++) {
+              const ph = rowPhotos[c];
+              const x = margin + c * (thumbW + gap);
+              // Carrega imagem (publicUrl ou dataUrl)
+              let dataUrl: string | null = ph.dataUrl || null;
+              if (!dataUrl && ph.publicUrl) {
+                dataUrl = await fetchAsDataURL(ph.publicUrl);
+              }
+              if (dataUrl) {
+                try {
+                  const fmt = (ph.mimeType || '').includes('png') ? 'PNG' : 'JPEG';
+                  doc.addImage(dataUrl, fmt, x, y, thumbW, thumbH, undefined, 'FAST');
+                } catch {
+                  doc.setDrawColor(220); doc.rect(x, y, thumbW, thumbH);
+                  doc.setFontSize(6); doc.setTextColor(150);
+                  doc.text('Imagem indisponível', x + thumbW / 2, y + thumbH / 2, { align: 'center' });
+                  doc.setTextColor(20);
+                }
+              } else {
+                doc.setDrawColor(220); doc.rect(x, y, thumbW, thumbH);
+                doc.setFontSize(6); doc.setTextColor(150);
+                doc.text('Imagem indisponível', x + thumbW / 2, y + thumbH / 2, { align: 'center' });
+                doc.setTextColor(20);
+              }
+              // Legenda
+              doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(70);
+              const cap = ph.caption?.trim() || '—';
+              const when = ph.uploadedAt ? new Date(ph.uploadedAt).toLocaleString('pt-BR') : '';
+              const capLines = doc.splitTextToSize(cap, thumbW);
+              doc.text(capLines.slice(0, 2), x, y + thumbH + 2.6);
+              if (when) {
+                doc.setFontSize(5.6); doc.setTextColor(140);
+                doc.text(when, x, y + thumbH + captionH - 1);
+              }
+              doc.setTextColor(20);
+            }
+            y += thumbH + captionH + 1;
+          }
+          y += 1;
+        }
+      }
+    }
 
     // ───── Rodapé fixo em todas as páginas ─────
     const total = doc.getNumberOfPages();
@@ -1033,6 +1267,145 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
         </Card>
       </div>
 
+      {/* Fotos da Obra */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Camera className="w-4 h-4 text-primary" /> Fotos da Obra ({photos.length})
+          </CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              <Label className="text-[11px] text-muted-foreground">Vincular à atividade:</Label>
+              <Select value={pendingTaskId} onValueChange={setPendingTaskId}>
+                <SelectTrigger className="h-8 text-xs w-[280px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={GENERAL_TASK_VALUE}>Foto geral do dia / Sem atividade específica</SelectItem>
+                  {photoTaskOptions.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleFiles(e.target.files);
+                  e.target.value = '';
+                }
+              }}
+            />
+            <Button size="sm" variant="default" onClick={() => fileInputRef.current?.click()} disabled={uploadingCount > 0}>
+              {uploadingCount > 0 ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+              Anexar fotos
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent
+          className="space-y-3"
+          onDragOver={(e) => { e.preventDefault(); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              handleFiles(e.dataTransfer.files);
+            }
+          }}
+        >
+          {/* Filtro por atividade */}
+          {photos.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+              <Button size="sm" variant={photoFilter === 'all' ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setPhotoFilter('all')}>
+                Todas ({photos.length})
+              </Button>
+              {photosByTask.has(GENERAL_TASK_VALUE) && (
+                <Button size="sm" variant={photoFilter === GENERAL_TASK_VALUE ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setPhotoFilter(GENERAL_TASK_VALUE)}>
+                  Geral ({photosByTask.get(GENERAL_TASK_VALUE)})
+                </Button>
+              )}
+              {photoTaskOptions.filter(o => photosByTask.has(o.value)).map(o => (
+                <Button key={o.value} size="sm" variant={photoFilter === o.value ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setPhotoFilter(o.value)}>
+                  {o.taskName} ({photosByTask.get(o.value)})
+                </Button>
+              ))}
+            </div>
+          )}
+
+          {visiblePhotos.length === 0 ? (
+            <div className="border border-dashed border-border rounded-md py-8 text-center text-xs text-muted-foreground">
+              <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-50" />
+              {photos.length === 0
+                ? 'Nenhuma foto anexada. Arraste imagens aqui ou clique em "Anexar fotos".'
+                : 'Nenhuma foto neste filtro.'}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {visiblePhotos.map(p => {
+                const src = p.publicUrl || p.dataUrl;
+                return (
+                  <div key={p.id} className="border border-border rounded-md overflow-hidden bg-card group">
+                    <div className="relative aspect-[4/3] bg-muted cursor-pointer" onClick={() => setLightbox(p)}>
+                      {src ? (
+                        <img src={src} alt={p.caption || p.fileName || 'foto'} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Sem preview</div>
+                      )}
+                      <button
+                        type="button"
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive/90 text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(p); }}
+                        title="Remover foto"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="p-2 space-y-1.5">
+                      <Input
+                        className="h-7 text-[11px]"
+                        placeholder="Legenda"
+                        value={p.caption || ''}
+                        onChange={(e) => updatePhoto(p.id, { caption: e.target.value })}
+                      />
+                      <Select
+                        value={p.taskId || GENERAL_TASK_VALUE}
+                        onValueChange={(v) => {
+                          if (v === GENERAL_TASK_VALUE) {
+                            updatePhoto(p.id, { taskId: undefined, taskName: undefined, phaseChain: undefined, quantity: undefined, unit: undefined });
+                          } else {
+                            const meta = photoTaskOptions.find(o => o.value === v);
+                            updatePhoto(p.id, { taskId: v, taskName: meta?.taskName, phaseChain: meta?.phaseChain, quantity: meta?.quantity, unit: meta?.unit });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={GENERAL_TASK_VALUE}>Geral / Sem atividade</SelectItem>
+                          {photoTaskOptions.map(o => (
+                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {p.uploadedAt && (
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {new Date(p.uploadedAt).toLocaleString('pt-BR')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Produção do dia */}
       <Card>
         <CardHeader className="pb-3">
@@ -1054,14 +1427,14 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
                     {ch.chapterNumber} — {ch.chapterName}
                   </div>
                   {ch.direct.length > 0 && (
-                    <ProductionTable entries={ch.direct} />
+                    <ProductionTable entries={ch.direct} photosByTask={photosByTask} onShowPhotos={(taskId) => setPhotoFilter(taskId)} />
                   )}
                   {Array.from(ch.subs.values()).map(sub => (
                     <div key={sub.number + sub.name} className="ml-4 space-y-1">
                       <div className="text-xs font-medium text-muted-foreground">
                         {sub.number} — {sub.name}
                       </div>
-                      <ProductionTable entries={sub.entries} />
+                      <ProductionTable entries={sub.entries} photosByTask={photosByTask} onShowPhotos={(taskId) => setPhotoFilter(taskId)} />
                     </div>
                   ))}
                   <Separator />
@@ -1071,6 +1444,49 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
           )}
         </CardContent>
       </Card>
+
+      {/* Lightbox */}
+      <Dialog open={!!lightbox} onOpenChange={(o) => !o && setLightbox(null)}>
+        <DialogContent className="max-w-4xl p-2">
+          {lightbox && (
+            <div className="space-y-2">
+              <img
+                src={lightbox.publicUrl || lightbox.dataUrl}
+                alt={lightbox.caption || lightbox.fileName || 'foto'}
+                className="w-full max-h-[75vh] object-contain rounded bg-black"
+              />
+              <div className="px-2 pb-1 text-xs space-y-0.5">
+                {lightbox.caption && <div className="font-medium">{lightbox.caption}</div>}
+                {lightbox.taskName && <div className="text-muted-foreground">{lightbox.taskName}{lightbox.phaseChain ? ` — ${lightbox.phaseChain}` : ''}</div>}
+                {lightbox.uploadedAt && <div className="text-muted-foreground">{new Date(lightbox.uploadedAt).toLocaleString('pt-BR')}</div>}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação de remoção */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover foto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação remove a foto do diário. O apontamento de produção e a tarefa não são afetados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmDelete) removePhoto(confirmDelete);
+                setConfirmDelete(null);
+              }}
+            >
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1095,7 +1511,15 @@ function SummaryCard({
   );
 }
 
-function ProductionTable({ entries }: { entries: ProductionEntry[] }) {
+function ProductionTable({
+  entries,
+  photosByTask,
+  onShowPhotos,
+}: {
+  entries: ProductionEntry[];
+  photosByTask?: Map<string, number>;
+  onShowPhotos?: (taskId: string) => void;
+}) {
   return (
     <div className="border border-border rounded-md overflow-hidden">
       <table className="w-full text-xs">
@@ -1105,17 +1529,35 @@ function ProductionTable({ entries }: { entries: ProductionEntry[] }) {
             <th className="text-center px-2 py-1.5 font-medium w-20">Unid.</th>
             <th className="text-right px-2 py-1.5 font-medium w-28">Qtd. executada</th>
             <th className="text-left px-2 py-1.5 font-medium">Observação</th>
+            <th className="text-center px-2 py-1.5 font-medium w-20">Fotos</th>
           </tr>
         </thead>
         <tbody>
-          {entries.map(e => (
-            <tr key={e.taskId + (e.notes || '')} className="border-t border-border">
-              <td className="px-2 py-1.5">{e.taskName}</td>
-              <td className="px-2 py-1.5 text-center text-muted-foreground">{e.unit}</td>
-              <td className="px-2 py-1.5 text-right font-semibold">{e.actualQuantity.toFixed(2)}</td>
-              <td className="px-2 py-1.5 text-muted-foreground">{e.notes || '—'}</td>
-            </tr>
-          ))}
+          {entries.map(e => {
+            const count = photosByTask?.get(e.taskId) || 0;
+            return (
+              <tr key={e.taskId + (e.notes || '')} className="border-t border-border">
+                <td className="px-2 py-1.5">{e.taskName}</td>
+                <td className="px-2 py-1.5 text-center text-muted-foreground">{e.unit}</td>
+                <td className="px-2 py-1.5 text-right font-semibold">{e.actualQuantity.toFixed(2)}</td>
+                <td className="px-2 py-1.5 text-muted-foreground">{e.notes || '—'}</td>
+                <td className="px-2 py-1.5 text-center">
+                  {count > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => onShowPhotos?.(e.taskId)}
+                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                      title="Ver fotos vinculadas"
+                    >
+                      <Camera className="w-3 h-3" /> {count}
+                    </button>
+                  ) : (
+                    <span className="text-muted-foreground text-[11px]">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
