@@ -320,13 +320,6 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
                           <Pencil className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); onDuplicateProject(p.id); }}
-                          title="Duplicar"
-                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                        <button
                           onClick={(e) => { e.stopPropagation(); handleExportProject(p.id); }}
                           title="Exportar obra"
                           className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
