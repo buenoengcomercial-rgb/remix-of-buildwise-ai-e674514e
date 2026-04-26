@@ -843,7 +843,20 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                               const rowTeam = teamDef(task.team);
                               return (
                             <div
-                              className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                // Só dispara se o clique for em área neutra da linha
+                                // (não em inputs, selects, botões, links etc.)
+                                const target = e.target as HTMLElement;
+                                if (target.closest('button, input, select, textarea, a, [role="button"]')) return;
+                                // Abre Apontamento Diário desta tarefa, fecha o RUP da mesma tarefa
+                                setExpandedDaily(prev => (prev === task.id ? null : task.id));
+                                if (expandedRup === task.id) setExpandedRup(null);
+                              }}
+                              className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center cursor-pointer ${
+                                expandedDaily === task.id ? 'ring-1 ring-info/40 bg-info/[0.04]' : ''
+                              } ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
                               style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
@@ -878,9 +891,11 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                                 ) : (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
+                                      <span
+                                        className={`text-xs font-medium truncate text-left transition-colors cursor-pointer ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}
+                                      >
                                         {truncateWords(task.name, 8)}
-                                      </button>
+                                      </span>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="max-w-md whitespace-normal break-words">
                                       {task.name}
@@ -1021,11 +1036,24 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                               {/* Ações */}
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() => setExpandedDaily(expandedDaily === task.id ? null : task.id)}
+                                  onClick={() => {
+                                    setExpandedDaily(expandedDaily === task.id ? null : task.id);
+                                    if (expandedRup === task.id) setExpandedRup(null);
+                                  }}
                                   className={`p-1 rounded transition-colors ${expandedDaily === task.id ? 'bg-info/30 text-info' : 'hover:bg-info/20 text-info'}`}
-                                  title="Apontamento diário de produção"
+                                  title="Apontamento diário"
                                 >
                                   <ClipboardList className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setExpandedRup(expandedRup === task.id ? null : task.id);
+                                    if (expandedDaily === task.id) setExpandedDaily(null);
+                                  }}
+                                  className={`p-1 rounded transition-colors ${expandedRup === task.id ? 'bg-warning/30 text-warning' : 'hover:bg-warning/20 text-warning'}`}
+                                  title="Ver composição RUP"
+                                >
+                                  <Zap className="w-3 h-3" />
                                 </button>
                                 <button onClick={() => deleteTask(phase.id, task.id)} className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors" title="Excluir">
                                   <Trash2 className="w-3 h-3" />
