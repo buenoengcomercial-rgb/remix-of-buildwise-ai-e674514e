@@ -50,10 +50,12 @@ export default function Index() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dailyReportInitialDate, setDailyReportInitialDate] = useState<string | undefined>(undefined);
   const [dailyReportInitialFilter, setDailyReportInitialFilter] = useState<string | undefined>(undefined);
+  const [dailyReportNavKey, setDailyReportNavKey] = useState(0);
 
   const handleOpenDailyReport = useCallback((dateISO: string, measurementFilter?: string) => {
     setDailyReportInitialDate(dateISO);
     setDailyReportInitialFilter(measurementFilter);
+    setDailyReportNavKey(k => k + 1); // força re-aplicação mesmo se valores se repetirem
     setCurrentView('dailyReport');
     setSidebarOpen(false);
   }, []);
@@ -331,7 +333,7 @@ export default function Index() {
       case 'measurement':
         return <Measurement project={project} onProjectChange={measurementSetter} undoButton={<UndoButton canUndo={canUndo('measurement')} onUndo={() => handleUndo('measurement')} />} onOpenDailyReport={handleOpenDailyReport} />;
       case 'dailyReport':
-        return <DailyReport project={project} onProjectChange={dailyReportSetter} undoButton={<UndoButton canUndo={canUndo('dailyReport')} onUndo={() => handleUndo('dailyReport')} />} initialDate={dailyReportInitialDate} initialMeasurementFilter={dailyReportInitialFilter} />;
+        return <DailyReport project={project} onProjectChange={dailyReportSetter} undoButton={<UndoButton canUndo={canUndo('dailyReport')} onUndo={() => handleUndo('dailyReport')} />} initialDate={dailyReportInitialDate} initialMeasurementFilter={dailyReportInitialFilter} navKey={dailyReportNavKey} />;
     }
   };
 

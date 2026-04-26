@@ -21,6 +21,9 @@ interface DailyReportProps {
   initialDate?: string;
   /** Filtro de medição inicial vindo da Medição (ex.: 'draft' ou id da medição). */
   initialMeasurementFilter?: string;
+  /** Chave que muda a cada navegação externa, força re-aplicar initialDate/initialMeasurementFilter
+   *  mesmo quando os valores se repetem. */
+  navKey?: number;
 }
 
 const WEATHER_OPTIONS: Array<{ value: WeatherCondition; label: string; icon: React.ElementType }> = [
@@ -107,15 +110,21 @@ function collectProductionForDate(project: Project, dateISO: string): Production
   return out;
 }
 
-export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter }: DailyReportProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayISO());
-  const [measurementFilter, setMeasurementFilter] = useState<string>(initialMeasurementFilter || 'all');
+export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
+  // Default inteligente: se nada veio externo, mas existe medição em preparação, abrir já filtrado por ela.
+  const hasDraft = !!(project.measurementDraft?.startDate && project.measurementDraft?.endDate);
+  const defaultFilter = initialMeasurementFilter || (hasDraft ? 'draft' : 'all');
 
-  // Sincroniza filtro vindo da Medição
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayISO());
+  const [measurementFilter, setMeasurementFilter] = useState<string>(defaultFilter);
+
+  // Sincroniza filtro/data vindos da Medição. Depende de navKey para re-aplicar mesmo
+  // quando os mesmos valores são enviados de novo (ex.: clicar 2x em "Ver no Diário").
   useEffect(() => {
     if (initialMeasurementFilter) setMeasurementFilter(initialMeasurementFilter);
+    if (initialDate) setSelectedDate(initialDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMeasurementFilter]);
+  }, [initialMeasurementFilter, initialDate, navKey]);
 
   const reports = project.dailyReports || [];
 
@@ -198,13 +207,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     [project, selectedDate]
   );
 
-  // Sincroniza data quando a Medição navega para o Diário com uma data específica.
-  useEffect(() => {
-    if (initialDate && initialDate !== selectedDate) {
-      setSelectedDate(initialDate);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDate]);
+  // (sincronização de initialDate/initialMeasurementFilter agora vive no useEffect com navKey, acima)
 
   // Agrupa por capítulo > subcapítulo > tarefa
   const grouped = useMemo(() => {
