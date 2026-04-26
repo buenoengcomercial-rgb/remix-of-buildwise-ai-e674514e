@@ -160,20 +160,21 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
 
     const todayStr = new Date().toISOString().split('T')[0];
     const newPhases = convertStructuredToProject(filteredResult, todayStr);
-    const updatedPhases = [...project.phases];
-    let colorIdx = updatedPhases.length;
+    const baseColorOffset = project.phases.length;
 
-    for (const phase of newPhases) {
-      const existing = updatedPhases.find(p => p.name.toLowerCase() === phase.name.toLowerCase());
-      if (existing) {
-        existing.tasks = [...existing.tasks, ...phase.tasks];
-      } else {
-        updatedPhases.push({ ...phase, color: PHASE_COLORS[colorIdx % PHASE_COLORS.length] });
-        colorIdx++;
-      }
-    }
+    // Append all imported phases preserving parentId hierarchy.
+    // Do NOT merge by name — that would flatten subchapters.
+    const appended: Phase[] = newPhases.map((p, i) => ({
+      id: p.id,
+      name: p.name,
+      color: PHASE_COLORS[(baseColorOffset + i) % PHASE_COLORS.length],
+      tasks: p.tasks,
+      parentId: p.parentId,
+      customNumber: p.customNumber,
+      order: p.order,
+    }));
 
-    onProjectChange({ ...project, phases: updatedPhases });
+    onProjectChange({ ...project, phases: [...project.phases, ...appended] });
     handleClose();
   };
 
