@@ -617,7 +617,7 @@ export default function GanttChart({ project, onProjectChange, undoButton }: Gan
     if (!onProjectChange) return;
     const proj = projectToUse || project;
     const allTasks = getAllTasks(proj);
-    const result = propagateAllDependencies(allTasks, taskId);
+    const result = propagateAllDependencies(allTasks, taskId, obraConfig);
 
     if (result.changed) {
       const newProject = {
@@ -634,14 +634,14 @@ export default function GanttChart({ project, onProjectChange, undoButton }: Gan
       const types = Array.from(result.adjustedTypes).join(', ');
       toast.info(`Datas ajustadas automaticamente por dependência [${types}]`);
     }
-  }, [project, onProjectChange]);
+  }, [project, onProjectChange, obraConfig]);
 
   // Compute temporary propagation for real-time drag preview
   const computeDragPropagation = useCallback((taskId: string, newStartDate: string) => {
     const allTasks = getAllTasks(project).map(t =>
       t.id === taskId ? { ...t, startDate: newStartDate } : t
     );
-    const result = propagateAllDependencies(allTasks, taskId);
+    const result = propagateAllDependencies(allTasks, taskId, obraConfig);
     const tempMap = new Map<string, { startDate: string }>();
     result.tasks.forEach(t => {
       if (t.id !== taskId) {
@@ -649,7 +649,7 @@ export default function GanttChart({ project, onProjectChange, undoButton }: Gan
       }
     });
     return tempMap;
-  }, [project]);
+  }, [project, obraConfig]);
 
   const handleMouseDown = (e: React.MouseEvent, taskId: string, barLeft: number) => {
     e.preventDefault();
@@ -739,7 +739,7 @@ export default function GanttChart({ project, onProjectChange, undoButton }: Gan
           const newStartISO = dateToISO(newStart);
 
           // Check precedence violation (if this task is a successor)
-          const violation = checkDependencyViolation(task, newStartISO, tasks);
+          const violation = checkDependencyViolation(task, newStartISO, tasks, obraConfig);
           if (violation) {
             toast.error(`Não é possível: a tarefa depende do término da tarefa "${violation.predName}" (${violation.type})`, {
               action: {
