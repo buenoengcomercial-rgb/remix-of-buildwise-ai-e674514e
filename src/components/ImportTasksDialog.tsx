@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Project, Phase } from '@/types/project';
-import { Upload, FileSpreadsheet, FileText, AlertTriangle, Check, X, Loader2, Wand2, ChevronDown, ChevronRight, Users, FolderOpen, Wrench, Info } from 'lucide-react';
-import { ParsedTask, ParsedChapter, ParsedComposition, ParseResult, parseExcel, parsePDF, parseStructuredExcel, detectExcelFormat, convertStructuredToProject, convertToProjectTasks, standardizeSinapi } from '@/lib/importParser';
+import { Upload, FileSpreadsheet, FileText, AlertTriangle, Check, X, Loader2, Wand2, ChevronDown, ChevronRight, Users, FolderOpen, Wrench, Info, Download, AlertCircle, ShieldAlert } from 'lucide-react';
+import { ParsedTask, ParsedChapter, ParsedComposition, ParseResult, parseExcel, parsePDF, parseStructuredExcel, detectExcelFormat, convertStructuredToProject, convertToProjectTasks, standardizeSinapi, ImportIssue } from '@/lib/importParser';
+import { attachCompKeys, summarize, downloadInconsistencyReport, buildInfoEntries } from '@/lib/importInconsistencies';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ImportTasksDialogProps {
@@ -209,6 +210,9 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
 
   const confirmImport = format === 'structured' ? confirmStructuredImport : confirmFlatImport;
 
+  const [showAllIssues, setShowAllIssues] = useState(false);
+  const [confirmedWithWarnings, setConfirmedWithWarnings] = useState(false);
+
   // Count for UI
   const totalCount = format === 'structured'
     ? (structuredResult?.flatCompositions.length ?? 0)
@@ -218,6 +222,69 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
     ? (structuredResult?.flatCompositions.filter(c => c.needsReview).length ?? 0)
     : parsedTasks.filter(t => t.needsReview).length;
   const warningCount = structuredResult?.warnings.length ?? 0;
+
+  // ── Inconsistency report (structured only) ──
+  const enrichedIssues: ImportIssue[] = useMemo(
+    () => (structuredResult ? attachCompKeys(structuredResult) : []),
+    [structuredResult],
+  );
+  const summary = useMemo(
+    () => (structuredResult ? summarize(structuredResult, selectedComps) : null),
+    [structuredResult, selectedComps],
+  );
+  // Per-composition issue maps for highlight in tree
+  const issuesByCompKey = useMemo(() => {
+    const map = new Map<string, { errors: number; warnings: number }>();
+    enrichedIssues.forEach(iss => {
+      if (!iss.compKey) return;
+      const cur = map.get(iss.compKey) || { errors: 0, warnings: 0 };
+      if (iss.level === 'error') cur.errors++;
+      else if (iss.level === 'warning') cur.warnings++;
+      map.set(iss.compKey, cur);
+    });
+    return map;
+  }, [enrichedIssues]);
+
+  // Errors that affect *selected* compositions only
+  const selectedErrorCount = useMemo(() => {
+    let n = 0;
+    enrichedIssues.forEach(iss => {
+      if (iss.level !== 'error') return;
+      if (iss.compKey && !selectedComps.has(iss.compKey)) return;
+      n++;
+    });
+    return n;
+  }, [enrichedIssues, selectedComps]);
+  const selectedWarningCount = useMemo(() => {
+    let n = 0;
+    enrichedIssues.forEach(iss => {
+      if (iss.level !== 'warning') return;
+      if (iss.compKey && !selectedComps.has(iss.compKey)) return;
+      n++;
+    });
+    return n;
+  }, [enrichedIssues, selectedComps]);
+
+  const blockedByErrors = format === 'structured' && selectedErrorCount > 0;
+  const needsExtraConfirm = format === 'structured' && !blockedByErrors && selectedWarningCount > 0;
+
+  const handleConfirm = () => {
+    if (blockedByErrors) return;
+    if (needsExtraConfirm && !confirmedWithWarnings) {
+      const ok = window.confirm('Existem avisos na importação. Deseja importar mesmo assim?');
+      if (!ok) return;
+      setConfirmedWithWarnings(true);
+    }
+    confirmImport();
+  };
+
+  const handleDownloadReport = () => {
+    if (!structuredResult || !summary) return;
+    downloadInconsistencyReport(
+      { ...structuredResult, issues: enrichedIssues },
+      summary,
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>
@@ -297,13 +364,78 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
               </div>
             </div>
 
-            {/* Warnings */}
-            {warningCount > 0 && (
-              <div className="p-2 rounded-lg bg-warning/10 border border-warning/20 text-[10px] text-warning space-y-0.5">
-                {structuredResult.warnings.slice(0, 5).map((w, i) => (
-                  <p key={i}>⚠️ {w}</p>
-                ))}
-                {warningCount > 5 && <p>... e mais {warningCount - 5} alertas</p>}
+            {/* Inconsistency report */}
+            {summary && (
+              <div className="rounded-lg border border-border bg-card overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-secondary/40 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Relatório de Inconsistências da Importação</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleDownloadReport} className="h-7 text-[11px] gap-1">
+                    <Download className="w-3 h-3" /> Baixar relatório
+                  </Button>
+                </div>
+
+                {/* Counters */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 text-[11px]">
+                  <Counter label="Capítulos" value={summary.chapters} />
+                  <Counter label="Subcapítulos" value={summary.subchapters} />
+                  <Counter label="Composições" value={summary.compositions} />
+                  <Counter label="Selecionadas" value={summary.selectedCompositions} tone="primary" />
+                  <Counter label="Mão de obra" value={summary.labors} />
+                  <Counter label="Com preço" value={summary.withPrice} tone="success" />
+                  <Counter label="Sem preço" value={summary.withoutPrice} tone="warning" />
+                  <Counter label="Total avisos" value={summary.warnings} tone="warning" />
+                </div>
+
+                {/* Status banners */}
+                <div className="px-3 pb-2 space-y-1.5">
+                  {selectedErrorCount > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30 text-[11px] text-destructive">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>{selectedErrorCount} erro(s)</strong> nos itens selecionados.
+                        Corrija a planilha ou desmarque os itens com erro antes de importar.
+                      </div>
+                    </div>
+                  )}
+                  {selectedErrorCount === 0 && selectedWarningCount > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-warning/10 border border-warning/30 text-[11px] text-warning">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>{selectedWarningCount} aviso(s)</strong> nos itens selecionados.
+                        A importação será permitida com confirmação extra.
+                      </div>
+                    </div>
+                  )}
+                  {selectedErrorCount === 0 && selectedWarningCount === 0 && summary.compositions > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-success/10 border border-success/30 text-[11px] text-success">
+                      <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <div>Nenhuma inconsistência grave detectada nos itens selecionados.</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Issues list */}
+                {enrichedIssues.length > 0 && (
+                  <div className="border-t border-border">
+                    <button
+                      onClick={() => setShowAllIssues(v => !v)}
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-secondary/30"
+                    >
+                      <span>Lista de inconsistências ({enrichedIssues.length})</span>
+                      {showAllIssues ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    </button>
+                    {showAllIssues && (
+                      <div className="max-h-56 overflow-y-auto divide-y divide-border">
+                        {enrichedIssues.map((iss, i) => (
+                          <IssueRow key={i} issue={iss} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -319,6 +451,7 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
                 setExpandedComps={setExpandedComps}
                 selectedComps={selectedComps}
                 setSelectedComps={setSelectedComps}
+                issuesByCompKey={issuesByCompKey}
                 depth={0}
               />
             ))}
@@ -419,8 +552,18 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
                 <X className="w-3 h-3 mr-1" /> Voltar
               </Button>
               <div className="flex items-center gap-2">
+                {blockedByErrors && (
+                  <span className="text-[11px] text-destructive font-medium">
+                    Corrija os erros ou desmarque os itens com erro antes de importar.
+                  </span>
+                )}
                 <span className="text-xs text-muted-foreground">{selectedCount} composições serão importadas</span>
-                <Button onClick={confirmImport} disabled={selectedCount === 0} size="sm" className="gap-1">
+                <Button
+                  onClick={handleConfirm}
+                  disabled={selectedCount === 0 || blockedByErrors}
+                  size="sm"
+                  className="gap-1"
+                >
                   <Check className="w-3 h-3" /> Confirmar Importação
                 </Button>
               </div>
@@ -438,7 +581,7 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
 // ── Chapter Tree Node ──
 function ChapterNode({
   chapter, prefix, expandedChapters, setExpandedChapters, expandedComps, setExpandedComps,
-  selectedComps, setSelectedComps, depth,
+  selectedComps, setSelectedComps, issuesByCompKey, depth,
 }: {
   chapter: ParsedChapter;
   prefix: string;
@@ -448,6 +591,7 @@ function ChapterNode({
   setExpandedComps: React.Dispatch<React.SetStateAction<Set<string>>>;
   selectedComps: Set<string>;
   setSelectedComps: React.Dispatch<React.SetStateAction<Set<string>>>;
+  issuesByCompKey: Map<string, { errors: number; warnings: number }>;
   depth: number;
 }) {
   const isExpanded = expandedChapters.has(prefix);
@@ -501,9 +645,13 @@ function ChapterNode({
                 const compKey = `${prefix}-${ci}`;
                 const isSelected = selectedComps.has(compKey);
                 const isCompExpanded = expandedComps.has(compKey);
+                const counts = issuesByCompKey.get(compKey);
+                const hasError = !!counts?.errors;
+                const hasWarn = !hasError && !!counts?.warnings;
+                const rowBg = hasError ? 'bg-destructive/10' : hasWarn ? 'bg-warning/10' : (comp.needsReview ? 'bg-warning/5' : '');
 
                 return (
-                  <div key={ci} className={`px-4 py-2 ${comp.needsReview ? 'bg-warning/5' : ''}`}>
+                  <div key={ci} className={`px-4 py-2 ${rowBg}`}>
                     <div className="flex items-start gap-2">
                       <input type="checkbox" checked={isSelected} onChange={() => {
                         setSelectedComps(prev => { const n = new Set(prev); n.has(compKey) ? n.delete(compKey) : n.add(compKey); return n; });
@@ -514,7 +662,17 @@ function ChapterNode({
                           {comp.code && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{comp.code}</span>}
                           <span className="text-xs font-medium text-foreground">{comp.name}</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{comp.quantity} {comp.unit}</span>
-                          {comp.needsReview && (
+                          {hasError && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-0.5">
+                              <AlertCircle className="w-2.5 h-2.5" /> {counts!.errors} erro{counts!.errors > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {hasWarn && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning flex items-center gap-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5" /> {counts!.warnings} aviso{counts!.warnings > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {!hasError && !hasWarn && comp.needsReview && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning flex items-center gap-0.5">
                               <AlertTriangle className="w-2.5 h-2.5" /> Revisar
                             </span>
@@ -527,6 +685,21 @@ function ChapterNode({
                             </button>
                           )}
                         </div>
+
+                        {/* Inline issue messages */}
+                        {comp.issues && comp.issues.length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {comp.issues.slice(0, 3).map((iss, ii) => (
+                              <li key={ii} className={`text-[10px] flex items-start gap-1 ${iss.level === 'error' ? 'text-destructive' : 'text-warning'}`}>
+                                {iss.level === 'error' ? <AlertCircle className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" />}
+                                <span>{iss.message}</span>
+                              </li>
+                            ))}
+                            {comp.issues.length > 3 && (
+                              <li className="text-[10px] text-muted-foreground">… e mais {comp.issues.length - 3} item(s)</li>
+                            )}
+                          </ul>
+                        )}
 
                         {/* Labor details */}
                         <AnimatePresence>
@@ -579,6 +752,7 @@ function ChapterNode({
                   setExpandedComps={setExpandedComps}
                   selectedComps={selectedComps}
                   setSelectedComps={setSelectedComps}
+                  issuesByCompKey={issuesByCompKey}
                   depth={depth + 1}
                 />
               ))}
@@ -598,4 +772,56 @@ function filterSelectedChapters(chapters: ParsedChapter[], prefix: string, selec
     const filteredChildren = filterSelectedChapters(ch.children, key, selected);
     return { ...ch, compositions: filteredComps, children: filteredChildren };
   }).filter(ch => ch.compositions.length > 0 || ch.children.length > 0);
+}
+
+// ── Counter chip ──
+function Counter({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'primary' | 'success' | 'warning' | 'destructive' }) {
+  const toneClass =
+    tone === 'primary' ? 'text-primary' :
+    tone === 'success' ? 'text-success' :
+    tone === 'warning' ? 'text-warning' :
+    tone === 'destructive' ? 'text-destructive' :
+    'text-foreground';
+  return (
+    <div className="flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-md bg-secondary/40 border border-border">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className={`text-sm font-bold ${toneClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// ── Single issue row ──
+function IssueRow({ issue }: { issue: ImportIssue }) {
+  const Icon = issue.level === 'error' ? AlertCircle : issue.level === 'warning' ? AlertTriangle : Info;
+  const colorClass =
+    issue.level === 'error' ? 'text-destructive' :
+    issue.level === 'warning' ? 'text-warning' :
+    'text-info';
+  const bgClass =
+    issue.level === 'error' ? 'bg-destructive/5' :
+    issue.level === 'warning' ? 'bg-warning/5' : '';
+  const label =
+    issue.level === 'error' ? 'Erro' :
+    issue.level === 'warning' ? 'Aviso' : 'Informação';
+
+  return (
+    <div className={`px-3 py-1.5 ${bgClass}`}>
+      <div className="flex items-start gap-2">
+        <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${colorClass}`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap text-[10px]">
+            <span className={`px-1.5 py-0.5 rounded font-medium ${colorClass} bg-muted`}>{label}</span>
+            {issue.line != null && <span className="text-muted-foreground">Linha {issue.line}</span>}
+            {issue.code && <span className="font-mono text-muted-foreground">{issue.code}</span>}
+            {issue.type && <span className="text-muted-foreground">{issue.type}</span>}
+            {issue.description && <span className="text-foreground truncate max-w-[280px]">{issue.description}</span>}
+          </div>
+          <p className="text-[11px] text-foreground mt-0.5">{issue.message}</p>
+          {issue.suggestion && (
+            <p className="text-[10px] text-muted-foreground mt-0.5 italic">→ {issue.suggestion}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
