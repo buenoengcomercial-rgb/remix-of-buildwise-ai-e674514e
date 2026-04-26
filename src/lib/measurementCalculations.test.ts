@@ -27,10 +27,14 @@ describe('calculateUnitPriceWithBDI', () => {
     expect(calculateUnitPriceWithBDI(100, 25)).toBe(125);
   });
   it('trunca e não arredonda preço com BDI decimal', () => {
-    // 424.83 * 1.2758 = 541.989714 → trunca para 541.98
+    // 424.83 * 1.2758 = 541.998114 → trunca para 541.99 (arredondaria para 542.00)
     const result = calculateUnitPriceWithBDI(424.83, 27.58);
-    expect(result).toBe(541.98);
-    expect(result).not.toBe(541.99);
+    expect(result).toBe(541.99);
+    expect(result).not.toBe(542);
+  });
+  it('caso clássico de truncamento abaixo do arredondamento (10.999 vs 11.00)', () => {
+    // 10.999 * 1 = 10.999 → trunca 10.99 (arredondaria 11.00)
+    expect(calculateUnitPriceWithBDI(10.999, 0)).toBe(10.99);
   });
   it('BDI 0 retorna o próprio preço', () => {
     expect(calculateUnitPriceWithBDI(100, 0)).toBe(100);
@@ -46,9 +50,9 @@ describe('calculateMeasurementLine — total contratado', () => {
       unitPriceNoBDI: 424.83,
       bdiPercent: 27.58,
     });
-    // c/BDI truncado = 541.98 → 6 * 541.98 = 3251.88
-    expect(r.unitPriceWithBDI).toBe(541.98);
-    expect(r.totalContracted).toBe(3251.88);
+    // c/BDI truncado = 541.99 → 6 * 541.99 = 3251.94
+    expect(r.unitPriceWithBDI).toBe(541.99);
+    expect(r.totalContracted).toBe(3251.94);
   });
 });
 
