@@ -557,27 +557,34 @@ export function detectExcelFormat(data: ArrayBuffer): 'structured' | 'flat' {
 
   if (rows.length < 2) return 'flat';
 
-  // Check if it matches the structured pattern (8 columns: A-H)
-  // Look for rows where D-H are empty (chapter pattern)
+  // 1) If we can locate a header row with Código + Tipo + Resumo → structured
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const headerNorm = row.map(c =>
+      String(c ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+    );
+    const hasCode = headerNorm.some(h => h === 'codigo' || h === 'cod' || h === 'code');
+    const hasType = headerNorm.some(h => h === 'tipo' || h === 'type');
+    const hasDesc = headerNorm.some(h => h === 'resumo' || h === 'descricao' || h === 'description' || h === 'nome');
+    if (hasCode && hasType && hasDesc) return 'structured';
+  }
+
+  // 2) Fallback heuristic: chapter-like + labor-like patterns
   let chapterLikeRows = 0;
   let laborLikeRows = 0;
-
   for (let i = 0; i < Math.min(rows.length, 50); i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
-
     const hasDesc = row[2] != null && String(row[2]).trim() !== '';
     const hasD = row[3] != null && String(row[3]).trim() !== '';
     const hasE = row[4] != null && parseFloat(String(row[4])) > 0;
     const hasF = row[5] != null && parseFloat(String(row[5])) > 0;
     const hasG = row[6] != null && parseFloat(String(row[6])) > 0;
     const hasH = row[7] != null && parseFloat(String(row[7])) > 0;
-
     if (hasDesc && !hasD && !hasE && !hasF && !hasG && !hasH) chapterLikeRows++;
     if (hasD && !hasE && (hasF || hasG || hasH)) laborLikeRows++;
   }
-
-  // If we find chapter-like and labor-like patterns, it's structured
   if (chapterLikeRows >= 1 && laborLikeRows >= 1) return 'structured';
   return 'flat';
 }
