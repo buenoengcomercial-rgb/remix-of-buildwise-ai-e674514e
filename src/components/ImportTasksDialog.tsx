@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Project, Phase } from '@/types/project';
-import { Upload, FileSpreadsheet, FileText, AlertTriangle, Check, X, Loader2, Wand2, ChevronDown, ChevronRight, Users, FolderOpen, Wrench, Info } from 'lucide-react';
-import { ParsedTask, ParsedChapter, ParsedComposition, ParseResult, parseExcel, parsePDF, parseStructuredExcel, detectExcelFormat, convertStructuredToProject, convertToProjectTasks, standardizeSinapi } from '@/lib/importParser';
+import { Upload, FileSpreadsheet, FileText, AlertTriangle, Check, X, Loader2, Wand2, ChevronDown, ChevronRight, Users, FolderOpen, Wrench, Info, Download, AlertCircle, ShieldAlert } from 'lucide-react';
+import { ParsedTask, ParsedChapter, ParsedComposition, ParseResult, parseExcel, parsePDF, parseStructuredExcel, detectExcelFormat, convertStructuredToProject, convertToProjectTasks, standardizeSinapi, ImportIssue } from '@/lib/importParser';
+import { attachCompKeys, summarize, downloadInconsistencyReport, buildInfoEntries } from '@/lib/importInconsistencies';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ImportTasksDialogProps {
