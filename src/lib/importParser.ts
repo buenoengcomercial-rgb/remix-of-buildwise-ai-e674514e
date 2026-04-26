@@ -142,7 +142,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         name: (colC || colB || '').trim(),
         unit: colD || 'un',
         quantity: colE || 1,
-        unitPriceNoBdi: hasPrice ? unitPriceNoBdi : undefined,
+        unitPriceNoBDI: hasPrice ? unitPriceNoBDI : undefined,
         labor: [],
         needsReview: false,
       };
