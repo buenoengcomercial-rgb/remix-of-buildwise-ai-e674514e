@@ -1018,14 +1018,6 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         });
         return styles;
       })(),
-      _LEGACY_REMOVED: {
-        9: { cellWidth: 0, halign: 'right' },
-        10: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
-        11: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        12: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
-        13: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        14: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
-      },
       didParseCell: (data) => {
         if (data.section === 'head') {
           const c = groupColor(data.column.index);
