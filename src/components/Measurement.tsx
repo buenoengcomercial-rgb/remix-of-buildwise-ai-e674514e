@@ -1049,35 +1049,20 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         }
       },
       didDrawPage: () => {
-        // ───── Rodapé com dados da empresa e responsáveis ─────
-        const footerTop = pageH - margin - 12;
+        // ───── Rodapé fixo: apenas dados da empresa ─────
+        const footerTop = pageH - margin - 10;
         doc.setDrawColor(180);
         doc.setLineWidth(0.2);
         doc.line(margin, footerTop, pageW - margin, footerTop);
 
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.2); doc.setTextColor(60);
-        // Empresa (esquerda)
-        doc.text('K. C. BUENO DE GODOY OLIVEIRA LTDA', margin, footerTop + 2.8);
-        doc.setFont('helvetica', 'normal');
-        doc.text('CNPJ: 39.973.085/0001-20', margin, footerTop + 5.4);
-        doc.text('Rua Getúlio Vargas, 2533, São Cristóvão', margin, footerTop + 7.6);
-        doc.text('Porto Velho/RO', margin, footerTop + 9.8);
-
-        // Responsável Legal (centro)
-        const cx = pageW / 2;
-        doc.setFont('helvetica', 'bold');
-        doc.text('Responsável Legal', cx, footerTop + 2.8, { align: 'center' });
-        doc.setFont('helvetica', 'normal');
-        doc.text('Kennedy Christian Bueno de Godoy Oliveira', cx, footerTop + 5.4, { align: 'center' });
-        doc.text('CREA 17279-D/RO', cx, footerTop + 7.6, { align: 'center' });
-
-        // Responsável Técnico (direita)
-        const rx = pageW - margin;
-        doc.setFont('helvetica', 'bold');
-        doc.text('Responsável Técnico', rx, footerTop + 2.8, { align: 'right' });
-        doc.setFont('helvetica', 'normal');
-        doc.text('Kelper Maximilian Bueno de Godoy Oliveira', rx, footerTop + 5.4, { align: 'right' });
-        doc.text('CREA 13940-D/RO', rx, footerTop + 7.6, { align: 'right' });
+        doc.setTextColor(80);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.4);
+        doc.text('K. C. BUENO DE GODOY OLIVEIRA LTDA', pageW / 2, footerTop + 2.8, { align: 'center' });
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+        doc.text(
+          'CNPJ: 39.973.085/0001-20  •  Rua Getúlio Vargas, 2533, São Cristóvão  •  Porto Velho/RO',
+          pageW / 2, footerTop + 5.4, { align: 'center' }
+        );
 
         // Numeração de páginas
         const pageCount = doc.getNumberOfPages();
@@ -1090,6 +1075,39 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         doc.text(`Página ${current} / ${pageCount}`, pageW - margin, pageH - 1.5, { align: 'right' });
         doc.setTextColor(0);
       },
+    });
+
+    // ───── Bloco de assinaturas (somente na última página) ─────
+    const drawSignatures = () => {
+      const blockH = 26; // altura necessária do bloco
+      const footerReserved = 14; // espaço do rodapé fixo
+      let yPos = (doc as any).lastAutoTable?.finalY ?? margin;
+      yPos += 8;
+      if (yPos + blockH > pageH - margin - footerReserved) {
+        doc.addPage();
+        yPos = margin + 4;
+      }
+      const colW = (pageW - margin * 2 - 20) / 2;
+      const leftX = margin + 10;
+      const rightX = margin + colW + 30;
+      const lineY = yPos + 12;
+
+      doc.setDrawColor(60); doc.setLineWidth(0.3);
+      doc.line(leftX, lineY, leftX + colW - 20, lineY);
+      doc.line(rightX, lineY, rightX + colW - 20, lineY);
+
+      doc.setTextColor(0);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+      const leftCx = leftX + (colW - 20) / 2;
+      const rightCx = rightX + (colW - 20) / 2;
+      doc.text('Kennedy Christian Bueno de Godoy Oliveira', leftCx, lineY + 4, { align: 'center' });
+      doc.text('Kelper Maximilian Bueno de Godoy Oliveira', rightCx, lineY + 4, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(80);
+      doc.text('Responsável Legal — CREA 17279-D/RO', leftCx, lineY + 8, { align: 'center' });
+      doc.text('Responsável Técnico — CREA 13940-D/RO', rightCx, lineY + 8, { align: 'center' });
+      doc.setTextColor(0);
+    };
+    drawSignatures();
     });
 
     const safe = (s: string) => (s || '').replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '');
