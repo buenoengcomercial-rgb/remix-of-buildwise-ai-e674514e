@@ -552,8 +552,18 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
                 <X className="w-3 h-3 mr-1" /> Voltar
               </Button>
               <div className="flex items-center gap-2">
+                {blockedByErrors && (
+                  <span className="text-[11px] text-destructive font-medium">
+                    Corrija os erros ou desmarque os itens com erro antes de importar.
+                  </span>
+                )}
                 <span className="text-xs text-muted-foreground">{selectedCount} composições serão importadas</span>
-                <Button onClick={confirmImport} disabled={selectedCount === 0} size="sm" className="gap-1">
+                <Button
+                  onClick={handleConfirm}
+                  disabled={selectedCount === 0 || blockedByErrors}
+                  size="sm"
+                  className="gap-1"
+                >
                   <Check className="w-3 h-3" /> Confirmar Importação
                 </Button>
               </div>
