@@ -228,6 +228,20 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
         </button>
       </div>
 
+      {/* Identidade da empresa */}
+      {orgName && (
+        <div className={`px-3 py-2 border-b border-[hsl(var(--sidebar-border))] flex items-center gap-2 ${collapsed ? 'justify-center' : ''}`}
+          title={collapsed ? `${orgName}${roleLabel ? ` · ${roleLabel}` : ''}` : undefined}>
+          <Building2 className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold truncate">{orgName}</div>
+              {roleLabel && <div className="text-[10px] opacity-60 truncate">{roleLabel}</div>}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Seletor de projetos */}
       <div className="border-b border-[hsl(var(--sidebar-border))]">
         <div className={`flex items-center ${collapsed ? 'justify-center' : ''} hover:bg-[hsl(var(--sidebar-hover))]/40 transition-colors`}>
@@ -471,6 +485,16 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
           <Sparkles className="w-4 h-4" />
           {!collapsed && 'Gerar com IA'}
         </button>
+        {canManageTeam && onOpenTeam && (
+          <button
+            onClick={onOpenTeam}
+            className={`w-full flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-[hsl(var(--sidebar-hover))] transition-colors opacity-90`}
+            title={collapsed ? 'Usuários' : undefined}
+          >
+            <Users className="w-4 h-4" />
+            {!collapsed && <span className="truncate flex-1 text-left">Usuários</span>}
+          </button>
+        )}
         {onLogout && (
           <button
             onClick={onLogout}
