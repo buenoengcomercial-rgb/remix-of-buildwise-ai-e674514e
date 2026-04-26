@@ -1416,6 +1416,13 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         </CardContent>
       </Card>
 
+      {/* Painel de validação (somente em modo "live") */}
+      {!activeMeasurement && (
+        <div className="print:hidden">
+          <MeasurementValidationPanel issues={validationIssues} />
+        </div>
+      )}
+
       {/* Cabeçalho técnico do boletim */}
       <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">
         <CardContent className="p-0">
