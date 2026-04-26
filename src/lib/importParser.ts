@@ -632,13 +632,15 @@ function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: Column
       };
       // Apply sensible defaults for missing columns
       if (cols.code < 0) cols.code = 0;
-      if (cols.type < 0) cols.type = 1;
-      if (cols.description < 0) cols.description = 2;
-      if (cols.unit < 0) cols.unit = 3;
-      if (cols.quantity < 0) cols.quantity = 4;
-      if (cols.productivity < 0) cols.productivity = 5;
-      if (cols.hours < 0) cols.hours = 6;
-      if (cols.days < 0) cols.days = 7;
+      if (cols.bank < 0 && row.length >= 10) cols.bank = 1;
+      if (cols.type < 0) cols.type = 2;
+      if (cols.description < 0) cols.description = 3;
+      if (cols.unit < 0) cols.unit = 4;
+      if (cols.quantity < 0) cols.quantity = 5;
+      if (cols.productivity < 0) cols.productivity = 6;
+      if (cols.unitPriceNoBDI < 0 && row.length >= 8) cols.unitPriceNoBDI = 7;
+      if (cols.hours < 0) cols.hours = 8;
+      if (cols.days < 0) cols.days = 9;
       return { startRow: i + 1, cols };
     }
   }
