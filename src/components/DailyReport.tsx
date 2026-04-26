@@ -944,7 +944,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
                   }}
                 >
                   <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder={t.name || 'Selecionar equipe...'} />
+                    <SelectValue placeholder={teamDisplay(undefined, t.role || t.name) === '—' ? 'Selecionar equipe...' : teamDisplay(t.teamCode ? teamByCode.get(t.teamCode) : undefined, t.role || t.name)} />
                   </SelectTrigger>
                   <SelectContent>
                     {projectTeams.map(team => (
@@ -954,8 +954,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
                             className="inline-block w-2.5 h-2.5 rounded-sm border"
                             style={{ backgroundColor: team.barColor, borderColor: team.borderColor }}
                           />
-                          <span>{team.label}</span>
-                          <span className="text-muted-foreground text-[10px]">— {team.composition}</span>
+                          <span>{teamDisplay(team)}</span>
                         </span>
                       </SelectItem>
                     ))}
