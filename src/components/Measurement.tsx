@@ -665,9 +665,18 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       },
       measurements: [...(project.measurements || []), snapshot],
     });
-    setActiveId(snapshot.id);
+    // Prepara automaticamente a próxima medição (volta ao modo "live")
+    const nextStart = new Date(endDate);
+    nextStart.setDate(nextStart.getDate() + 1);
+    setStartDate(nextStart.toISOString().slice(0, 10));
+    setEndDate(today);
+    setMeasurementNumber(String(number + 1));
+    setActiveId('live');
     setConfirmGenerate(false);
-    toast({ title: `Medição nº ${number} gerada`, description: 'Snapshot bloqueado para edição.' });
+    toast({
+      title: `Medição nº ${number} gerada`,
+      description: `Snapshot bloqueado. Preparando ${number + 1}ª Medição.`,
+    });
   };
 
   // Editar medição gerada (destrava parcialmente)
@@ -749,7 +758,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       ['Objeto:', headerCtx.contractObject || '', '', 'Nº Contrato:', headerCtx.contractNumber || ''],
       ['Medição Nº:', effNumber, '', 'Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`],
       ['Data emissão:', fmtDateBR(effIssue), '', 'Fonte de orçamento:', headerCtx.budgetSource || ''],
-      ['BDI %:', effBdi, '', 'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Rascunho (preview)'],
+      ['BDI %:', effBdi, '', 'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'],
       [],
     ];
 
@@ -917,17 +926,6 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
               Medições
             </span>
 
-            <button
-              onClick={() => setActiveId('live')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                activeId === 'live'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-background hover:bg-muted/60 border-border'
-              }`}
-            >
-              Rascunho (preview)
-            </button>
-
             {measurements.map(m => (
               <button
                 key={m.id}
@@ -949,14 +947,32 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
               </button>
             ))}
 
-            <Button size="sm" variant="outline" className="ml-2" onClick={newMeasurementDraft}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Nova medição
-            </Button>
+            {(() => {
+              const nextNumber = (measurements[measurements.length - 1]?.number || 0) + 1;
+              return (
+                <button
+                  onClick={newMeasurementDraft}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium border border-dashed transition-colors flex items-center gap-1.5 ${
+                    activeId === 'live'
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background hover:bg-muted/60 border-border text-muted-foreground'
+                  }`}
+                  title="Medição em preparação"
+                >
+                  Preparando {nextNumber}ª Medição
+                </button>
+              );
+            })()}
 
             <div className="ml-auto flex items-center gap-2">
               {!activeMeasurement && (
                 <Button size="sm" variant="default" onClick={() => setConfirmGenerate(true)}>
                   <FileCheck2 className="w-4 h-4 mr-1" /> Gerar Medição
+                </Button>
+              )}
+              {activeMeasurement && (
+                <Button size="sm" variant="outline" onClick={newMeasurementDraft}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Continuar próxima medição
                 </Button>
               )}
               {activeMeasurement && isLocked && (
