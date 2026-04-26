@@ -198,6 +198,18 @@ export interface MeasurementChangeLog {
   reason?: string;
 }
 
+export interface DailyReportSnapshotData {
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  filledReports: number;
+  missingReports: number;
+  productionDays: number;
+  noProductionDays: number;
+  impedimentDays: number;
+  reportDates: string[];
+}
+
 export interface SavedMeasurement {
   id: string;
   number: number;
@@ -214,6 +226,8 @@ export interface SavedMeasurement {
   contractSnapshot?: ContractInfo;
   /** Carimbo de geração. */
   generatedAt?: string;
+  /** Resumo dos Diários de Obra do período da medição (capturado na geração). */
+  dailyReportSnapshot?: DailyReportSnapshotData;
 }
 
 /** Rascunho da medição em preparação (filtros não-persistidos em snapshot). */
