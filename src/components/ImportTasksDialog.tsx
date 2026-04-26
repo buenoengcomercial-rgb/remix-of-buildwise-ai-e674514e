@@ -581,7 +581,7 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
 // ── Chapter Tree Node ──
 function ChapterNode({
   chapter, prefix, expandedChapters, setExpandedChapters, expandedComps, setExpandedComps,
-  selectedComps, setSelectedComps, depth,
+  selectedComps, setSelectedComps, issuesByCompKey, depth,
 }: {
   chapter: ParsedChapter;
   prefix: string;
@@ -591,6 +591,7 @@ function ChapterNode({
   setExpandedComps: React.Dispatch<React.SetStateAction<Set<string>>>;
   selectedComps: Set<string>;
   setSelectedComps: React.Dispatch<React.SetStateAction<Set<string>>>;
+  issuesByCompKey: Map<string, { errors: number; warnings: number }>;
   depth: number;
 }) {
   const isExpanded = expandedChapters.has(prefix);
@@ -644,9 +645,13 @@ function ChapterNode({
                 const compKey = `${prefix}-${ci}`;
                 const isSelected = selectedComps.has(compKey);
                 const isCompExpanded = expandedComps.has(compKey);
+                const counts = issuesByCompKey.get(compKey);
+                const hasError = !!counts?.errors;
+                const hasWarn = !hasError && !!counts?.warnings;
+                const rowBg = hasError ? 'bg-destructive/10' : hasWarn ? 'bg-warning/10' : (comp.needsReview ? 'bg-warning/5' : '');
 
                 return (
-                  <div key={ci} className={`px-4 py-2 ${comp.needsReview ? 'bg-warning/5' : ''}`}>
+                  <div key={ci} className={`px-4 py-2 ${rowBg}`}>
                     <div className="flex items-start gap-2">
                       <input type="checkbox" checked={isSelected} onChange={() => {
                         setSelectedComps(prev => { const n = new Set(prev); n.has(compKey) ? n.delete(compKey) : n.add(compKey); return n; });
@@ -657,7 +662,17 @@ function ChapterNode({
                           {comp.code && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{comp.code}</span>}
                           <span className="text-xs font-medium text-foreground">{comp.name}</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{comp.quantity} {comp.unit}</span>
-                          {comp.needsReview && (
+                          {hasError && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-0.5">
+                              <AlertCircle className="w-2.5 h-2.5" /> {counts!.errors} erro{counts!.errors > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {hasWarn && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning flex items-center gap-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5" /> {counts!.warnings} aviso{counts!.warnings > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {!hasError && !hasWarn && comp.needsReview && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning flex items-center gap-0.5">
                               <AlertTriangle className="w-2.5 h-2.5" /> Revisar
                             </span>
@@ -670,6 +685,21 @@ function ChapterNode({
                             </button>
                           )}
                         </div>
+
+                        {/* Inline issue messages */}
+                        {comp.issues && comp.issues.length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {comp.issues.slice(0, 3).map((iss, ii) => (
+                              <li key={ii} className={`text-[10px] flex items-start gap-1 ${iss.level === 'error' ? 'text-destructive' : 'text-warning'}`}>
+                                {iss.level === 'error' ? <AlertCircle className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" />}
+                                <span>{iss.message}</span>
+                              </li>
+                            ))}
+                            {comp.issues.length > 3 && (
+                              <li className="text-[10px] text-muted-foreground">… e mais {comp.issues.length - 3} item(s)</li>
+                            )}
+                          </ul>
+                        )}
 
                         {/* Labor details */}
                         <AnimatePresence>
