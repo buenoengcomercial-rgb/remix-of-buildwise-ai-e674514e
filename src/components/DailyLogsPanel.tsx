@@ -227,9 +227,17 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
         </div>
 
         {rows.length === 0 && (
-          <p className="text-[11px] text-muted-foreground italic py-2 text-center">
-            Sem lançamentos. Clique em "+ Lançamento" para registrar a produção do dia.
-          </p>
+          <div className="flex flex-col items-center gap-2 py-3">
+            <p className="text-[11px] text-muted-foreground italic">
+              Sem lançamentos. Adicione o primeiro registro de produção.
+            </p>
+            <button
+              onClick={addLog}
+              className="text-[11px] px-3 py-1.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" /> Adicionar lançamento
+            </button>
+          </div>
         )}
 
         {rows.map(row => (
@@ -256,6 +264,7 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
               min={0}
               step={0.1}
               value={row.actualQuantity}
+              data-actual-input={row.id}
               onChange={e => updateLog(row.id, { actualQuantity: Number(e.target.value) })}
               className="bg-transparent border border-current/30 rounded px-1 py-0.5 text-[11px] text-center font-bold focus:outline-none focus:border-current"
             />
@@ -274,9 +283,16 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
               onChange={e => updateLog(row.id, { notes: e.target.value })}
               className="bg-transparent border border-current/30 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:border-current"
             />
-            <div className="text-center">
+            <div className="flex items-center justify-center gap-1">
               <button
-                onClick={() => removeLog(row.id)}
+                onClick={(e) => { e.stopPropagation(); addLogAfter(row.id); }}
+                className="p-1 rounded hover:bg-primary/20 text-primary transition-colors"
+                title="Adicionar novo lançamento abaixo"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); removeLog(row.id); }}
                 className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
                 title="Excluir lançamento"
               >
