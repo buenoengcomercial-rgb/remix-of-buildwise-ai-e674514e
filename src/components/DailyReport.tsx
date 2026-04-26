@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
-import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon } from 'lucide-react';
+import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, CheckCircle2, Clock4, Activity, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
+import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 import jsPDF from 'jspdf';
 
 interface DailyReportProps {
@@ -17,6 +18,8 @@ interface DailyReportProps {
   undoButton?: React.ReactNode;
   /** Data ISO inicial vinda da Medição (ao clicar em "Abrir Diário"). */
   initialDate?: string;
+  /** Filtro de medição inicial vindo da Medição (ex.: 'draft' ou id da medição). */
+  initialMeasurementFilter?: string;
 }
 
 const WEATHER_OPTIONS: Array<{ value: WeatherCondition; label: string; icon: React.ElementType }> = [
@@ -100,9 +103,15 @@ function collectProductionForDate(project: Project, dateISO: string): Production
   return out;
 }
 
-export default function DailyReport({ project, onProjectChange, undoButton, initialDate }: DailyReportProps) {
+export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter }: DailyReportProps) {
   const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayISO());
-  const [measurementFilter, setMeasurementFilter] = useState<string>('all');
+  const [measurementFilter, setMeasurementFilter] = useState<string>(initialMeasurementFilter || 'all');
+
+  // Sincroniza filtro vindo da Medição
+  useEffect(() => {
+    if (initialMeasurementFilter) setMeasurementFilter(initialMeasurementFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMeasurementFilter]);
 
   const reports = project.dailyReports || [];
 
