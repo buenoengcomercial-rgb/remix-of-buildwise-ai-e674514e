@@ -91,7 +91,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
   );
 }
 
-export default function TaskList({ project, onProjectChange }: TaskListProps) {
+export default function TaskList({ project, onProjectChange, undoButton }: TaskListProps) {
   // Lista de equipes do projeto (com fallback aos defaults).
   const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
   const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);

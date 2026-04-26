@@ -201,7 +201,7 @@ const isLockedStatus = (s: MeasurementStatus) =>
   s === 'generated' || s === 'in_review' || s === 'approved';
 
 // ───────────────────────── Componente principal ─────────────────────────
-export default function Measurement({ project, onProjectChange }: MeasurementProps) {
+export default function Measurement({ project, onProjectChange, undoButton }: MeasurementProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
