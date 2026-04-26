@@ -628,26 +628,64 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       {/* Equipes / Equipamentos lado a lado */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="w-4 h-4 text-info" /> Equipe presente
             </CardTitle>
-            <Button size="sm" variant="ghost" onClick={addTeamRow}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
-            </Button>
+            <div className="flex items-center gap-1">
+              {suggestedTeamCodes.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={addSuggestedTeams} title="Adiciona as equipes vinculadas às tarefas com produção no dia">
+                  <Activity className="w-3.5 h-3.5 mr-1" /> Sugerir do dia
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => addTeamRow()}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {(currentReport.teamsPresent || []).length === 0 && (
-              <p className="text-xs text-muted-foreground italic">Nenhuma equipe lançada.</p>
+              <p className="text-xs text-muted-foreground italic">
+                Nenhuma equipe lançada.
+                {suggestedTeamCodes.length > 0 && (
+                  <> Há {suggestedTeamCodes.length} equipe(s) com produção no dia — clique em <strong>Sugerir do dia</strong>.</>
+                )}
+              </p>
             )}
             {(currentReport.teamsPresent || []).map(t => (
-              <div key={t.id} className="grid grid-cols-[1fr_1fr_70px_auto] gap-2 items-center">
-                <Input placeholder="Nome" value={t.name}
-                  onChange={e => updateTeamRow(t.id, { name: e.target.value })} />
-                <Input placeholder="Função" value={t.role || ''}
-                  onChange={e => updateTeamRow(t.id, { role: e.target.value })} />
+              <div key={t.id} className="grid grid-cols-[minmax(0,1.6fr)_70px_minmax(0,1.4fr)_auto] gap-2 items-center">
+                <Select
+                  value={t.teamCode || ''}
+                  onValueChange={(v) => {
+                    const def = teamByCode.get(v);
+                    updateTeamRow(t.id, { teamCode: v, name: def?.label || t.name, role: def?.composition || t.role });
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder={t.name || 'Selecionar equipe...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projectTeams.map(team => (
+                      <SelectItem key={team.code} value={team.code}>
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-sm border"
+                            style={{ backgroundColor: team.barColor, borderColor: team.borderColor }}
+                          />
+                          <span>{team.label}</span>
+                          <span className="text-muted-foreground text-[10px]">— {team.composition}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input type="number" min={0} placeholder="Qtd" value={t.count ?? ''}
-                  onChange={e => updateTeamRow(t.id, { count: Number(e.target.value) })} />
+                  onChange={e => {
+                    const n = Number(e.target.value);
+                    updateTeamRow(t.id, { count: Number.isFinite(n) && n >= 0 ? n : 0 });
+                  }} />
+                <Input placeholder="Observação" value={t.notes || ''}
+                  onChange={e => updateTeamRow(t.id, { notes: e.target.value })} />
                 <Button size="icon" variant="ghost" onClick={() => removeTeamRow(t.id)}>
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>
