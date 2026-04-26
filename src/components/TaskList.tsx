@@ -1179,9 +1179,21 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                                           <div className="text-center">
                                             {(task.laborCompositions?.length || 0) > 1 && (
                                               <button
-                                                onClick={() => removeLabor(phase.id, task.id, comp.id)}
+                                                onClick={() => confirmDelete(
+                                                  {
+                                                    title: 'Deseja remover este profissional da composição RUP?',
+                                                    description: (
+                                                      <>
+                                                        <p>Profissional: <strong>{comp.role}</strong>.</p>
+                                                        <p>Isso pode alterar duração, gargalo e cronograma da tarefa.</p>
+                                                      </>
+                                                    ),
+                                                    confirmLabel: 'Remover profissional',
+                                                  },
+                                                  () => removeLabor(phase.id, task.id, comp.id),
+                                                )}
                                                 className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
-                                                title="Remover"
+                                                title="Remover profissional"
                                               >
                                                 <X className="w-3 h-3" />
                                               </button>
