@@ -32,23 +32,22 @@ export async function loadCloudProject(id: string): Promise<Project | null> {
   if (error) throw error;
   if (!data) return null;
   const proj = (data.data_json ?? {}) as unknown as Project;
-  // Garantir id e name sincronizados com a linha
   return { ...proj, id: data.id, name: data.name };
 }
 
-export async function upsertCloudProject(project: Project, ownerId: string): Promise<void> {
+export async function upsertCloudProject(project: Project, organizationId: string): Promise<void> {
   const { error } = await supabase
     .from('projects')
     .upsert([{
       id: project.id,
-      owner_id: ownerId,
+      organization_id: organizationId,
       name: project.name,
       data_json: project as unknown as import('@/integrations/supabase/types').Json,
     }], { onConflict: 'id' });
   if (error) throw error;
 }
 
-export async function createCloudProject(name: string, ownerId: string, base?: Partial<Project>): Promise<Project> {
+export async function createCloudProject(name: string, organizationId: string, base?: Partial<Project>): Promise<Project> {
   const today = new Date().toISOString().split('T')[0];
   const seed: Project = {
     id: crypto.randomUUID(),
@@ -62,7 +61,7 @@ export async function createCloudProject(name: string, ownerId: string, base?: P
   const { data, error } = await supabase
     .from('projects')
     .insert([{
-      owner_id: ownerId,
+      organization_id: organizationId,
       name: seed.name,
       data_json: seed as unknown as import('@/integrations/supabase/types').Json,
     }])
@@ -70,29 +69,26 @@ export async function createCloudProject(name: string, ownerId: string, base?: P
     .single();
   if (error) throw error;
   const finalProject: Project = { ...seed, id: data.id };
-  // Re-grava com o id correto dentro do JSON
-  await upsertCloudProject(finalProject, ownerId);
+  await upsertCloudProject(finalProject, organizationId);
   return finalProject;
 }
 
-export async function renameCloudProject(id: string, newName: string): Promise<Project | null> {
+export async function renameCloudProject(id: string, newName: string, organizationId: string): Promise<Project | null> {
   const proj = await loadCloudProject(id);
   if (!proj) return null;
   const updated = { ...proj, name: newName };
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Não autenticado');
-  await upsertCloudProject(updated, user.id);
+  await upsertCloudProject(updated, organizationId);
   return updated;
 }
 
-export async function duplicateCloudProject(id: string, ownerId: string): Promise<Project | null> {
+export async function duplicateCloudProject(id: string, organizationId: string): Promise<Project | null> {
   const proj = await loadCloudProject(id);
   if (!proj) return null;
   const newId = crypto.randomUUID();
   const copy: Project = { ...JSON.parse(JSON.stringify(proj)), id: newId, name: `${proj.name} (cópia)` };
   await supabase.from('projects').insert([{
     id: newId,
-    owner_id: ownerId,
+    organization_id: organizationId,
     name: copy.name,
     data_json: copy as unknown as import('@/integrations/supabase/types').Json,
   }]);
