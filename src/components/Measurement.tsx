@@ -1351,32 +1351,38 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                 {fmtNum(r.qtyContracted)}
                               </td>
                               <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`}>
-                                <Input
-                                  type="number" step="0.01" min="0"
-                                  value={r.unitPriceNoBDI ? Number(r.unitPriceNoBDI.toFixed(2)) : ''}
-                                  placeholder="0,00"
-                                  disabled={isLocked}
-                                  onChange={e => updateUnitPriceNoBDI(r.taskId, parseFloat(e.target.value) || 0)}
-                                  className={`h-7 px-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 print:hidden ${
-                                    r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
-                                  }`}
-                                  title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Valor unitário sem BDI'}
-                                />
-                                <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceNoBDI)}</span>
+                                <div className="relative print:hidden">
+                                  <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
+                                  <Input
+                                    type="number" step="0.01" min="0"
+                                    value={Number((r.unitPriceNoBDI || 0).toFixed(2))}
+                                    placeholder="0,00"
+                                    disabled={isLocked}
+                                    onChange={e => updateUnitPriceNoBDI(r.taskId, parseFloat(e.target.value) || 0)}
+                                    className={`h-7 pl-6 pr-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 ${
+                                      r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
+                                    }`}
+                                    title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Valor unitário sem BDI'}
+                                  />
+                                </div>
+                                <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceNoBDI || 0)}</span>
                               </td>
                               <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`}>
-                                <Input
-                                  type="number" step="0.01" min="0"
-                                  value={r.unitPriceWithBDI ? Number(r.unitPriceWithBDI.toFixed(2)) : ''}
-                                  placeholder="0,00"
-                                  disabled={isLocked}
-                                  onChange={e => updateUnitPriceWithBDI(r.taskId, parseFloat(e.target.value) || 0)}
-                                  className={`h-7 px-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 print:hidden ${
-                                    r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
-                                  }`}
-                                  title="Valor unitário com BDI"
-                                />
-                                <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceWithBDI)}</span>
+                                <div className="relative print:hidden">
+                                  <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
+                                  <Input
+                                    type="number" step="0.01" min="0"
+                                    value={Number((r.unitPriceWithBDI || 0).toFixed(2))}
+                                    placeholder="0,00"
+                                    disabled={isLocked}
+                                    onChange={e => updateUnitPriceWithBDI(r.taskId, parseFloat(e.target.value) || 0)}
+                                    className={`h-7 pl-6 pr-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 ${
+                                      r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
+                                    }`}
+                                    title="Valor unitário com BDI"
+                                  />
+                                </div>
+                                <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceWithBDI || 0)}</span>
                               </td>
                               <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${G_BG.contract}`}>
                                 {fmtBRL(r.valueContracted)}
