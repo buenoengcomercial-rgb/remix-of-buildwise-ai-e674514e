@@ -241,16 +241,18 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
+            <AlertDialogTitle>Deseja realmente excluir esta obra?</AlertDialogTitle>
             <AlertDialogDescription>
-              Todos os dados da obra <strong>{projectToDelete?.name}</strong> (tarefas, medições, configurações)
-              serão removidos permanentemente. Esta ação não pode ser desfeita.
+              Você está prestes a excluir a obra: <strong>{projectToDelete?.name}</strong>.
+              <br /><br />
+              Esta ação pode remover cronograma, tarefas, medições e demais dados vinculados a esta obra.
+              Não é possível desfazer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmedDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+              Excluir obra
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
