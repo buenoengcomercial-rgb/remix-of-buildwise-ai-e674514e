@@ -386,7 +386,10 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       doc.setFont('helvetica', 'normal');
       currentReport.teamsPresent!.forEach(t => {
         if (y > 275) { doc.addPage(); y = margin; }
-        doc.text(`• ${t.name || '—'}${t.role ? ` (${t.role})` : ''} — ${t.count ?? 1}`, margin + 4, y);
+        const label = (t.teamCode && teamByCode.get(t.teamCode)?.label) || t.name || '—';
+        const role = t.role ? ` (${t.role})` : '';
+        const notes = t.notes ? ` — ${t.notes}` : '';
+        doc.text(`• ${label}${role} — ${t.count ?? 1}${notes}`, margin + 4, y);
         y += 5;
       });
     }
