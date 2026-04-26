@@ -822,28 +822,19 @@ function ProductionTable({ entries }: { entries: ProductionEntry[] }) {
           <tr>
             <th className="text-left px-2 py-1.5 font-medium">Tarefa</th>
             <th className="text-center px-2 py-1.5 font-medium w-20">Unid.</th>
-            <th className="text-right px-2 py-1.5 font-medium w-24">Realizado</th>
-            <th className="text-right px-2 py-1.5 font-medium w-24">Meta</th>
-            <th className="text-right px-2 py-1.5 font-medium w-24">Saldo</th>
+            <th className="text-right px-2 py-1.5 font-medium w-28">Qtd. executada</th>
             <th className="text-left px-2 py-1.5 font-medium">Observação</th>
           </tr>
         </thead>
         <tbody>
-          {entries.map(e => {
-            const saldo = (e.plannedQuantity || 0) - (e.actualQuantity || 0);
-            return (
-              <tr key={e.taskId + e.notes} className="border-t border-border">
-                <td className="px-2 py-1.5">{e.taskName}</td>
-                <td className="px-2 py-1.5 text-center text-muted-foreground">{e.unit}</td>
-                <td className="px-2 py-1.5 text-right font-semibold">{e.actualQuantity.toFixed(2)}</td>
-                <td className="px-2 py-1.5 text-right">{e.plannedQuantity.toFixed(2)}</td>
-                <td className={`px-2 py-1.5 text-right ${saldo > 0 ? 'text-warning' : 'text-success'}`}>
-                  {saldo.toFixed(2)}
-                </td>
-                <td className="px-2 py-1.5 text-muted-foreground">{e.notes || '—'}</td>
-              </tr>
-            );
-          })}
+          {entries.map(e => (
+            <tr key={e.taskId + (e.notes || '')} className="border-t border-border">
+              <td className="px-2 py-1.5">{e.taskName}</td>
+              <td className="px-2 py-1.5 text-center text-muted-foreground">{e.unit}</td>
+              <td className="px-2 py-1.5 text-right font-semibold">{e.actualQuantity.toFixed(2)}</td>
+              <td className="px-2 py-1.5 text-muted-foreground">{e.notes || '—'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
