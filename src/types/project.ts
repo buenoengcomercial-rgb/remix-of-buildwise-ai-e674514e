@@ -263,9 +263,29 @@ export interface DailyReportEquipmentRow {
 
 export interface DailyReportAttachment {
   id: string;
-  name: string;
-  /** dataURL ou referência local; opcional. */
+  type?: 'image' | 'file';
+  fileName?: string;
+  mimeType?: string;
+  /** dataURL embutido (fallback / antigos diários sem Storage). */
   dataUrl?: string;
+  /** Caminho no Storage do bucket `daily-report-photos`. */
+  storagePath?: string;
+  /** URL pública servida pelo Storage. */
+  publicUrl?: string;
+  /** Legenda livre da foto. */
+  caption?: string;
+  /** Vínculo opcional com a tarefa apontada no dia. */
+  taskId?: string;
+  taskName?: string;
+  /** Cadeia "Capítulo > Subcapítulo" (informativa). */
+  phaseChain?: string;
+  quantity?: number;
+  unit?: string;
+  uploadedBy?: string;
+  /** ISO timestamp. */
+  uploadedAt?: string;
+  /** Compat: alguns diários antigos podem só guardar `name`. */
+  name?: string;
 }
 
 export interface DailyReport {
