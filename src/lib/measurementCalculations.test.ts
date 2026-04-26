@@ -177,6 +177,8 @@ describe('calculateMeasurementLine — totais s/ BDI', () => {
     expect(r.totalContractedNoBDI).toBe(32.97);
   });
 });
+
+describe('Alteração de BDI', () => {
   it('mudar BDI altera apenas preço c/ BDI e totais; preço s/ BDI permanece', () => {
     const input = {
       quantityContracted: 6, quantityPriorAccum: 0, quantityPeriod: 2,
