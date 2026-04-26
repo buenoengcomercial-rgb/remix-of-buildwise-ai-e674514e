@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      organization_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_email: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["org_role"]
+          status: Database["public"]["Enums"]["member_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_email?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["org_role"]
+          status?: Database["public"]["Enums"]["member_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_email?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["org_role"]
+          status?: Database["public"]["Enums"]["member_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          cnpj: string | null
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -88,7 +153,7 @@ export type Database = {
           data_json: Json
           id: string
           name: string
-          owner_id: string
+          organization_id: string
           updated_at: string
         }
         Insert: {
@@ -96,7 +161,7 @@ export type Database = {
           data_json?: Json
           id?: string
           name: string
-          owner_id: string
+          organization_id: string
           updated_at?: string
         }
         Update: {
@@ -104,20 +169,41 @@ export type Database = {
           data_json?: Json
           id?: string
           name?: string
-          owner_id?: string
+          organization_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_org_id: { Args: { _user_id: string }; Returns: string }
+      has_org_role: {
+        Args: {
+          _org_id: string
+          _roles: Database["public"]["Enums"]["org_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_org_member: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      member_status: "active" | "invited" | "blocked"
+      org_role: "owner" | "admin" | "engineer" | "field_user" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -244,6 +330,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      member_status: ["active", "invited", "blocked"],
+      org_role: ["owner", "admin", "engineer", "field_user", "viewer"],
+    },
   },
 } as const
