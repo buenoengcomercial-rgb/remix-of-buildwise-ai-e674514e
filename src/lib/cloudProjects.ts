@@ -31,7 +31,7 @@ export async function loadCloudProject(id: string): Promise<Project | null> {
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const proj = (data.data_json ?? {}) as Project;
+  const proj = (data.data_json ?? {}) as unknown as Project;
   // Garantir id e name sincronizados com a linha
   return { ...proj, id: data.id, name: data.name };
 }
@@ -39,12 +39,12 @@ export async function loadCloudProject(id: string): Promise<Project | null> {
 export async function upsertCloudProject(project: Project, ownerId: string): Promise<void> {
   const { error } = await supabase
     .from('projects')
-    .upsert({
+    .upsert([{
       id: project.id,
       owner_id: ownerId,
       name: project.name,
-      data_json: project as unknown as Record<string, unknown>,
-    }, { onConflict: 'id' });
+      data_json: project as unknown as import('@/integrations/supabase/types').Json,
+    }], { onConflict: 'id' });
   if (error) throw error;
 }
 
@@ -61,11 +61,11 @@ export async function createCloudProject(name: string, ownerId: string, base?: P
   };
   const { data, error } = await supabase
     .from('projects')
-    .insert({
+    .insert([{
       owner_id: ownerId,
       name: seed.name,
-      data_json: seed as unknown as Record<string, unknown>,
-    })
+      data_json: seed as unknown as import('@/integrations/supabase/types').Json,
+    }])
     .select('id')
     .single();
   if (error) throw error;
@@ -90,12 +90,12 @@ export async function duplicateCloudProject(id: string, ownerId: string): Promis
   if (!proj) return null;
   const newId = crypto.randomUUID();
   const copy: Project = { ...JSON.parse(JSON.stringify(proj)), id: newId, name: `${proj.name} (cópia)` };
-  await supabase.from('projects').insert({
+  await supabase.from('projects').insert([{
     id: newId,
     owner_id: ownerId,
     name: copy.name,
-    data_json: copy as unknown as Record<string, unknown>,
-  });
+    data_json: copy as unknown as import('@/integrations/supabase/types').Json,
+  }]);
   return copy;
 }
 
