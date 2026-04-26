@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
 import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ interface DailyReportProps {
   project: Project;
   onProjectChange: (next: Project | ((prev: Project) => Project)) => void;
   undoButton?: React.ReactNode;
+  /** Data ISO inicial vinda da Medição (ao clicar em "Abrir Diário"). */
+  initialDate?: string;
 }
 
 const WEATHER_OPTIONS: Array<{ value: WeatherCondition; label: string; icon: React.ElementType }> = [
@@ -98,10 +100,70 @@ function collectProductionForDate(project: Project, dateISO: string): Production
   return out;
 }
 
-export default function DailyReport({ project, onProjectChange, undoButton }: DailyReportProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(todayISO());
+export default function DailyReport({ project, onProjectChange, undoButton, initialDate }: DailyReportProps) {
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayISO());
+  const [measurementFilter, setMeasurementFilter] = useState<string>('all');
 
   const reports = project.dailyReports || [];
+
+  // Lista de períodos selecionáveis (medições geradas + medição em preparação)
+  const measurementPeriods = useMemo(() => {
+    const list: Array<{ id: string; label: string; startDate: string; endDate: string }> = [];
+    (project.measurements || []).slice().sort((a, b) => a.number - b.number).forEach(m => {
+      list.push({
+        id: m.id,
+        label: `Medição Nº ${m.number}`,
+        startDate: m.startDate,
+        endDate: m.endDate,
+      });
+    });
+    const draft = project.measurementDraft;
+    if (draft?.startDate && draft?.endDate) {
+      list.push({
+        id: 'draft',
+        label: `Medição em preparação (Nº ${draft.number})`,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+      });
+    }
+    return list;
+  }, [project.measurements, project.measurementDraft]);
+
+  const activePeriod = useMemo(
+    () => measurementPeriods.find(p => p.id === measurementFilter) || null,
+    [measurementPeriods, measurementFilter],
+  );
+
+  // Datas exibidas no seletor secundário (quando filtra por uma medição)
+  const periodDates = useMemo(() => {
+    if (!activePeriod) return [] as string[];
+    const out: string[] = [];
+    const [sy, sm, sd] = activePeriod.startDate.split('-').map(Number);
+    const [ey, em, ed] = activePeriod.endDate.split('-').map(Number);
+    const cur = new Date(Date.UTC(sy, (sm || 1) - 1, sd || 1));
+    const end = new Date(Date.UTC(ey, (em || 1) - 1, ed || 1));
+    while (cur.getTime() <= end.getTime()) {
+      out.push(cur.toISOString().slice(0, 10));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return out;
+  }, [activePeriod]);
+
+  // Detecta se a data selecionada pertence a alguma medição (gerada ou em preparação)
+  const dateMembership = useMemo(() => {
+    const generated = (project.measurements || []).find(
+      m => selectedDate >= m.startDate && selectedDate <= m.endDate,
+    );
+    if (generated) {
+      return { kind: 'generated' as const, label: `Medição Nº ${generated.number}` };
+    }
+    const draft = project.measurementDraft;
+    if (draft?.startDate && draft?.endDate &&
+        selectedDate >= draft.startDate && selectedDate <= draft.endDate) {
+      return { kind: 'draft' as const, label: `Medição em preparação (Nº ${draft.number})` };
+    }
+    return null;
+  }, [project.measurements, project.measurementDraft, selectedDate]);
 
   const currentReport: DailyReportEntry = useMemo(() => {
     const found = reports.find(r => r.date === selectedDate);
@@ -122,6 +184,14 @@ export default function DailyReport({ project, onProjectChange, undoButton }: Da
     () => collectProductionForDate(project, selectedDate),
     [project, selectedDate]
   );
+
+  // Sincroniza data quando a Medição navega para o Diário com uma data específica.
+  useEffect(() => {
+    if (initialDate && initialDate !== selectedDate) {
+      setSelectedDate(initialDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDate]);
 
   // Agrupa por capítulo > subcapítulo > tarefa
   const grouped = useMemo(() => {
@@ -350,22 +420,62 @@ export default function DailyReport({ project, onProjectChange, undoButton }: Da
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
-          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-            <CalendarDays className="w-4 h-4 text-muted-foreground" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              className="bg-transparent text-sm focus:outline-none"
-            />
-          </div>
+          <Select value={measurementFilter} onValueChange={setMeasurementFilter}>
+            <SelectTrigger className="h-9 w-[230px] text-xs">
+              <SelectValue placeholder="Filtrar por medição" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as datas</SelectItem>
+              {measurementPeriods.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {activePeriod && periodDates.length > 0 ? (
+            <Select value={selectedDate} onValueChange={setSelectedDate}>
+              <SelectTrigger className="h-9 w-[170px] text-xs">
+                <SelectValue placeholder="Data" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[260px]">
+                {periodDates.map(d => (
+                  <SelectItem key={d} value={d}>{formatBR(d)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                className="bg-transparent text-sm focus:outline-none"
+              />
+            </div>
+          )}
           <Button onClick={handlePrint} variant="outline" size="sm">
             <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF
           </Button>
         </div>
       </div>
+
+      {/* Vínculo com Medição */}
+      {dateMembership && (
+        <div className={`rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
+          dateMembership.kind === 'generated'
+            ? 'border-info/40 bg-info/10 text-info'
+            : 'border-warning/40 bg-warning/10 text-warning'
+        }`}>
+          <FileText className="w-3.5 h-3.5" />
+          <span>
+            {dateMembership.kind === 'generated'
+              ? <>Este diário faz parte da <strong>{dateMembership.label}</strong>.</>
+              : <>Este diário está dentro do período da <strong>{dateMembership.label}</strong>.</>}
+          </span>
+        </div>
+      )}
 
       {/* Resumo */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">

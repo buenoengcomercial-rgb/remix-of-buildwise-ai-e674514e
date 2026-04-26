@@ -48,6 +48,13 @@ export default function Index() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [dailyReportInitialDate, setDailyReportInitialDate] = useState<string | undefined>(undefined);
+
+  const handleOpenDailyReport = useCallback((dateISO: string) => {
+    setDailyReportInitialDate(dateISO);
+    setCurrentView('dailyReport');
+    setSidebarOpen(false);
+  }, []);
 
   const undoStacksRef = useRef<UndoStacks>({ dashboard: [], gantt: [], tasks: [], measurement: [], dailyReport: [] });
   const [undoVersion, setUndoVersion] = useState(0);
@@ -320,9 +327,9 @@ export default function Index() {
       case 'tasks':
         return <TaskList project={project} onProjectChange={tasksSetter} undoButton={<UndoButton canUndo={canUndo('tasks')} onUndo={() => handleUndo('tasks')} />} />;
       case 'measurement':
-        return <Measurement project={project} onProjectChange={measurementSetter} undoButton={<UndoButton canUndo={canUndo('measurement')} onUndo={() => handleUndo('measurement')} />} />;
+        return <Measurement project={project} onProjectChange={measurementSetter} undoButton={<UndoButton canUndo={canUndo('measurement')} onUndo={() => handleUndo('measurement')} />} onOpenDailyReport={handleOpenDailyReport} />;
       case 'dailyReport':
-        return <DailyReport project={project} onProjectChange={dailyReportSetter} undoButton={<UndoButton canUndo={canUndo('dailyReport')} onUndo={() => handleUndo('dailyReport')} />} />;
+        return <DailyReport project={project} onProjectChange={dailyReportSetter} undoButton={<UndoButton canUndo={canUndo('dailyReport')} onUndo={() => handleUndo('dailyReport')} />} initialDate={dailyReportInitialDate} />;
     }
   };
 

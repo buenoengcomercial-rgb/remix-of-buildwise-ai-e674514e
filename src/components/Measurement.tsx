@@ -52,11 +52,15 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
 import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
+import MeasurementDailyReportsPanel from '@/components/MeasurementDailyReportsPanel';
+import { summarizeDailyReportsForPeriod, buildDailyReportSnapshot } from '@/lib/dailyReportSummary';
 
 interface MeasurementProps {
   project: Project;
   onProjectChange: (project: Project) => void;
   undoButton?: React.ReactNode;
+  /** Navega até a aba Diário de Obra abrindo a data informada. */
+  onOpenDailyReport?: (dateISO: string) => void;
 }
 
 // ───────────────────────── Tipos internos ─────────────────────────
@@ -236,7 +240,7 @@ function suggestPeriodForNext(
   return { startDate: start, endDate: end };
 }
 
-export default function Measurement({ project, onProjectChange, undoButton }: MeasurementProps) {
+export default function Measurement({ project, onProjectChange, undoButton, onOpenDailyReport }: MeasurementProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
@@ -591,6 +595,12 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     });
   }, [rows, chapterFilter, search, project.phases, isSnapshotMode]);
 
+  // ───────── Diários de Obra do período ─────────
+  const dailyReportsSummary = useMemo(
+    () => summarizeDailyReportsForPeriod(project, effStart, effEnd),
+    [project, effStart, effEnd],
+  );
+
   // ───────── Validação da medição (somente no modo "live") ─────────
   const validationIssues: ValidationIssue[] = useMemo(() => {
     if (activeMeasurement) return [];
@@ -615,9 +625,22 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         contractor, contracted, contractNumber, contractObject, location,
         budgetSource, bdiPercent,
       },
+      dailyReports: {
+        missingReports: dailyReportsSummary.missingReports,
+        productionWithoutReportDays: dailyReportsSummary.productionWithoutReportDates.length,
+        impedimentDays: dailyReportsSummary.impedimentDays,
+      },
     });
-  }, [activeMeasurement, startDate, endDate, measurementNumber, rows, measurements, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent]);
+  }, [activeMeasurement, startDate, endDate, measurementNumber, rows, measurements, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent, dailyReportsSummary]);
   const validationSummary = useMemo(() => summarizeIssues(validationIssues), [validationIssues]);
+
+  /** Tem avisos não-bloqueantes específicos de diário/impedimento que requerem confirmação extra. */
+  const hasDailyWarnings =
+    !activeMeasurement && (
+      dailyReportsSummary.missingReports > 0 ||
+      dailyReportsSummary.productionWithoutReportDates.length > 0 ||
+      dailyReportsSummary.impedimentDays > 0
+    );
 
   // ───────── Árvore de grupos ─────────
   const groupTree: GroupNode[] = useMemo(() => {
@@ -827,6 +850,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         nextMeasurementNumber: number + 1,
       },
       history: [],
+      dailyReportSnapshot: buildDailyReportSnapshot(dailyReportsSummary),
     };
 
     const nextStartIso = isoAddDays(endDate, 1);
@@ -1280,6 +1304,50 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       },
     });
 
+    // ───── Resumo dos Diários de Obra do período ─────
+    const drSnap = activeMeasurement?.dailyReportSnapshot;
+    const drForPdf = drSnap ?? {
+      totalDays: dailyReportsSummary.totalDays,
+      filledReports: dailyReportsSummary.filledReports,
+      missingReports: dailyReportsSummary.missingReports,
+      productionDays: dailyReportsSummary.productionDays,
+      impedimentDays: dailyReportsSummary.impedimentDays,
+    };
+    const drDraw = () => {
+      const footerReserved = 14;
+      let yPos = (doc as any).lastAutoTable?.finalY ?? margin;
+      yPos += 6;
+      const blockH = 22;
+      if (yPos + blockH > pageH - margin - footerReserved) {
+        doc.addPage();
+        yPos = margin + 4;
+      }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(0);
+      doc.text('DIÁRIOS DE OBRA DO PERÍODO', margin, yPos);
+      yPos += 3;
+      doc.setDrawColor(180); doc.setLineWidth(0.2);
+      doc.line(margin, yPos, pageW - margin, yPos);
+      yPos += 4;
+      const cellW = (pageW - margin * 2) / 5;
+      const items: Array<[string, string]> = [
+        ['Total de dias', String(drForPdf.totalDays)],
+        ['Diarios preenchidos', String(drForPdf.filledReports)],
+        ['Diarios pendentes', String(drForPdf.missingReports)],
+        ['Dias com producao', String(drForPdf.productionDays)],
+        ['Dias c/ impedimento', String(drForPdf.impedimentDays)],
+      ];
+      items.forEach(([label, value], i) => {
+        const x = margin + cellW * i;
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(110); doc.setFontSize(6.5);
+        doc.text(label, x + 1, yPos);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(0); doc.setFontSize(9);
+        doc.text(value, x + 1, yPos + 5);
+      });
+      (doc as any).lastAutoTable = { finalY: yPos + 8 };
+      doc.setTextColor(0);
+    };
+    drDraw();
+
     // ───── Bloco de assinaturas (somente na última página) ─────
     const drawSignatures = () => {
       const blockH = 26; // altura necessária do bloco
@@ -1595,6 +1663,12 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
           <MeasurementValidationPanel issues={validationIssues} />
         </div>
       )}
+
+      {/* Diários de Obra do período (live e snapshot) */}
+      <MeasurementDailyReportsPanel
+        summary={dailyReportsSummary}
+        onOpenDiary={onOpenDailyReport}
+      />
 
       {/* Cabeçalho técnico do boletim */}
       <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">

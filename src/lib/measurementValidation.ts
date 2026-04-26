@@ -38,6 +38,12 @@ export interface ValidationContext {
     budgetSource?: string;
     bdiPercent?: number;
   };
+  /** Resumo opcional dos Diários de Obra do período (para gerar avisos). */
+  dailyReports?: {
+    missingReports: number;
+    productionWithoutReportDays: number;
+    impedimentDays: number;
+  };
 }
 
 /** Retorna verdadeiro se [aStart..aEnd] e [bStart..bEnd] se cruzam. */
@@ -49,7 +55,7 @@ function intervalsOverlap(aStart: string, aEnd: string, bStart: string, bEnd: st
 /** Roda toda a bateria de validações da medição. */
 export function validateMeasurement(ctx: ValidationContext): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const { startDate, endDate, measurementNumber, rows, measurements, contract } = ctx;
+  const { startDate, endDate, measurementNumber, rows, measurements, contract, dailyReports } = ctx;
 
   // 1) Período
   if (!startDate || !endDate) {
@@ -150,6 +156,31 @@ export function validateMeasurement(ctx: ValidationContext): ValidationIssue[] {
       code: 'contract-incomplete',
       message: `Dados contratuais incompletos: ${missingContract.join(', ')}.`,
     });
+  }
+
+  // 11) Diários de Obra do período (avisos, não bloqueiam)
+  if (dailyReports) {
+    if (dailyReports.missingReports > 0) {
+      issues.push({
+        level: 'warning',
+        code: 'daily-reports-pending',
+        message: `Existem ${dailyReports.missingReports} diário(s) de obra pendente(s) no período da medição.`,
+      });
+    }
+    if (dailyReports.productionWithoutReportDays > 0) {
+      issues.push({
+        level: 'warning',
+        code: 'production-without-report',
+        message: `Existem ${dailyReports.productionWithoutReportDays} dia(s) com produção apontada, mas sem diário preenchido.`,
+      });
+    }
+    if (dailyReports.impedimentDays > 0) {
+      issues.push({
+        level: 'warning',
+        code: 'impediments-in-period',
+        message: `Existem ${dailyReports.impedimentDays} dia(s) com impedimentos registrados no período.`,
+      });
+    }
   }
 
   return issues;
