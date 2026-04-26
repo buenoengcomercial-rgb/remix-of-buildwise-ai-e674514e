@@ -1,8 +1,18 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { listProjects, ProjectMeta } from '@/lib/projectStorage';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface AppSidebarProps {
   currentView: AppView;
@@ -11,7 +21,10 @@ interface AppSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onSwitchProject: (id: string) => void;
-  onCreateProject: (name: string) => void;
+  onCreateProject: (name?: string) => string | void;
+  onRenameProject: (id: string, newName: string) => void;
+  onDuplicateProject: (id: string) => void;
+  onDeleteProject: (id: string) => void;
   activeProjectId: string;
 }
 
@@ -22,25 +35,68 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, activeProjectId }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, activeProjectId }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
-  const [showProjects, setShowProjects] = useState(false);
-  const [creatingProject, setCreatingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const [showProjects, setShowProjects] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setProjects(listProjects());
-  }, [showProjects, activeProjectId]);
+  }, [showProjects, activeProjectId, editingId]);
 
-  const handleCreate = () => {
-    const name = newProjectName.trim();
-    if (!name) return;
-    onCreateProject(name);
-    setNewProjectName('');
-    setCreatingProject(false);
-    setProjects(listProjects());
-    setShowProjects(false);
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startEdit = (p: ProjectMeta) => {
+    setEditingId(p.id);
+    setEditingName(p.name);
   };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  const saveEdit = () => {
+    const name = editingName.trim();
+    if (!name || !editingId) {
+      cancelEdit();
+      return;
+    }
+    onRenameProject(editingId, name);
+    setProjects(listProjects().map(p => p.id === editingId ? { ...p, name } : p));
+    cancelEdit();
+  };
+
+  const handleNewProject = () => {
+    setShowProjects(true);
+    const newId = onCreateProject();
+    if (typeof newId === 'string') {
+      setTimeout(() => {
+        const created = listProjects().find(p => p.id === newId);
+        if (created) {
+          setEditingId(newId);
+          setEditingName(created.name);
+        }
+      }, 0);
+    }
+  };
+
+  const confirmedDelete = () => {
+    if (confirmDeleteId) {
+      onDeleteProject(confirmDeleteId);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const projectToDelete = projects.find(p => p.id === confirmDeleteId);
 
   return (
     <aside className={`${collapsed ? 'w-16' : 'w-64'} min-h-screen flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] transition-all duration-300`}>
