@@ -62,15 +62,16 @@ export default function TeamManagement() {
     setSubmitting(true);
     const res = await inviteMemberByEmail(orgId, inviteEmail, inviteRole);
     setSubmitting(false);
-    if (res.ok) {
+    if (res.ok === true) {
       toast.success('Usuário liberado.');
       setInviteEmail('');
       void reload();
       return;
     }
-    if (res.reason === 'not_registered') {
+    const reason = res.reason;
+    if (reason === 'not_registered') {
       toast.error('Este e-mail ainda não tem cadastro. Peça que a pessoa crie a conta primeiro.');
-    } else if (res.reason === 'already_member') {
+    } else if (reason === 'already_member') {
       toast.error('Esta pessoa já é membro da empresa.');
     } else {
       toast.error(res.message || 'Erro ao liberar acesso.');
