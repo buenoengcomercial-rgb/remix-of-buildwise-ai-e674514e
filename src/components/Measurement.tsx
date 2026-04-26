@@ -36,9 +36,20 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type jsPDFType from 'jspdf';
+type AutoTableFn = typeof import('jspdf-autotable').default;
+type XLSXMod = typeof import('xlsx');
+// Bibliotecas pesadas (~600 kB combinadas) são carregadas só ao exportar.
+async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: AutoTableFn }> {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+  return { jsPDF, autoTable };
+}
+async function loadXLSX(): Promise<XLSXMod> {
+  return await import('xlsx');
+}
 import {
   AlertDialog,
   AlertDialogAction,
@@ -952,7 +963,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   };
 
   // ───────── EXPORT XLSX ─────────
-  const exportXLSX = () => {
+  const exportXLSX = async () => {
+    const XLSX = await loadXLSX();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
       contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
     };
@@ -1030,6 +1042,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
   const exportPDF = async () => {
+    const { jsPDF, autoTable } = await loadPdfDeps();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
       contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
     };

@@ -16,8 +16,16 @@ import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
 import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type jsPDFType from 'jspdf';
+type AutoTableFn = typeof import('jspdf-autotable').default;
+// jsPDF/autoTable são carregados sob demanda (~300 kB) só ao gerar PDF.
+async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: AutoTableFn }> {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+  return { jsPDF, autoTable };
+}
 
 const PHOTO_BUCKET = 'daily-report-photos';
 const GENERAL_TASK_VALUE = '__general__';
@@ -579,6 +587,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
    * - mode='period': todos os dias do período da medição filtrada (ou da data atual, como fallback).
    */
   const generatePDF = useCallback(async (mode: 'day' | 'period') => {
+    const { jsPDF, autoTable } = await loadPdfDeps();
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
