@@ -704,10 +704,11 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     });
   };
   const updateUnitPriceNoBDI = (taskId: string, value: number) => {
+    const noBDI = trunc2(value);
     if (isSnapshotMode) {
-      patchSnapshotItem(taskId, { unitPriceNoBDI: value, unitPriceWithBDI: value * effBdiFactor }, 'Valor unit. s/ BDI');
+      patchSnapshotItem(taskId, { unitPriceNoBDI: noBDI, unitPriceWithBDI: calculateUnitPriceWithBDI(noBDI, effBdi) }, 'Valor unit. s/ BDI');
     } else {
-      updateTaskField(taskId, { unitPriceNoBDI: value, unitPrice: value * bdiFactor });
+      updateTaskField(taskId, { unitPriceNoBDI: noBDI, unitPrice: calculateUnitPriceWithBDI(noBDI, bdiPercent) });
     }
   };
   const updateUnitPriceWithBDI = (taskId: string, value: number) => {
