@@ -1,5 +1,5 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown, Building2, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -51,6 +51,12 @@ interface AppSidebarProps {
   /** Mostra botão de logout e e-mail do usuário no rodapé. */
   userEmail?: string;
   onLogout?: () => void;
+  /** Identidade da empresa/organização e função do usuário. */
+  orgName?: string;
+  roleLabel?: string;
+  /** Quando true, mostra a opção "Gerenciar acessos". */
+  canManageTeam?: boolean;
+  onOpenTeam?: () => void;
 }
 
 const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
@@ -60,7 +66,7 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId, projectsList, userEmail, onLogout }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId, projectsList, userEmail, onLogout, orgName, roleLabel, canManageTeam, onOpenTeam }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [showProjects, setShowProjects] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -221,6 +227,20 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
           {collapsed ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
         </button>
       </div>
+
+      {/* Identidade da empresa */}
+      {orgName && (
+        <div className={`px-3 py-2 border-b border-[hsl(var(--sidebar-border))] flex items-center gap-2 ${collapsed ? 'justify-center' : ''}`}
+          title={collapsed ? `${orgName}${roleLabel ? ` · ${roleLabel}` : ''}` : undefined}>
+          <Building2 className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold truncate">{orgName}</div>
+              {roleLabel && <div className="text-[10px] opacity-60 truncate">{roleLabel}</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Seletor de projetos */}
       <div className="border-b border-[hsl(var(--sidebar-border))]">
@@ -465,6 +485,16 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
           <Sparkles className="w-4 h-4" />
           {!collapsed && 'Gerar com IA'}
         </button>
+        {canManageTeam && onOpenTeam && (
+          <button
+            onClick={onOpenTeam}
+            className={`w-full flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-[hsl(var(--sidebar-hover))] transition-colors opacity-90`}
+            title={collapsed ? 'Usuários' : undefined}
+          >
+            <Users className="w-4 h-4" />
+            {!collapsed && <span className="truncate flex-1 text-left">Usuários</span>}
+          </button>
+        )}
         {onLogout && (
           <button
             onClick={onLogout}
