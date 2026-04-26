@@ -206,8 +206,17 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
                           <Copy className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id); }}
-                          title="Excluir"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (projects.length <= 1) {
+                              import('sonner').then(({ toast }) =>
+                                toast.error('Não é possível excluir a única obra existente. Crie outra obra antes de excluir esta.')
+                              );
+                              return;
+                            }
+                            setConfirmDeleteId(p.id);
+                          }}
+                          title="Excluir obra"
                           className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-destructive/20 text-destructive'}`}
                         >
                           <Trash2 className="w-3 h-3" />
