@@ -655,6 +655,16 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
 
   // Gerar nova medição (snapshot a partir do live)
   const generateMeasurement = () => {
+    // Defesa: nunca gerar se houver erros bloqueantes
+    if (validationSummary.hasBlocking) {
+      toast({
+        title: 'Não é possível gerar a medição',
+        description: 'Corrija os erros listados no painel de validação antes de prosseguir.',
+        variant: 'destructive',
+      });
+      setConfirmGenerate(false);
+      return;
+    }
     const number = Number(measurementNumber) || (measurements[measurements.length - 1]?.number || 0) + 1;
     const items: MeasurementSnapshotItem[] = rows.map(r => ({
       item: r.item,
