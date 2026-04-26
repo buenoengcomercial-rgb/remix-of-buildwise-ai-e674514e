@@ -1,8 +1,20 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { listProjects, ProjectMeta } from '@/lib/projectStorage';
+import {
+  exportProjectToFile,
+  exportAllProjectsToFile,
+  parseBackup,
+  readFileAsText,
+  summarizeProject,
+  importProject,
+  importAllProjects,
+  type BackupFile,
+  type ProjectSummary,
+} from '@/lib/projectBackup';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,6 +25,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface AppSidebarProps {
   currentView: AppView;
@@ -25,6 +44,7 @@ interface AppSidebarProps {
   onRenameProject: (id: string, newName: string) => void;
   onDuplicateProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
+  onImportedProject?: (id: string) => void;
   activeProjectId: string;
 }
 
