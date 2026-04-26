@@ -52,11 +52,15 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
 import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
+import MeasurementDailyReportsPanel from '@/components/MeasurementDailyReportsPanel';
+import { summarizeDailyReportsForPeriod, buildDailyReportSnapshot } from '@/lib/dailyReportSummary';
 
 interface MeasurementProps {
   project: Project;
   onProjectChange: (project: Project) => void;
   undoButton?: React.ReactNode;
+  /** Navega até a aba Diário de Obra abrindo a data informada. */
+  onOpenDailyReport?: (dateISO: string) => void;
 }
 
 // ───────────────────────── Tipos internos ─────────────────────────
