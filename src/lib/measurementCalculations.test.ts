@@ -141,7 +141,42 @@ describe('calculateMeasurementTotals', () => {
   });
 });
 
-describe('Alteração de BDI', () => {
+describe('calculateMeasurementLine — totais s/ BDI', () => {
+  it('calcula totais sem BDI usando preço s/ BDI truncado', () => {
+    const r = calculateMeasurementLine({
+      quantityContracted: 6,
+      quantityPriorAccum: 1,
+      quantityPeriod: 2,
+      unitPriceNoBDI: 100,
+      bdiPercent: 25,
+    });
+    expect(r.totalContractedNoBDI).toBe(600); // 6 * 100
+    expect(r.totalPeriodNoBDI).toBe(200);     // 2 * 100
+    expect(r.totalAccumulatedNoBDI).toBe(300); // 3 * 100
+    expect(r.totalBalanceNoBDI).toBe(300);    // 600 - 300
+  });
+  it('saldo s/ BDI nunca negativo', () => {
+    const r = calculateMeasurementLine({
+      quantityContracted: 5,
+      quantityPriorAccum: 4,
+      quantityPeriod: 3,
+      unitPriceNoBDI: 100,
+      bdiPercent: 25,
+    });
+    expect(r.totalBalanceNoBDI).toBe(0);
+  });
+  it('trunca total s/ BDI sem arredondar', () => {
+    const r = calculateMeasurementLine({
+      quantityContracted: 3,
+      quantityPriorAccum: 0,
+      quantityPeriod: 0,
+      unitPriceNoBDI: 10.999,
+      bdiPercent: 0,
+    });
+    // unitPriceNoBDI truncado = 10.99 → 3 * 10.99 = 32.97
+    expect(r.totalContractedNoBDI).toBe(32.97);
+  });
+});
   it('mudar BDI altera apenas preço c/ BDI e totais; preço s/ BDI permanece', () => {
     const input = {
       quantityContracted: 6, quantityPriorAccum: 0, quantityPeriod: 2,
