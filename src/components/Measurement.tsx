@@ -53,6 +53,7 @@ import { toast } from '@/hooks/use-toast';
 import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
 import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
 import { summarizeDailyReportsForPeriod, buildDailyReportSnapshot } from '@/lib/dailyReportSummary';
+import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
 
 interface MeasurementProps {
   project: Project;
