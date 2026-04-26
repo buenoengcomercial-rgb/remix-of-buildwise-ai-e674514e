@@ -1049,11 +1049,40 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         }
       },
       didDrawPage: () => {
-        // Numeração de páginas (sem URL/data do navegador)
+        // ───── Rodapé com dados da empresa e responsáveis ─────
+        const footerTop = pageH - margin - 12;
+        doc.setDrawColor(180);
+        doc.setLineWidth(0.2);
+        doc.line(margin, footerTop, pageW - margin, footerTop);
+
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.2); doc.setTextColor(60);
+        // Empresa (esquerda)
+        doc.text('K. C. BUENO DE GODOY OLIVEIRA LTDA', margin, footerTop + 2.8);
+        doc.setFont('helvetica', 'normal');
+        doc.text('CNPJ: 39.973.085/0001-20', margin, footerTop + 5.4);
+        doc.text('Rua Getúlio Vargas, 2533, São Cristóvão', margin, footerTop + 7.6);
+        doc.text('Porto Velho/RO', margin, footerTop + 9.8);
+
+        // Responsável Legal (centro)
+        const cx = pageW / 2;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Responsável Legal', cx, footerTop + 2.8, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.text('Kennedy Christian Bueno de Godoy Oliveira', cx, footerTop + 5.4, { align: 'center' });
+        doc.text('CREA 17279-D/RO', cx, footerTop + 7.6, { align: 'center' });
+
+        // Responsável Técnico (direita)
+        const rx = pageW - margin;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Responsável Técnico', rx, footerTop + 2.8, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.text('Kelper Maximilian Bueno de Godoy Oliveira', rx, footerTop + 5.4, { align: 'right' });
+        doc.text('CREA 13940-D/RO', rx, footerTop + 7.6, { align: 'right' });
+
+        // Numeração de páginas
         const pageCount = doc.getNumberOfPages();
         const current = doc.getCurrentPageInfo().pageNumber;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
-        doc.setTextColor(120);
+        doc.setFontSize(6); doc.setTextColor(120);
         doc.text(
           `Medição Nº ${effNumber} — ${project.name || ''}`,
           margin, pageH - 1.5
