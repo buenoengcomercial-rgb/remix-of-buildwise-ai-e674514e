@@ -590,7 +590,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
           startY: y,
           head: [['Equipe', 'Qtd.', 'Observação']],
           body: teams.map(t => {
-            const label = (t.teamCode && teamByCode.get(t.teamCode)?.label) || t.name || '—';
+            const label = teamDisplay(t.teamCode ? teamByCode.get(t.teamCode) : undefined, t.role || t.name);
             return [label, String(t.count ?? 1), t.notes || ''];
           }),
           theme: 'grid',
