@@ -51,6 +51,7 @@ import { toast } from '@/hooks/use-toast';
 interface MeasurementProps {
   project: Project;
   onProjectChange: (project: Project) => void;
+  undoButton?: React.ReactNode;
 }
 
 // ───────────────────────── Tipos internos ─────────────────────────
@@ -200,7 +201,7 @@ const isLockedStatus = (s: MeasurementStatus) =>
   s === 'generated' || s === 'in_review' || s === 'approved';
 
 // ───────────────────────── Componente principal ─────────────────────────
-export default function Measurement({ project, onProjectChange }: MeasurementProps) {
+export default function Measurement({ project, onProjectChange, undoButton }: MeasurementProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
@@ -898,6 +899,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {undoButton}
           <Button variant="outline" size="sm" onClick={exportXLSX}>
             <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
           </Button>

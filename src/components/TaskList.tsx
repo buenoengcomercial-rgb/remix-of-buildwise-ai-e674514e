@@ -24,6 +24,7 @@ function truncateWords(text: string, maxWords = 4): string {
 interface TaskListProps {
   project: Project;
   onProjectChange: (project: Project) => void;
+  undoButton?: React.ReactNode;
 }
 
 const DAILY_HOURS = 8;
@@ -90,7 +91,7 @@ function InlineInput({ value, onChange, type = 'text', className = '', min, max,
   );
 }
 
-export default function TaskList({ project, onProjectChange }: TaskListProps) {
+export default function TaskList({ project, onProjectChange, undoButton }: TaskListProps) {
   // Lista de equipes do projeto (com fallback aos defaults).
   const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
   const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
@@ -584,6 +585,7 @@ export default function TaskList({ project, onProjectChange }: TaskListProps) {
           <p className="text-sm text-muted-foreground mt-1">Tarefas com cálculo RUP e composição de mão de obra</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {undoButton}
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"

@@ -1,19 +1,35 @@
-import { useState, useMemo, useEffect, useDeferredValue } from 'react';
+import { useState, useMemo, useEffect, useDeferredValue, useCallback, useRef } from 'react';
 import { AppView, Project } from '@/types/project';
 import AppSidebar from '@/components/AppSidebar';
 import Dashboard from '@/components/Dashboard';
 import GanttChart from '@/components/GanttChart';
 import TaskList from '@/components/TaskList';
 import Measurement from '@/components/Measurement';
+import UndoButton from '@/components/UndoButton';
 import { Menu, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
 import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject } from '@/lib/projectStorage';
+
+const UNDO_LIMIT = 20;
+
+type UndoStacks = Record<AppView, Project[]>;
 
 export default function Index() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [rawProject, setRawProject] = useState<Project>(() => initProjects());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Pilha de undo por aba (não persistida, apenas em memória)
+  const undoStacksRef = useRef<UndoStacks>({
+    dashboard: [],
+    gantt: [],
+    tasks: [],
+    measurement: [],
+  });
+  // Versão para forçar re-render quando o histórico mudar (habilitar/desabilitar botão)
+  const [undoVersion, setUndoVersion] = useState(0);
 
   useEffect(() => {
     saveProject(rawProject);
@@ -35,11 +51,55 @@ export default function Index() {
     [deferredRawProject]
   );
 
+  /**
+   * Empilha o estado anterior na pilha da aba e aplica a alteração.
+   * Aceita Project ou updater (igual setState).
+   */
+  const makeViewSetter = useCallback((view: AppView) => {
+    return (next: Project | ((prev: Project) => Project)) => {
+      setRawProject(prev => {
+        const resolved = typeof next === 'function'
+          ? (next as (p: Project) => Project)(prev)
+          : next;
+        // Se nada mudou de fato, não registrar histórico
+        if (resolved === prev) return prev;
+        const stack = undoStacksRef.current[view];
+        stack.push(prev);
+        if (stack.length > UNDO_LIMIT) stack.shift();
+        setUndoVersion(v => v + 1);
+        return resolved;
+      });
+    };
+  }, []);
+
+  const ganttSetter = useMemo(() => makeViewSetter('gantt'), [makeViewSetter]);
+  const tasksSetter = useMemo(() => makeViewSetter('tasks'), [makeViewSetter]);
+  const measurementSetter = useMemo(() => makeViewSetter('measurement'), [makeViewSetter]);
+
+  const handleUndo = useCallback((view: AppView) => {
+    const stack = undoStacksRef.current[view];
+    if (stack.length === 0) {
+      toast.message('Nada para desfazer');
+      return;
+    }
+    const prev = stack.pop()!;
+    setRawProject(prev);
+    setUndoVersion(v => v + 1);
+    toast.success('Alteração desfeita');
+  }, []);
+
+  const canUndo = (view: AppView) => undoStacksRef.current[view].length > 0;
+  // referenciar undoVersion para garantir re-render
+  void undoVersion;
+
   const handleSwitchProject = (id: string) => {
     const proj = loadProject(id);
     if (proj) {
       setActiveProjectId(id);
       setRawProject(proj);
+      // limpa históricos ao trocar de projeto
+      undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+      setUndoVersion(v => v + 1);
     }
   };
 
@@ -47,18 +107,51 @@ export default function Index() {
     const newProj = createNewProject(name);
     setActiveProjectId(newProj.id);
     setRawProject(newProj);
+    undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+    setUndoVersion(v => v + 1);
   };
 
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard project={project} />;
+        return (
+          <Dashboard
+            project={project}
+            undoButton={
+              <UndoButton canUndo={canUndo('dashboard')} onUndo={() => handleUndo('dashboard')} />
+            }
+          />
+        );
       case 'gantt':
-        return <GanttChart project={project} onProjectChange={setRawProject} />;
+        return (
+          <GanttChart
+            project={project}
+            onProjectChange={ganttSetter}
+            undoButton={
+              <UndoButton canUndo={canUndo('gantt')} onUndo={() => handleUndo('gantt')} size="xs" />
+            }
+          />
+        );
       case 'tasks':
-        return <TaskList project={project} onProjectChange={setRawProject} />;
+        return (
+          <TaskList
+            project={project}
+            onProjectChange={tasksSetter}
+            undoButton={
+              <UndoButton canUndo={canUndo('tasks')} onUndo={() => handleUndo('tasks')} />
+            }
+          />
+        );
       case 'measurement':
-        return <Measurement project={project} onProjectChange={setRawProject} />;
+        return (
+          <Measurement
+            project={project}
+            onProjectChange={measurementSetter}
+            undoButton={
+              <UndoButton canUndo={canUndo('measurement')} onUndo={() => handleUndo('measurement')} />
+            }
+          />
+        );
     }
   };
 
