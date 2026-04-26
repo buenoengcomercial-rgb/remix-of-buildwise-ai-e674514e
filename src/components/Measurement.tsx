@@ -850,6 +850,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         nextMeasurementNumber: number + 1,
       },
       history: [],
+      dailyReportSnapshot: buildDailyReportSnapshot(dailyReportsSummary),
     };
 
     const nextStartIso = isoAddDays(endDate, 1);
