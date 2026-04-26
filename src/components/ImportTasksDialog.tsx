@@ -752,6 +752,7 @@ function ChapterNode({
                   setExpandedComps={setExpandedComps}
                   selectedComps={selectedComps}
                   setSelectedComps={setSelectedComps}
+                  issuesByCompKey={issuesByCompKey}
                   depth={depth + 1}
                 />
               ))}
