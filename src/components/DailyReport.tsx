@@ -21,6 +21,9 @@ interface DailyReportProps {
   initialDate?: string;
   /** Filtro de medição inicial vindo da Medição (ex.: 'draft' ou id da medição). */
   initialMeasurementFilter?: string;
+  /** Chave que muda a cada navegação externa, força re-aplicar initialDate/initialMeasurementFilter
+   *  mesmo quando os valores se repetem. */
+  navKey?: number;
 }
 
 const WEATHER_OPTIONS: Array<{ value: WeatherCondition; label: string; icon: React.ElementType }> = [
