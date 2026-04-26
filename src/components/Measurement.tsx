@@ -749,7 +749,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       ['Objeto:', headerCtx.contractObject || '', '', 'Nº Contrato:', headerCtx.contractNumber || ''],
       ['Medição Nº:', effNumber, '', 'Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`],
       ['Data emissão:', fmtDateBR(effIssue), '', 'Fonte de orçamento:', headerCtx.budgetSource || ''],
-      ['BDI %:', effBdi, '', 'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Rascunho (preview)'],
+      ['BDI %:', effBdi, '', 'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'],
       [],
     ];
 
