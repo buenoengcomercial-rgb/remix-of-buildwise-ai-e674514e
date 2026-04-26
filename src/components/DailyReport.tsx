@@ -613,13 +613,24 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       : formatBR(selectedDate);
     const issueStr = formatBR(todayISO());
 
+    // Logo da empresa (canto superior esquerdo)
+    const logo = await loadCompanyLogoForPdf();
+    const logoTargetW = 28; // mm
+    let logoH = 0;
+    if (logo) {
+      const ratio = logo.width / logo.height;
+      logoH = logoTargetW / ratio;
+      try { doc.addImage(logo.dataUrl, 'PNG', margin, margin, logoTargetW, logoH, undefined, 'FAST'); } catch {}
+    }
+
     // ───── Cabeçalho ─────
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(scopeTitle, pageW / 2, margin + 4, { align: 'center' });
 
-    let y = margin + 7;
+    let y = Math.max(margin + 7, margin + logoH + 1);
     const usable = pageW - margin * 2;
+
     const headerColWidths = [usable * 0.18, usable * 0.32, usable * 0.18, usable * 0.32];
     const headerRows: [string, string, string, string][] = [
       ['Obra:', project.name || '-', 'Período:', periodoStr],
