@@ -31,15 +31,45 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
     ? task.quantity / baseDuration
     : 0;
 
+  const buildLog = (dateISO: string): DailyProductionLog => ({
+    id: `dl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    date: dateISO,
+    plannedQuantity: Math.round(plannedDailyProduction * 100) / 100,
+    actualQuantity: 0,
+  });
+
+  const nextDayISO = (iso: string): string => {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const base = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date();
+    base.setDate(base.getDate() + 1);
+    return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+  };
+
   const addLog = () => {
     const today = new Date().toISOString().split('T')[0];
-    const newLog: DailyProductionLog = {
-      id: `dl-${Date.now()}`,
-      date: today,
-      plannedQuantity: Math.round(plannedDailyProduction * 100) / 100,
-      actualQuantity: 0,
-    };
+    const lastDate = logs.length > 0
+      ? [...logs].sort((a, b) => a.date.localeCompare(b.date))[logs.length - 1].date
+      : null;
+    const date = lastDate ? nextDayISO(lastDate) : today;
+    const newLog = buildLog(date);
     onChange([...logs, newLog]);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLInputElement>(`[data-actual-input="${newLog.id}"]`);
+      el?.focus();
+      el?.select();
+    }, 50);
+  };
+
+  const addLogAfter = (afterId: string) => {
+    const ref = logs.find(l => l.id === afterId);
+    const date = ref ? nextDayISO(ref.date) : new Date().toISOString().split('T')[0];
+    const newLog = buildLog(date);
+    onChange([...logs, newLog]);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLInputElement>(`[data-actual-input="${newLog.id}"]`);
+      el?.focus();
+      el?.select();
+    }, 50);
   };
 
   const updateLog = (id: string, updates: Partial<DailyProductionLog>) => {
