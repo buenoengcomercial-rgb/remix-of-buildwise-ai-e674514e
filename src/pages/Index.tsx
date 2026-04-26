@@ -9,10 +9,13 @@ import Measurement from '@/components/Measurement';
 import UndoButton from '@/components/UndoButton';
 import SaveStatusIndicator, { SaveStatus } from '@/components/SaveStatusIndicator';
 import MigrationDialog from '@/components/MigrationDialog';
-import { Menu, X, Loader2 } from 'lucide-react';
+import { Menu, X, Loader2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrganization } from '@/hooks/useOrganization';
+import { canCreateProject, canDeleteProject, canEditProject, ROLE_LABELS } from '@/lib/organizations';
+import { Button } from '@/components/ui/button';
 import {
   listCloudProjects,
   loadCloudProject,
@@ -34,6 +37,7 @@ type UndoStacks = Record<AppView, Project[]>;
 
 export default function Index() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { membership, loading: orgLoading } = useOrganization();
   const navigate = useNavigate();
 
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
@@ -49,12 +53,16 @@ export default function Index() {
   const saveTimerRef = useRef<number | null>(null);
   const initialLoadRef = useRef(false);
 
-  // Redireciona para /auth quando não logado
+  const orgId = membership?.organization.id;
+  const role = membership?.role;
+  const editor = role ? canEditProject(role) : false;
+  const creator = role ? canCreateProject(role) : false;
+  const remover = role ? canDeleteProject(role) : false;
+
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth', { replace: true });
   }, [authLoading, user, navigate]);
 
-  // Carrega lista da nuvem e o projeto ativo
   const refreshCloudList = useCallback(async (): Promise<CloudProjectMeta[]> => {
     const list = await listCloudProjects();
     setCloudList(list);
@@ -62,45 +70,46 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !orgId) return;
     let cancelled = false;
     (async () => {
       setBootLoading(true);
       try {
         let list = await refreshCloudList();
-        if (list.length === 0) {
-          // primeira vez: cria obra inicial com sample
+        if (list.length === 0 && creator) {
           const name = await generateUniqueCloudName('Minha primeira obra');
-          const created = await createCloudProject(name, user.id, getSampleSeed());
+          const created = await createCloudProject(name, orgId, getSampleSeed());
           if (cancelled) return;
           list = await refreshCloudList();
           setRawProject(created);
-        } else {
+        } else if (list.length > 0) {
           const proj = await loadCloudProject(list[0].id);
           if (cancelled) return;
           if (proj) setRawProject(proj);
+        } else {
+          setRawProject(null);
         }
         initialLoadRef.current = true;
       } catch (e) {
         console.error(e);
-        toast.error('Erro ao carregar obras da nuvem');
+        toast.error('Erro ao carregar obras da empresa');
       } finally {
         if (!cancelled) setBootLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [user, refreshCloudList]);
+  }, [user, orgId, creator, refreshCloudList]);
 
-  // Salvamento debounced na nuvem
+  // Salvamento debounced (somente se o usuário pode editar)
   useEffect(() => {
-    if (!user || !rawProject || !initialLoadRef.current) return;
+    if (!user || !orgId || !rawProject || !initialLoadRef.current) return;
+    if (!editor) return;
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     setSaveStatus('saving');
     saveTimerRef.current = window.setTimeout(async () => {
       try {
-        await upsertCloudProject(rawProject, user.id);
+        await upsertCloudProject(rawProject, orgId);
         setSaveStatus('saved');
-        // Atualiza nome/updated_at na lista
         setCloudList(prev => {
           const idx = prev.findIndex(p => p.id === rawProject.id);
           const meta: CloudProjectMeta = {
@@ -109,9 +118,7 @@ export default function Index() {
             createdAt: idx >= 0 ? prev[idx].createdAt : new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
-          if (idx >= 0) {
-            const copy = [...prev]; copy[idx] = meta; return copy;
-          }
+          if (idx >= 0) { const copy = [...prev]; copy[idx] = meta; return copy; }
           return [meta, ...prev];
         });
       } catch (e) {
@@ -123,7 +130,7 @@ export default function Index() {
     return () => {
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     };
-  }, [rawProject, user]);
+  }, [rawProject, user, orgId, editor]);
 
   const deferredRawProject = useDeferredValue(rawProject);
 
@@ -142,6 +149,10 @@ export default function Index() {
 
   const makeViewSetter = useCallback((view: AppView) => {
     return (next: Project | ((prev: Project) => Project)) => {
+      if (!editor) {
+        toast.error('Você não tem permissão para editar.');
+        return;
+      }
       setRawProject(prev => {
         if (!prev) return prev;
         const resolved = typeof next === 'function' ? (next as (p: Project) => Project)(prev) : next;
@@ -153,7 +164,7 @@ export default function Index() {
         return resolved;
       });
     };
-  }, []);
+  }, [editor]);
 
   const ganttSetter = useMemo(() => makeViewSetter('gantt'), [makeViewSetter]);
   const tasksSetter = useMemo(() => makeViewSetter('tasks'), [makeViewSetter]);
@@ -185,10 +196,11 @@ export default function Index() {
   };
 
   const handleCreateProject = async (name?: string): Promise<string | void> => {
-    if (!user) return;
+    if (!orgId) return;
+    if (!creator) { toast.error('Sem permissão para criar obras.'); return; }
     try {
       const finalName = (name && name.trim()) || (await generateUniqueCloudName('Nova obra'));
-      const newProj = await createCloudProject(finalName, user.id);
+      const newProj = await createCloudProject(finalName, orgId);
       await refreshCloudList();
       setRawProject(newProj);
       undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
@@ -200,8 +212,9 @@ export default function Index() {
   };
 
   const handleRenameProject = async (id: string, newName: string) => {
+    if (!orgId || !editor) { toast.error('Sem permissão para renomear.'); return; }
     try {
-      const updated = await renameCloudProject(id, newName);
+      const updated = await renameCloudProject(id, newName, orgId);
       if (updated && rawProject && id === rawProject.id) setRawProject(updated);
       await refreshCloudList();
       setUndoVersion(v => v + 1);
@@ -211,9 +224,9 @@ export default function Index() {
   };
 
   const handleDuplicateProject = async (id: string) => {
-    if (!user) return;
+    if (!orgId || !creator) { toast.error('Sem permissão para duplicar.'); return; }
     try {
-      const copy = await duplicateCloudProject(id, user.id);
+      const copy = await duplicateCloudProject(id, orgId);
       if (copy) {
         await refreshCloudList();
         toast.success(`Obra duplicada: ${copy.name}`);
@@ -225,6 +238,7 @@ export default function Index() {
   };
 
   const handleDeleteProject = async (id: string) => {
+    if (!remover) { toast.error('Sem permissão para excluir.'); return; }
     if (cloudList.length <= 1) {
       toast.error('Não é possível excluir a única obra. Crie outra antes.');
       return;
@@ -254,13 +268,40 @@ export default function Index() {
     navigate('/auth', { replace: true });
   };
 
-  // Lista compatível com a sidebar (formato ProjectMeta)
   const sidebarProjects: ProjectMeta[] = useMemo(
     () => cloudList.map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt })),
     [cloudList]
   );
 
-  if (authLoading || (user && bootLoading) || !project || !rawProject) {
+  // Tela de espera enquanto carrega auth/org
+  if (authLoading || orgLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Usuário logado mas SEM organização ativa: bloqueia acesso
+  if (user && !membership) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md text-center space-y-4">
+          <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+            <Building2 className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <h1 className="text-xl font-semibold">Acesso pendente</h1>
+          <p className="text-sm text-muted-foreground">
+            Sua conta foi criada com sucesso. Aguarde a liberação de acesso pela administração da empresa.
+            Um administrador precisa autorizar seu usuário antes que você possa visualizar as obras.
+          </p>
+          <Button variant="outline" onClick={handleLogout}>Sair</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (bootLoading || !project || !rawProject) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -311,6 +352,10 @@ export default function Index() {
           projectsList={sidebarProjects}
           userEmail={user?.email ?? undefined}
           onLogout={handleLogout}
+          orgName={membership?.organization.name}
+          roleLabel={role ? ROLE_LABELS[role] : undefined}
+          canManageTeam={role === 'owner' || role === 'admin'}
+          onOpenTeam={() => navigate('/team')}
         />
       </div>
 
@@ -321,7 +366,7 @@ export default function Index() {
         {renderView()}
       </main>
 
-      <MigrationDialog onMigrated={async () => { await refreshCloudList(); }} />
+      {orgId && <MigrationDialog organizationId={orgId} onMigrated={async () => { await refreshCloudList(); }} />}
     </div>
   );
 }

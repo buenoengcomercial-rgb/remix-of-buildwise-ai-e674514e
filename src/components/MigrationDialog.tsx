@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 
 const MIGRATION_FLAG_PREFIX = 'obraplanner-migration-asked-';
 
-export default function MigrationDialog({ onMigrated }: { onMigrated: () => void }) {
+export default function MigrationDialog({ organizationId, onMigrated }: { organizationId: string; onMigrated: () => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
@@ -41,7 +41,7 @@ export default function MigrationDialog({ onMigrated }: { onMigrated: () => void
         if (!proj) continue;
         // Garante UUID válido para a nuvem
         const cloudProject = { ...proj, id: crypto.randomUUID() };
-        await upsertCloudProject(cloudProject, user.id);
+        await upsertCloudProject(cloudProject, organizationId);
         ok++;
       }
       toast.success(`${ok} obra(s) enviada(s) para a nuvem`);

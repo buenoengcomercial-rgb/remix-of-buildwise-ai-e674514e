@@ -44,7 +44,7 @@ export default function Auth() {
     const { error } = await signUp(signupEmail.trim(), signupPassword, signupName.trim() || undefined);
     setSubmitting(false);
     if (error) toast.error(error);
-    else toast.success('Conta criada! Você já está logado.');
+    else toast.success('Sua conta foi criada. Aguarde liberação de acesso pela empresa.', { duration: 6000 });
   };
 
   if (loading) {
