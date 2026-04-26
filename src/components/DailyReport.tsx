@@ -66,6 +66,8 @@ interface ProductionEntry {
   actualQuantity: number;
   plannedQuantity: number;
   notes?: string;
+  /** Equipe vinculada à tarefa (para sugestão automática de equipes presentes). */
+  teamCode?: string;
 }
 
 /** Coleta todos os apontamentos da data, respeitando hierarquia capítulo/subcapítulo. */
@@ -94,6 +96,7 @@ function collectProductionForDate(project: Project, dateISO: string): Production
           actualQuantity: log.actualQuantity || 0,
           plannedQuantity: log.plannedQuantity || 0,
           notes: log.notes,
+          teamCode: task.team,
         });
       });
     });
