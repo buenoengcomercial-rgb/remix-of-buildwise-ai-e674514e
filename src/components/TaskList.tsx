@@ -585,6 +585,7 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
           <p className="text-sm text-muted-foreground mt-1">Tarefas com cálculo RUP e composição de mão de obra</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {undoButton}
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"

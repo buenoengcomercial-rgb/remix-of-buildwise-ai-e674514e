@@ -899,6 +899,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {undoButton}
           <Button variant="outline" size="sm" onClick={exportXLSX}>
             <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
           </Button>
