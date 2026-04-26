@@ -1,6 +1,7 @@
 import { Task, DailyProductionLog } from '@/types/project';
 import { ClipboardList, Plus, Trash2, TrendingUp, TrendingDown, PlusCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useConfirmDelete } from '@/components/ConfirmDeleteDialog';
 
 interface DailyLogsPanelProps {
   task: Task;
