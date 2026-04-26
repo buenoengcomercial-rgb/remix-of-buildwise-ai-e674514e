@@ -781,9 +781,14 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
               />
             </div>
           )}
-          <Button onClick={handlePrint} variant="outline" size="sm">
-            <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF
+          <Button onClick={handlePrintDay} variant="outline" size="sm" title="Exporta apenas a data selecionada">
+            <Printer className="w-4 h-4 mr-1.5" /> PDF do dia
           </Button>
+          {activePeriod && (
+            <Button onClick={handlePrintPeriod} variant="default" size="sm" title="Exporta todos os dias do período da medição">
+              <Printer className="w-4 h-4 mr-1.5" /> PDF da medição
+            </Button>
+          )}
         </div>
       </div>
 
