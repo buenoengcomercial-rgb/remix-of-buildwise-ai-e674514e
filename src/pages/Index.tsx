@@ -50,10 +50,12 @@ export default function Index() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dailyReportInitialDate, setDailyReportInitialDate] = useState<string | undefined>(undefined);
   const [dailyReportInitialFilter, setDailyReportInitialFilter] = useState<string | undefined>(undefined);
+  const [dailyReportNavKey, setDailyReportNavKey] = useState(0);
 
   const handleOpenDailyReport = useCallback((dateISO: string, measurementFilter?: string) => {
     setDailyReportInitialDate(dateISO);
     setDailyReportInitialFilter(measurementFilter);
+    setDailyReportNavKey(k => k + 1); // força re-aplicação mesmo se valores se repetirem
     setCurrentView('dailyReport');
     setSidebarOpen(false);
   }, []);
