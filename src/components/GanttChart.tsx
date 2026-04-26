@@ -739,7 +739,7 @@ export default function GanttChart({ project, onProjectChange, undoButton }: Gan
           const newStartISO = dateToISO(newStart);
 
           // Check precedence violation (if this task is a successor)
-          const violation = checkDependencyViolation(task, newStartISO, tasks);
+          const violation = checkDependencyViolation(task, newStartISO, tasks, obraConfig);
           if (violation) {
             toast.error(`Não é possível: a tarefa depende do término da tarefa "${violation.predName}" (${violation.type})`, {
               action: {
