@@ -1008,79 +1008,92 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 5;
 
-    // ── Cabeçalho do boletim ──
+    // ── Título do boletim (com nº da medição) ──
+    const numStr = String(effNumber || '');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('BOLETIM DE MEDIÇÃO PARA PAGAMENTO', pageW / 2, margin + 4, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    const labelVal = (label: string, value: string) => {
-      doc.setFont('helvetica', 'bold');
-      const lw = doc.getTextWidth(label + ' ');
-      doc.text(label, 0, 0);
-      doc.setFont('helvetica', 'normal');
-      doc.text(value, lw, 0);
-    };
-    // Linhas em duas colunas
-    const col1X = margin;
-    const col2X = pageW / 2 + 2;
-    let y = margin + 8;
-    const lineH = 3.2;
-
-    const drawPair = (lbl1: string, val1: string, lbl2: string, val2: string) => {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-      doc.text(lbl1, col1X, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(val1 || '-'), col1X + doc.getTextWidth(lbl1 + ' '), y, {
-        maxWidth: col2X - col1X - doc.getTextWidth(lbl1 + ' ') - 2,
-      });
-      doc.setFont('helvetica', 'bold');
-      doc.text(lbl2, col2X, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(val2 || '-'), col2X + doc.getTextWidth(lbl2 + ' '), y, {
-        maxWidth: pageW - margin - col2X - doc.getTextWidth(lbl2 + ' ') - 2,
-      });
-      y += lineH;
-    };
-
-    drawPair('Obra:', project.name || '', 'Local/Município:', headerCtx.location || '');
-    drawPair('Contratante:', headerCtx.contractor || '', 'Contratada:', headerCtx.contracted || '');
-    drawPair('Objeto:', headerCtx.contractObject || '', 'Nº Contrato:', headerCtx.contractNumber || '');
-    drawPair(
-      'Medição Nº:', String(effNumber),
-      'Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`
-    );
-    drawPair(
-      'Data emissão:', fmtDateBR(effIssue),
-      'BDI %:', `${effBdi}`
-    );
-    drawPair(
-      'Fonte de orçamento:', headerCtx.budgetSource || '',
-      'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'
+    doc.text(
+      `BOLETIM DE MEDIÇÃO PARA PAGAMENTO — ${numStr}ª MEDIÇÃO`,
+      pageW / 2, margin + 4, { align: 'center' },
     );
 
-    // Faixa resumida de totais
-    y += 1;
-    doc.setDrawColor(180); doc.setLineWidth(0.2);
-    doc.line(margin, y, pageW - margin, y);
-    y += 3;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
-    const summary = [
+    let y = margin + 7;
+
+    // ── Cabeçalho em grade (autoTable) ──
+    // 4 colunas (label/valor pares) com larguras alocadas para acomodar campos longos.
+    const usable = pageW - margin * 2;
+    // Distribuição percentual: lbl1=10, val1=40, lbl2=10, val2=40
+    const headerColWidths = [
+      usable * 0.10,
+      usable * 0.40,
+      usable * 0.10,
+      usable * 0.40,
+    ];
+    const periodoStr = `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`;
+    const statusStr = activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação';
+    const headerRows: [string, string, string, string][] = [
+      ['Obra:', project.name || '-', 'Medição Nº:', numStr || '-'],
+      ['Contratante:', headerCtx.contractor || '-', 'Contratada:', headerCtx.contracted || '-'],
+      ['Objeto:', headerCtx.contractObject || '-', 'Local/Município:', headerCtx.location || '-'],
+      ['Nº Contrato:', headerCtx.contractNumber || '-', 'Período:', periodoStr],
+      ['Data emissão:', fmtDateBR(effIssue) || '-', 'BDI %:', `${effBdi}`],
+      // Fonte de orçamento ocupa coluna de valor maior; status na direita
+      ['Fonte de orçamento:', headerCtx.budgetSource || '-', 'Status:', statusStr],
+    ];
+
+    autoTable(doc, {
+      startY: y,
+      body: headerRows,
+      theme: 'grid',
+      styles: {
+        font: 'helvetica',
+        fontSize: 7.5,
+        cellPadding: 1.4,
+        overflow: 'linebreak',
+        valign: 'middle',
+        lineColor: [180, 180, 180],
+        lineWidth: 0.15,
+        textColor: 20,
+      },
+      columnStyles: {
+        0: { cellWidth: headerColWidths[0], fontStyle: 'bold', fillColor: [243, 244, 246] },
+        1: { cellWidth: headerColWidths[1] },
+        2: { cellWidth: headerColWidths[2], fontStyle: 'bold', fillColor: [243, 244, 246] },
+        3: { cellWidth: headerColWidths[3] },
+      },
+      margin: { left: margin, right: margin },
+      tableWidth: usable,
+    });
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 2.5;
+
+    // ── Resumo financeiro (4 blocos: "Rótulo: valor") ──
+    const summary: [string, string][] = [
       ['Contratado', fmtBRL(totals.contracted)],
       ['Medição', fmtBRL(totals.period)],
       ['Acumulado', fmtBRL(totals.accum)],
       ['Saldo', fmtBRL(totals.balance)],
     ];
-    const cellW = (pageW - margin * 2) / summary.length;
+    const sumH = 6.5;
+    const sumCellW = usable / summary.length;
+    // fundo discreto + borda fina
+    doc.setDrawColor(180);
+    doc.setLineWidth(0.15);
+    doc.setFillColor(249, 250, 251);
+    doc.rect(margin, y, usable, sumH, 'FD');
+    // separadores verticais
+    for (let i = 1; i < summary.length; i++) {
+      const sx = margin + i * sumCellW;
+      doc.line(sx, y, sx, y + sumH);
+    }
     summary.forEach((s, i) => {
-      const x = margin + i * cellW;
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-      doc.text(s[0], x + 2, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-      doc.text(s[1], x + cellW - 2, y, { align: 'right' });
+      const cx = margin + i * sumCellW + sumCellW / 2;
+      const cy = y + sumH / 2 + 1.4;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(20);
+      doc.text(`${s[0]}: ${s[1]}`, cx, cy, { align: 'center' });
     });
-    y += 2;
+    y += sumH + 1.5;
 
     // ── Tabela ──
     const head = [[
