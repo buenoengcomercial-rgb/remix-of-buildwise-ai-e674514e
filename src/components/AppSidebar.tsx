@@ -1,8 +1,20 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { listProjects, ProjectMeta } from '@/lib/projectStorage';
+import {
+  exportProjectToFile,
+  exportAllProjectsToFile,
+  parseBackup,
+  readFileAsText,
+  summarizeProject,
+  importProject,
+  importAllProjects,
+  type BackupFile,
+  type ProjectSummary,
+} from '@/lib/projectBackup';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,6 +25,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface AppSidebarProps {
   currentView: AppView;
@@ -25,6 +44,7 @@ interface AppSidebarProps {
   onRenameProject: (id: string, newName: string) => void;
   onDuplicateProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
+  onImportedProject?: (id: string) => void;
   activeProjectId: string;
 }
 
@@ -35,13 +55,18 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, activeProjectId }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [showProjects, setShowProjects] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Estado de import (preview/confirmação)
+  const [pendingBackup, setPendingBackup] = useState<BackupFile | null>(null);
+  const [pendingSummaries, setPendingSummaries] = useState<ProjectSummary[]>([]);
 
   useEffect(() => {
     setProjects(listProjects());
@@ -98,8 +123,77 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
 
   const projectToDelete = projects.find(p => p.id === confirmDeleteId);
 
+  // ===== Backup / Import =====
+  const handleExportProject = (id: string) => {
+    const ok = exportProjectToFile(id);
+    if (ok) toast.success('Backup da obra exportado');
+    else toast.error('Não foi possível exportar a obra');
+  };
+
+  const handleExportAll = () => {
+    const ok = exportAllProjectsToFile();
+    if (ok) toast.success('Backup geral exportado');
+    else toast.error('Nenhuma obra para exportar');
+  };
+
+  const triggerImport = () => importInputRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await readFileAsText(file);
+      const backup = parseBackup(text);
+      if (!backup) {
+        toast.error('Arquivo de backup inválido ou incompatível.');
+        return;
+      }
+      const summaries = backup.kind === 'single'
+        ? [summarizeProject(backup.project)]
+        : backup.projects.map(summarizeProject);
+      setPendingBackup(backup);
+      setPendingSummaries(summaries);
+    } catch {
+      toast.error('Não foi possível ler o arquivo selecionado.');
+    }
+  };
+
+  const cancelImport = () => {
+    setPendingBackup(null);
+    setPendingSummaries([]);
+  };
+
+  const confirmImport = () => {
+    if (!pendingBackup) return;
+    try {
+      if (pendingBackup.kind === 'single') {
+        const saved = importProject(pendingBackup.project, { activate: true });
+        setProjects(listProjects());
+        toast.success(`Obra importada: ${saved.name}`);
+        onImportedProject?.(saved.id);
+      } else {
+        const saved = importAllProjects(pendingBackup.projects);
+        setProjects(listProjects());
+        toast.success(`${saved.length} obra(s) importada(s)`);
+        if (saved[0]) onImportedProject?.(saved[0].id);
+      }
+    } catch {
+      toast.error('Falha ao importar o backup.');
+    } finally {
+      cancelImport();
+    }
+  };
+
   return (
     <aside className={`${collapsed ? 'w-16' : 'w-64'} min-h-screen flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] transition-all duration-300`}>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={handleImportFile}
+      />
       <div className="p-3 border-b border-[hsl(var(--sidebar-border))] flex items-center justify-between">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
@@ -123,22 +217,49 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
 
       {/* Seletor de projetos */}
       <div className="border-b border-[hsl(var(--sidebar-border))]">
-        <button
-          onClick={() => setShowProjects(!showProjects)}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium hover:bg-[hsl(var(--sidebar-hover))] transition-colors ${collapsed ? 'justify-center' : ''}`}
-          title={collapsed ? `Projetos: ${projectName}` : undefined}
-        >
-          <FolderOpen className="w-4 h-4 flex-shrink-0 opacity-70" />
+        <div className={`flex items-center ${collapsed ? 'justify-center' : ''} hover:bg-[hsl(var(--sidebar-hover))]/40 transition-colors`}>
+          <button
+            onClick={() => setShowProjects(!showProjects)}
+            className={`flex-1 flex items-center gap-2 px-3 py-2 text-[11px] font-medium ${collapsed ? 'justify-center' : ''}`}
+            title={collapsed ? `Projetos: ${projectName}` : undefined}
+          >
+            <FolderOpen className="w-4 h-4 flex-shrink-0 opacity-70" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left truncate uppercase tracking-wide opacity-70">Obras</span>
+                {showProjects
+                  ? <ChevronDown className="w-3 h-3 opacity-70" />
+                  : <ChevronRight className="w-3 h-3 opacity-70" />
+                }
+              </>
+            )}
+          </button>
           {!collapsed && (
-            <>
-              <span className="flex-1 text-left truncate uppercase tracking-wide opacity-70">Obras</span>
-              {showProjects
-                ? <ChevronDown className="w-3 h-3 opacity-70" />
-                : <ChevronRight className="w-3 h-3 opacity-70" />
-              }
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-1.5 mr-1 rounded hover:bg-[hsl(var(--sidebar-hover))] transition-colors opacity-70 hover:opacity-100"
+                  title="Mais opções"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={handleNewProject}>
+                  <Plus className="w-4 h-4 mr-2" /> Nova obra
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={triggerImport}>
+                  <Upload className="w-4 h-4 mr-2" /> Importar backup
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportAll}>
+                  <FileDown className="w-4 h-4 mr-2" /> Exportar todas
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-        </button>
+        </div>
 
         {showProjects && !collapsed && (
           <div className="px-2 pb-2 space-y-0.5">
@@ -206,12 +327,17 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
                           <Copy className="w-3 h-3" />
                         </button>
                         <button
+                          onClick={(e) => { e.stopPropagation(); handleExportProject(p.id); }}
+                          title="Exportar obra"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
+                        >
+                          <Download className="w-3 h-3" />
+                        </button>
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (projects.length <= 1) {
-                              import('sonner').then(({ toast }) =>
-                                toast.error('Não é possível excluir a única obra existente. Crie outra obra antes de excluir esta.')
-                              );
+                              toast.error('Não é possível excluir a única obra existente. Crie outra obra antes de excluir esta.');
                               return;
                             }
                             setConfirmDeleteId(p.id);
@@ -253,6 +379,51 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmedDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Excluir obra
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de importação de backup */}
+      <AlertDialog open={!!pendingBackup} onOpenChange={(o) => !o && cancelImport()}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingBackup?.kind === 'multi'
+                ? `Deseja importar ${pendingSummaries.length} obra(s)?`
+                : 'Deseja importar esta obra?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p className="text-muted-foreground">
+                  Resumo do backup ({pendingBackup?.kind === 'multi' ? 'geral' : 'obra única'}):
+                </p>
+                <div className="max-h-64 overflow-y-auto rounded border border-border divide-y divide-border">
+                  {pendingSummaries.map((s, i) => (
+                    <div key={i} className="p-2.5 text-xs">
+                      <div className="font-semibold text-foreground">{s.name}</div>
+                      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
+                        <span>Capítulos: <strong>{s.chapterCount}</strong></span>
+                        <span>Tarefas: <strong>{s.taskCount}</strong></span>
+                        <span>Medições: <strong>{s.measurementCount}</strong></span>
+                        {s.startDate && s.endDate && (
+                          <span>Período: {s.startDate} → {s.endDate}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  As obras existentes não serão alteradas. Caso já exista uma obra com o mesmo nome,
+                  a importada receberá o sufixo "(importada)".
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmImport}>
+              {pendingBackup?.kind === 'multi' ? 'Importar obras' : 'Importar obra'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

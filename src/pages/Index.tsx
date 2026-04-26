@@ -221,6 +221,7 @@ export default function Index() {
           onRenameProject={handleRenameProject}
           onDuplicateProject={handleDuplicateProject}
           onDeleteProject={handleDeleteProject}
+          onImportedProject={handleSwitchProject}
           activeProjectId={rawProject.id}
         />
       </div>
