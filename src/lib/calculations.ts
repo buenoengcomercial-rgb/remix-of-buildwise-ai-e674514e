@@ -494,71 +494,9 @@ function addDaysCalc(date: Date, days: number): Date {
 
 /**
  * Central dependency propagation engine.
- * Given a list of tasks and the ID of a task that changed,
- * cascades date adjustments through all successor tasks.
- * Returns a new array with all dates updated.
+ * Cascades date adjustments through all successor tasks respecting the
+ * configured work calendar (Sundays, Saturdays, holidays, half-day Saturday).
  */
-export function propagateAllDependencies(
-  tasks: Task[],
-  changedTaskId: string,
-): { tasks: Task[]; changed: boolean; adjustedTypes: Set<DependencyType> } {
-  const taskMap = new Map(tasks.map(t => [t.id, { ...t }]));
-  const visited = new Set<string>();
-  let anyChanged = false;
-  const adjustedTypes = new Set<DependencyType>();
-
-  // Build successor index: predId -> [{successorId, type}]
-  const successorIndex = new Map<string, { successorId: string; type: DependencyType }[]>();
-  tasks.forEach(t => {
-    const details = (t.dependencyDetails && t.dependencyDetails.length)
-      ? t.dependencyDetails
-      // Backfill: tarefas com `dependencies` mas sem `dependencyDetails` são tratadas como TI por padrão.
-      : (t.dependencies || []).map(id => ({ taskId: id, type: 'TI' as DependencyType }));
-    details.forEach(dep => {
-      if (!successorIndex.has(dep.taskId)) successorIndex.set(dep.taskId, []);
-      successorIndex.get(dep.taskId)!.push({ successorId: t.id, type: dep.type });
-    });
-  });
-
-  function propagate(predId: string, depth: number) {
-    if (depth > 50 || visited.has(predId)) return;
-    visited.add(predId);
-
-    const succs = successorIndex.get(predId);
-    if (!succs) return;
-
-    for (const { successorId, type } of succs) {
-      const pred = taskMap.get(predId)!;
-      const succ = taskMap.get(successorId)!;
-      if (!pred || !succ) continue;
-
-      const predStart = parseISODateLocal(pred.startDate);
-      // Fim = último dia trabalhado = start + (duration − 1).
-      // O dia seguinte (start + duration) é o "predEndExclusive" usado para TI.
-      const predEndExclusive = addDaysCalc(predStart, pred.duration);
-
-      let newStartDate: Date | null = null;
-
-      switch (type) {
-        case 'TI':
-          // Início da sucessora = dia seguinte ao último dia da predecessora
-          newStartDate = predEndExclusive;
-          break;
-        case 'II':
-          // Início da sucessora = Início da predecessora
-          newStartDate = predStart;
-          break;
-        case 'TT':
-          // Fim da sucessora = Fim da predecessora
-          // succEndExclusive = succStart + succ.duration  → succStart = predEndExclusive − succ.duration
-          newStartDate = addDaysCalc(predEndExclusive, -succ.duration);
-          break;
-        case 'IT':
-          // Fim da sucessora = Início da predecessora
-          // succEndExclusive = predStart  → succStart = predStart − succ.duration
-          newStartDate = addDaysCalc(predStart, -succ.duration);
-          break;
-      }
 
 export function propagateAllDependencies(
   tasks: Task[],
