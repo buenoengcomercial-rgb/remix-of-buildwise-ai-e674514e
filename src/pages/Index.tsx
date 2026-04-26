@@ -9,7 +9,7 @@ import UndoButton from '@/components/UndoButton';
 import { Menu, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { applyRupToProject, applyDailyLogsToProject, calculateCPM, captureBaseline, syncBaselineWithRup, settleAllDependencies } from '@/lib/calculations';
-import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject } from '@/lib/projectStorage';
+import { initProjects, saveProject, setActiveProjectId, loadProject, createNewProject, renameProject, duplicateProject, deleteProject, generateUniqueProjectName, listProjects } from '@/lib/projectStorage';
 
 const UNDO_LIMIT = 20;
 
@@ -103,11 +103,52 @@ export default function Index() {
     }
   };
 
-  const handleCreateProject = (name: string) => {
-    const newProj = createNewProject(name);
+  const handleCreateProject = (name?: string) => {
+    const finalName = (name && name.trim()) || generateUniqueProjectName('Nova obra');
+    const newProj = createNewProject(finalName);
     setActiveProjectId(newProj.id);
     setRawProject(newProj);
     undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+    setUndoVersion(v => v + 1);
+    return newProj.id;
+  };
+
+  const handleRenameProject = (id: string, newName: string) => {
+    const updated = renameProject(id, newName);
+    if (updated && id === rawProject.id) {
+      setRawProject(updated);
+    }
+    setUndoVersion(v => v + 1);
+  };
+
+  const handleDuplicateProject = (id: string) => {
+    const copy = duplicateProject(id);
+    if (copy) {
+      toast.success(`Obra duplicada: ${copy.name}`);
+      setUndoVersion(v => v + 1);
+    }
+  };
+
+  const handleDeleteProject = (id: string) => {
+    const all = listProjects();
+    if (all.length <= 1) {
+      toast.error('Não é possível excluir a única obra existente. Crie outra antes.');
+      return;
+    }
+    deleteProject(id);
+    if (id === rawProject.id) {
+      const remaining = listProjects();
+      const next = remaining[0];
+      if (next) {
+        const proj = loadProject(next.id);
+        if (proj) {
+          setActiveProjectId(proj.id);
+          setRawProject(proj);
+          undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+        }
+      }
+    }
+    toast.success('Obra excluída');
     setUndoVersion(v => v + 1);
   };
 
@@ -177,6 +218,9 @@ export default function Index() {
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}
+          onRenameProject={handleRenameProject}
+          onDuplicateProject={handleDuplicateProject}
+          onDeleteProject={handleDeleteProject}
           activeProjectId={rawProject.id}
         />
       </div>

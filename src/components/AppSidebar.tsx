@@ -1,8 +1,18 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { listProjects, ProjectMeta } from '@/lib/projectStorage';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface AppSidebarProps {
   currentView: AppView;
@@ -11,7 +21,10 @@ interface AppSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onSwitchProject: (id: string) => void;
-  onCreateProject: (name: string) => void;
+  onCreateProject: (name?: string) => string | void;
+  onRenameProject: (id: string, newName: string) => void;
+  onDuplicateProject: (id: string) => void;
+  onDeleteProject: (id: string) => void;
   activeProjectId: string;
 }
 
@@ -22,25 +35,68 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, activeProjectId }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, activeProjectId }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
-  const [showProjects, setShowProjects] = useState(false);
-  const [creatingProject, setCreatingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const [showProjects, setShowProjects] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setProjects(listProjects());
-  }, [showProjects, activeProjectId]);
+  }, [showProjects, activeProjectId, editingId]);
 
-  const handleCreate = () => {
-    const name = newProjectName.trim();
-    if (!name) return;
-    onCreateProject(name);
-    setNewProjectName('');
-    setCreatingProject(false);
-    setProjects(listProjects());
-    setShowProjects(false);
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startEdit = (p: ProjectMeta) => {
+    setEditingId(p.id);
+    setEditingName(p.name);
   };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  const saveEdit = () => {
+    const name = editingName.trim();
+    if (!name || !editingId) {
+      cancelEdit();
+      return;
+    }
+    onRenameProject(editingId, name);
+    setProjects(listProjects().map(p => p.id === editingId ? { ...p, name } : p));
+    cancelEdit();
+  };
+
+  const handleNewProject = () => {
+    setShowProjects(true);
+    const newId = onCreateProject();
+    if (typeof newId === 'string') {
+      setTimeout(() => {
+        const created = listProjects().find(p => p.id === newId);
+        if (created) {
+          setEditingId(newId);
+          setEditingName(created.name);
+        }
+      }, 0);
+    }
+  };
+
+  const confirmedDelete = () => {
+    if (confirmDeleteId) {
+      onDeleteProject(confirmDeleteId);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const projectToDelete = projects.find(p => p.id === confirmDeleteId);
 
   return (
     <aside className={`${collapsed ? 'w-16' : 'w-64'} min-h-screen flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] transition-all duration-300`}>
@@ -86,52 +142,110 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
 
         {showProjects && !collapsed && (
           <div className="px-2 pb-2 space-y-0.5">
-            {projects.map(p => (
-              <button
-                key={p.id}
-                onClick={() => { onSwitchProject(p.id); setShowProjects(false); }}
-                className={`w-full text-left px-2 py-1.5 rounded text-[11px] transition-colors truncate ${
-                  p.id === activeProjectId
-                    ? 'bg-primary text-primary-foreground font-semibold'
-                    : 'hover:bg-[hsl(var(--sidebar-hover))] text-[hsl(var(--sidebar-fg))]'
-                }`}
-                title={p.name}
-              >
-                {p.name}
-              </button>
-            ))}
-
-            {creatingProject ? (
-              <div className="flex items-center gap-1 pt-1">
-                <input
-                  autoFocus
-                  value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleCreate();
-                    if (e.key === 'Escape') { setCreatingProject(false); setNewProjectName(''); }
-                  }}
-                  placeholder="Nome da obra..."
-                  className="flex-1 min-w-0 text-[11px] bg-[hsl(var(--sidebar-hover))] border border-[hsl(var(--sidebar-border))] rounded px-2 py-1 focus:outline-none focus:border-primary text-[hsl(var(--sidebar-fg))]"
-                />
-                <button
-                  onClick={handleCreate}
-                  className="text-[11px] px-2 py-1 rounded bg-primary text-primary-foreground hover:opacity-90"
+            {projects.map(p => {
+              const isActive = p.id === activeProjectId;
+              const isEditing = editingId === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className={`group relative rounded text-[11px] transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground font-semibold'
+                      : 'hover:bg-[hsl(var(--sidebar-hover))] text-[hsl(var(--sidebar-fg))]'
+                  }`}
                 >
-                  OK
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setCreatingProject(true)}
-                className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] text-primary hover:bg-primary/10 transition-colors font-medium"
-              >
-                <Plus className="w-3 h-3" /> Nova obra
-              </button>
-            )}
+                  {isEditing ? (
+                    <div className="flex items-center gap-1 px-1.5 py-1">
+                      <input
+                        ref={editInputRef}
+                        value={editingName}
+                        onChange={e => setEditingName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveEdit();
+                          if (e.key === 'Escape') cancelEdit();
+                        }}
+                        className="flex-1 min-w-0 text-[11px] bg-[hsl(var(--sidebar-hover))] border border-[hsl(var(--sidebar-border))] rounded px-1.5 py-0.5 focus:outline-none focus:border-primary text-[hsl(var(--sidebar-fg))]"
+                      />
+                      <button
+                        onClick={saveEdit}
+                        title="Salvar"
+                        className="p-1 rounded hover:bg-primary/20 text-primary"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        title="Cancelar"
+                        className="p-1 rounded hover:bg-destructive/20 text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => onSwitchProject(p.id)}
+                        className="flex-1 min-w-0 text-left px-2 py-1.5 truncate"
+                        title={p.name}
+                      >
+                        {p.name}
+                      </button>
+                      <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startEdit(p); }}
+                          title="Renomear"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDuplicateProject(p.id); }}
+                          title="Duplicar"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id); }}
+                          title="Excluir"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-destructive/20 text-destructive'}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <button
+              onClick={handleNewProject}
+              className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] text-primary hover:bg-primary/10 transition-colors font-medium mt-1"
+            >
+              <Plus className="w-3 h-3" /> Nova obra
+            </button>
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todos os dados da obra <strong>{projectToDelete?.name}</strong> (tarefas, medições, configurações)
+              serão removidos permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmedDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <nav className="flex-1 p-2 space-y-1">
         {navItems.map(({ view, label, icon: Icon }) => {
