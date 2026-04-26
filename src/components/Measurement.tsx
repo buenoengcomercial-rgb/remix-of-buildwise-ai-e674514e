@@ -381,16 +381,20 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
       const percentExecuted =
         qtyContracted > 0 ? (qtyCurrentAccum / qtyContracted) * 100 : task.percentComplete || 0;
 
-      let unitPriceWithBDI = task.unitPrice ?? 0;
+      // Prioridade: 1) unitPriceNoBDI importado/manual → c/BDI sempre derivado do BDI editável
+      //             2) unitPrice c/BDI manual (sem s/BDI) → s/BDI = c/BDI / (1+BDI)
+      //             3) Estimativa por materiais/mão de obra
       let unitPriceNoBDI = task.unitPriceNoBDI ?? 0;
+      let unitPriceWithBDI = 0;
       let unitPriceIsEstimated = false;
 
-      if (unitPriceNoBDI > 0 && !task.unitPrice) {
+      if (unitPriceNoBDI > 0) {
+        // Sempre recalcular c/BDI a partir do BDI vigente — nunca substituir o preço importado
         unitPriceWithBDI = unitPriceNoBDI * effBdiFactor;
-      } else if (unitPriceWithBDI > 0 && !unitPriceNoBDI) {
+      } else if ((task.unitPrice ?? 0) > 0) {
+        unitPriceWithBDI = task.unitPrice!;
         unitPriceNoBDI = unitPriceWithBDI / effBdiFactor;
-      }
-      if (!unitPriceWithBDI && !unitPriceNoBDI) {
+      } else {
         const est = estimateTaskValue(task);
         unitPriceWithBDI = qtyContracted > 0 ? est / qtyContracted : 0;
         unitPriceNoBDI = unitPriceWithBDI / effBdiFactor;
