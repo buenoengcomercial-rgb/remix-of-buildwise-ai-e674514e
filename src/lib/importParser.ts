@@ -16,7 +16,7 @@ export interface ParsedComposition {
   name: string;
   unit: string;
   quantity: number;
-  unitPriceNoBdi?: number;
+  unitPriceNoBDI?: number;
   labor: ParsedLabor[];
   needsReview: boolean;
   reviewReason?: string;
@@ -64,7 +64,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const unit = cellStr(row[cols.unit]);
     const quantity = cellNum(row[cols.quantity]);
     const productivity = cellNum(row[cols.productivity]);
-    const unitPriceNoBdi = cellNum(row[cols.unitPriceNoBdi]);
+    const unitPriceNoBDI = cellNum(row[cols.unitPriceNoBDI]);
     const hours = cellNum(row[cols.hours]);
     const days = cellNum(row[cols.days]);
 
@@ -73,7 +73,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const hasF = productivity > 0;
     const hasG = hours > 0;
     const hasH = days > 0;
-    const hasPrice = unitPriceNoBdi > 0;
+    const hasPrice = unitPriceNoBDI > 0;
 
     // Skip completely empty rows
     const desc = description || type || code;
@@ -142,7 +142,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         name: (colC || colB || '').trim(),
         unit: colD || 'un',
         quantity: colE || 1,
-        unitPriceNoBdi: hasPrice ? unitPriceNoBdi : undefined,
+        unitPriceNoBDI: hasPrice ? unitPriceNoBDI : undefined,
         labor: [],
         needsReview: false,
       };
@@ -441,7 +441,7 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
           unit: comp.unit,
           itemCode: comp.code || undefined,
           priceBank: comp.bank || undefined,
-          unitPriceNoBDI: comp.unitPriceNoBdi,
+          unitPriceNoBDI: comp.unitPriceNoBDI,
           laborCompositions: laborComps,
           materials: [],
           observations: comp.code ? `Código: ${comp.code}` : undefined,
@@ -598,14 +598,14 @@ interface ColumnMap {
   unit: number;
   quantity: number;
   productivity: number;
-  unitPriceNoBdi: number;
+  unitPriceNoBDI: number;
   hours: number;
   days: number;
 }
 
 const DEFAULT_COLS: ColumnMap = {
   code: 0, bank: -1, type: 1, description: 2, unit: 3,
-  quantity: 4, productivity: 5, unitPriceNoBdi: -1, hours: 6, days: 7,
+  quantity: 4, productivity: 5, unitPriceNoBDI: -1, hours: 6, days: 7,
 };
 
 function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: ColumnMap } {
@@ -626,19 +626,21 @@ function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: Column
         unit: findCol(headerNorm, ['ud', 'und', 'unidade', 'unit', 'un']),
         quantity: findCol(headerNorm, ['quant', 'qtd', 'quantidade', 'qty']),
         productivity: findCol(headerNorm, ['prod', 'rup', 'coeficiente', 'produtividade']),
-        unitPriceNoBdi: findCol(headerNorm, ['preco s/ bdi', 'preco sem bdi', 'preco unit', 'p. unit', 'valor unit', 'preco', 'unit price']),
+        unitPriceNoBDI: findCol(headerNorm, ['preco s/ bdi', 'preco sem bdi', 'preco unit', 'p. unit', 'valor unit', 'preco', 'unit price']),
         hours: findCol(headerNorm, ['horas trabalhadas', 'horas', 'hrs', 'h trab']),
         days: findCol(headerNorm, ['dias trabalhados', 'dias', 'd trab']),
       };
       // Apply sensible defaults for missing columns
       if (cols.code < 0) cols.code = 0;
-      if (cols.type < 0) cols.type = 1;
-      if (cols.description < 0) cols.description = 2;
-      if (cols.unit < 0) cols.unit = 3;
-      if (cols.quantity < 0) cols.quantity = 4;
-      if (cols.productivity < 0) cols.productivity = 5;
-      if (cols.hours < 0) cols.hours = 6;
-      if (cols.days < 0) cols.days = 7;
+      if (cols.bank < 0 && row.length >= 10) cols.bank = 1;
+      if (cols.type < 0) cols.type = 2;
+      if (cols.description < 0) cols.description = 3;
+      if (cols.unit < 0) cols.unit = 4;
+      if (cols.quantity < 0) cols.quantity = 5;
+      if (cols.productivity < 0) cols.productivity = 6;
+      if (cols.unitPriceNoBDI < 0 && row.length >= 8) cols.unitPriceNoBDI = 7;
+      if (cols.hours < 0) cols.hours = 8;
+      if (cols.days < 0) cols.days = 9;
       return { startRow: i + 1, cols };
     }
   }
@@ -690,9 +692,14 @@ function cellStr(val: any): string {
 }
 
 function cellNum(val: any): number {
-  if (val == null) return 0;
-  if (typeof val === 'number') return val;
-  return parseFloat(String(val).replace(',', '.')) || 0;
+  if (val == null || val === '') return 0;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+  const raw = String(val).trim().replace(/\s/g, '');
+  if (!raw) return 0;
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
+  return parseFloat(normalized) || 0;
 }
 
 function findCol(header: string[], keys: string[]): number {
