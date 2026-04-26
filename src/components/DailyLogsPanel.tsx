@@ -1,5 +1,5 @@
 import { Task, DailyProductionLog } from '@/types/project';
-import { ClipboardList, Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, TrendingUp, TrendingDown, PlusCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DailyLogsPanelProps {
