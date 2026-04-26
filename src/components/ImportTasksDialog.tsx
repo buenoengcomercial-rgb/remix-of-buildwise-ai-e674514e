@@ -364,13 +364,78 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
               </div>
             </div>
 
-            {/* Warnings */}
-            {warningCount > 0 && (
-              <div className="p-2 rounded-lg bg-warning/10 border border-warning/20 text-[10px] text-warning space-y-0.5">
-                {structuredResult.warnings.slice(0, 5).map((w, i) => (
-                  <p key={i}>⚠️ {w}</p>
-                ))}
-                {warningCount > 5 && <p>... e mais {warningCount - 5} alertas</p>}
+            {/* Inconsistency report */}
+            {summary && (
+              <div className="rounded-lg border border-border bg-card overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-secondary/40 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Relatório de Inconsistências da Importação</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleDownloadReport} className="h-7 text-[11px] gap-1">
+                    <Download className="w-3 h-3" /> Baixar relatório
+                  </Button>
+                </div>
+
+                {/* Counters */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 text-[11px]">
+                  <Counter label="Capítulos" value={summary.chapters} />
+                  <Counter label="Subcapítulos" value={summary.subchapters} />
+                  <Counter label="Composições" value={summary.compositions} />
+                  <Counter label="Selecionadas" value={summary.selectedCompositions} tone="primary" />
+                  <Counter label="Mão de obra" value={summary.labors} />
+                  <Counter label="Com preço" value={summary.withPrice} tone="success" />
+                  <Counter label="Sem preço" value={summary.withoutPrice} tone="warning" />
+                  <Counter label="Total avisos" value={summary.warnings} tone="warning" />
+                </div>
+
+                {/* Status banners */}
+                <div className="px-3 pb-2 space-y-1.5">
+                  {selectedErrorCount > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30 text-[11px] text-destructive">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>{selectedErrorCount} erro(s)</strong> nos itens selecionados.
+                        Corrija a planilha ou desmarque os itens com erro antes de importar.
+                      </div>
+                    </div>
+                  )}
+                  {selectedErrorCount === 0 && selectedWarningCount > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-warning/10 border border-warning/30 text-[11px] text-warning">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>{selectedWarningCount} aviso(s)</strong> nos itens selecionados.
+                        A importação será permitida com confirmação extra.
+                      </div>
+                    </div>
+                  )}
+                  {selectedErrorCount === 0 && selectedWarningCount === 0 && summary.compositions > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-success/10 border border-success/30 text-[11px] text-success">
+                      <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <div>Nenhuma inconsistência grave detectada nos itens selecionados.</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Issues list */}
+                {enrichedIssues.length > 0 && (
+                  <div className="border-t border-border">
+                    <button
+                      onClick={() => setShowAllIssues(v => !v)}
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-secondary/30"
+                    >
+                      <span>Lista de inconsistências ({enrichedIssues.length})</span>
+                      {showAllIssues ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    </button>
+                    {showAllIssues && (
+                      <div className="max-h-56 overflow-y-auto divide-y divide-border">
+                        {enrichedIssues.map((iss, i) => (
+                          <IssueRow key={i} issue={iss} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -386,6 +451,7 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
                 setExpandedComps={setExpandedComps}
                 selectedComps={selectedComps}
                 setSelectedComps={setSelectedComps}
+                issuesByCompKey={issuesByCompKey}
                 depth={0}
               />
             ))}
