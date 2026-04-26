@@ -661,7 +661,8 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       if (y + h > pageH - footerReserved) { doc.addPage(); y = margin; }
     };
 
-    dates.forEach((dateISO, idx) => {
+    for (let idx = 0; idx < dates.length; idx++) {
+      const dateISO = dates[idx];
       const entry = periodSum.entries.find(e => e.date === dateISO);
       const report = reportsByDate.get(dateISO);
       const dayProduction = collectProductionForDate(project, dateISO);
