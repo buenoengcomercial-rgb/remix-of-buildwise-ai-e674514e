@@ -210,15 +210,21 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
         className="hidden"
         onChange={handleImportFile}
       />
-      <div className="p-3 border-b border-[hsl(var(--sidebar-border))] flex items-center justify-between">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <HardHat className="w-5 h-5 text-primary-foreground" />
-          </div>
+      <div className="p-3 border-b border-[hsl(var(--sidebar-border))] flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 overflow-hidden min-w-0">
+          {collapsed ? (
+            <img src={logoIcon} alt="BUENO" className="w-9 h-7 object-contain flex-shrink-0" />
+          ) : (
+            <img
+              src={logoFull}
+              alt="BUENO Prevenção a Incêndio"
+              className="h-11 w-auto object-contain bg-white rounded-md p-1 flex-shrink-0"
+            />
+          )}
           {!collapsed && (
             <div className="min-w-0">
-              <h1 className="text-sm font-bold text-[hsl(var(--sidebar-fg))]">ObraPlanner</h1>
-              <p className="text-xs opacity-60 truncate max-w-[120px]">{projectName}</p>
+              <h1 className="text-sm font-bold text-[hsl(var(--sidebar-fg))] leading-tight">ObraPlanner</h1>
+              <p className="text-[10px] opacity-60 truncate max-w-[140px]">{projectName}</p>
             </div>
           )}
         </div>
