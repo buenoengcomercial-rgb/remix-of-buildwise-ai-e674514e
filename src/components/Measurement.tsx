@@ -113,6 +113,8 @@ const fmtBRL = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const fmtPct = (n: number) => `${n.toFixed(2)}%`;
+/** Truncamento financeiro em 2 casas decimais (NUNCA arredonda). */
+const trunc2 = (value: number): number => Math.trunc((value || 0) * 100) / 100;
 const fmtDateBR = (iso: string) => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
