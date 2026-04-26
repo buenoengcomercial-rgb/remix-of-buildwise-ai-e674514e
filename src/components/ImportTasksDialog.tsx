@@ -210,6 +210,9 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
 
   const confirmImport = format === 'structured' ? confirmStructuredImport : confirmFlatImport;
 
+  const [showAllIssues, setShowAllIssues] = useState(false);
+  const [confirmedWithWarnings, setConfirmedWithWarnings] = useState(false);
+
   // Count for UI
   const totalCount = format === 'structured'
     ? (structuredResult?.flatCompositions.length ?? 0)
@@ -219,6 +222,69 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
     ? (structuredResult?.flatCompositions.filter(c => c.needsReview).length ?? 0)
     : parsedTasks.filter(t => t.needsReview).length;
   const warningCount = structuredResult?.warnings.length ?? 0;
+
+  // ── Inconsistency report (structured only) ──
+  const enrichedIssues: ImportIssue[] = useMemo(
+    () => (structuredResult ? attachCompKeys(structuredResult) : []),
+    [structuredResult],
+  );
+  const summary = useMemo(
+    () => (structuredResult ? summarize(structuredResult, selectedComps) : null),
+    [structuredResult, selectedComps],
+  );
+  // Per-composition issue maps for highlight in tree
+  const issuesByCompKey = useMemo(() => {
+    const map = new Map<string, { errors: number; warnings: number }>();
+    enrichedIssues.forEach(iss => {
+      if (!iss.compKey) return;
+      const cur = map.get(iss.compKey) || { errors: 0, warnings: 0 };
+      if (iss.level === 'error') cur.errors++;
+      else if (iss.level === 'warning') cur.warnings++;
+      map.set(iss.compKey, cur);
+    });
+    return map;
+  }, [enrichedIssues]);
+
+  // Errors that affect *selected* compositions only
+  const selectedErrorCount = useMemo(() => {
+    let n = 0;
+    enrichedIssues.forEach(iss => {
+      if (iss.level !== 'error') return;
+      if (iss.compKey && !selectedComps.has(iss.compKey)) return;
+      n++;
+    });
+    return n;
+  }, [enrichedIssues, selectedComps]);
+  const selectedWarningCount = useMemo(() => {
+    let n = 0;
+    enrichedIssues.forEach(iss => {
+      if (iss.level !== 'warning') return;
+      if (iss.compKey && !selectedComps.has(iss.compKey)) return;
+      n++;
+    });
+    return n;
+  }, [enrichedIssues, selectedComps]);
+
+  const blockedByErrors = format === 'structured' && selectedErrorCount > 0;
+  const needsExtraConfirm = format === 'structured' && !blockedByErrors && selectedWarningCount > 0;
+
+  const handleConfirm = () => {
+    if (blockedByErrors) return;
+    if (needsExtraConfirm && !confirmedWithWarnings) {
+      const ok = window.confirm('Existem avisos na importação. Deseja importar mesmo assim?');
+      if (!ok) return;
+      setConfirmedWithWarnings(true);
+    }
+    confirmImport();
+  };
+
+  const handleDownloadReport = () => {
+    if (!structuredResult || !summary) return;
+    downloadInconsistencyReport(
+      { ...structuredResult, issues: enrichedIssues },
+      summary,
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>
