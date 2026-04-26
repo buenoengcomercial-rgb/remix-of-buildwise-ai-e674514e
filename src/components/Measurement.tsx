@@ -879,20 +879,72 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
           border-left: 1px solid hsl(var(--border));
         }
         @media print {
-          @page { size: A4 landscape; margin: 10mm; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { size: A4 landscape; margin: 8mm; }
+          html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
           .print-hide { display: none !important; }
-          .measurement-table { font-size: 8.5px !important; min-width: 0 !important; width: 100% !important; }
-          .measurement-table th, .measurement-table td { padding: 2px 3px !important; }
-          .measurement-table tr { page-break-inside: avoid; }
+          /* Hide app chrome (sidebar, toolbars, etc.) */
+          [data-sidebar],
+          aside,
+          [data-sidebar="sidebar"],
+          [data-sidebar="trigger"],
+          [data-sidebar="rail"] { display: none !important; }
+          /* Make the main content take full width */
+          main, [role="main"] { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+
+          .measurement-table {
+            font-size: 6.5px !important;
+            min-width: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+          }
+          .measurement-table th, .measurement-table td {
+            padding: 2px 3px !important;
+            line-height: 1.15 !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            white-space: normal !important;
+            vertical-align: top !important;
+          }
+          .measurement-table tr,
+          .measurement-table tbody tr.chapter-row,
+          .measurement-table tbody tr.subtotal-row { page-break-inside: avoid; break-inside: avoid; }
           .measurement-table .cell-desc {
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: anywhere !important;
+            text-align: left !important;
           }
           .measurement-table .cell-und { white-space: nowrap !important; text-align: center !important; }
-          /* Em impressão, desativar sticky para evitar sobreposição */
+          /* Right-align monetary cells (those whose <th> were text-right map by column index via colgroup) */
           .measurement-table th, .measurement-table td { position: static !important; }
+
+          /* Column widths in % to fit a single landscape page (15 cols) */
+          .measurement-table col.col-item { width: 4% !important; }
+          .measurement-table col.col-code { width: 6% !important; }
+          .measurement-table col.col-bank { width: 5% !important; }
+          .measurement-table col.col-desc { width: 25% !important; min-width: 0 !important; max-width: none !important; }
+          .measurement-table col.col-und  { width: 4% !important; }
+          /* qty/val columns: there are 5 qty + 5 val after desc/und.
+             Use nth-of-type to set widths in print precisely. */
+          .measurement-table colgroup col:nth-child(6)  { width: 6% !important; } /* Quant Contrat */
+          .measurement-table colgroup col:nth-child(7)  { width: 7% !important; } /* V Unit s/BDI */
+          .measurement-table colgroup col:nth-child(8)  { width: 7% !important; } /* V Unit c/BDI */
+          .measurement-table colgroup col:nth-child(9)  { width: 8% !important; } /* Total Contratado */
+          .measurement-table colgroup col:nth-child(10) { width: 6% !important; } /* Quant Medição */
+          .measurement-table colgroup col:nth-child(11) { width: 8% !important; } /* Subtotal Medição */
+          .measurement-table colgroup col:nth-child(12) { width: 6% !important; } /* Quant Acum */
+          .measurement-table colgroup col:nth-child(13) { width: 8% !important; } /* Subtotal Acum */
+          .measurement-table colgroup col:nth-child(14) { width: 6% !important; } /* Quant a Executar */
+          .measurement-table colgroup col:nth-child(15) { width: 8% !important; } /* Subtotal a Executar */
+
+          /* Compact header/summary cards */
+          .print\\:break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+          .measurement-print-root .summary-card { padding: 4px 6px !important; }
+          .measurement-print-root h1, .measurement-print-root h2 { font-size: 12px !important; margin: 0 !important; }
+          .measurement-print-root .text-2xl { font-size: 12px !important; }
+          .measurement-print-root .text-xl { font-size: 11px !important; }
+          .measurement-print-root .text-lg { font-size: 10px !important; }
         }
       `}</style>
 
