@@ -1,8 +1,11 @@
-import { AlertCircle, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Info, CheckCircle2, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { ValidationIssue } from '@/lib/measurementValidation';
 
 interface Props {
   issues: ValidationIssue[];
+  /** Callback opcional para abrir o Diário de Obra com o filtro da medição em preparação. */
+  onOpenDailyReport?: () => void;
 }
 
 const LEVEL_META = {
@@ -26,11 +29,18 @@ const LEVEL_META = {
   },
 } as const;
 
-export default function MeasurementValidationPanel({ issues }: Props) {
+const DAILY_CODES = new Set([
+  'daily-reports-pending',
+  'production-without-report',
+  'impediments-in-period',
+]);
+
+export default function MeasurementValidationPanel({ issues, onOpenDailyReport }: Props) {
   const errors = issues.filter(i => i.level === 'error');
   const warnings = issues.filter(i => i.level === 'warning');
   const infos = issues.filter(i => i.level === 'info');
   const total = issues.length;
+  const hasDailyIssue = issues.some(i => DAILY_CODES.has(i.code));
 
   return (
     <div className="rounded-md border border-border bg-card/50 p-3 text-xs">
@@ -66,11 +76,29 @@ export default function MeasurementValidationPanel({ issues }: Props) {
                 className={`flex items-start gap-2 rounded border px-2 py-1.5 ${meta.bg}`}
               >
                 <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${meta.cls}`} />
-                <span className="text-foreground">{iss.message}</span>
+                <span className="text-foreground flex-1">{iss.message}</span>
+                {DAILY_CODES.has(iss.code) && onOpenDailyReport && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-[11px] -my-0.5"
+                    onClick={onOpenDailyReport}
+                  >
+                    Ver no Diário <ExternalLink className="w-3 h-3 ml-1" />
+                  </Button>
+                )}
               </li>
             );
           })}
         </ul>
+      )}
+
+      {hasDailyIssue && onOpenDailyReport && (
+        <div className="mt-2 pt-2 border-t border-border flex justify-end">
+          <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={onOpenDailyReport}>
+            <ExternalLink className="w-3 h-3 mr-1" /> Ver no Diário de Obra
+          </Button>
+        </div>
       )}
     </div>
   );

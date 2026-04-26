@@ -58,8 +58,8 @@ interface MeasurementProps {
   project: Project;
   onProjectChange: (project: Project) => void;
   undoButton?: React.ReactNode;
-  /** Navega até a aba Diário de Obra abrindo a data informada. */
-  onOpenDailyReport?: (dateISO: string) => void;
+  /** Navega até a aba Diário de Obra abrindo a data informada e, opcionalmente, aplicando o filtro de medição. */
+  onOpenDailyReport?: (dateISO: string, measurementFilter?: string) => void;
 }
 
 // ───────────────────────── Tipos internos ─────────────────────────
