@@ -843,8 +843,6 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                               const rowTeam = teamDef(task.team);
                               return (
                             <div
-                              role="button"
-                              tabIndex={0}
                               onClick={(e) => {
                                 // Só dispara se o clique for em área neutra da linha
                                 // (não em inputs, selects, botões, links etc.)
