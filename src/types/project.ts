@@ -216,6 +216,16 @@ export interface SavedMeasurement {
   generatedAt?: string;
 }
 
+/** Rascunho da medição em preparação (filtros não-persistidos em snapshot). */
+export interface MeasurementDraft {
+  /** Número da medição em preparação a que estes filtros se referem. */
+  number: number;
+  startDate?: string;
+  endDate?: string;
+  chapterFilter?: string;
+  search?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -231,6 +241,8 @@ export interface Project {
   contractInfo?: ContractInfo;
   /** Medições geradas e salvas (snapshots). */
   measurements?: SavedMeasurement[];
+  /** Rascunho de filtros da medição em preparação (datas, capítulo, busca). */
+  measurementDraft?: MeasurementDraft;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';

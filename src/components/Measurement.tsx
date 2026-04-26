@@ -217,11 +217,28 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const contract = project.contractInfo || {};
   const [activeId, setActiveId] = useState<string>('live');
 
+  // Número da próxima medição em preparação (default)
+  const defaultNextNumber =
+    (contract.nextMeasurementNumber ??
+      ((measurements[measurements.length - 1]?.number || 0) + 1)) || 1;
+
+  // Rascunho persistido para a medição em preparação
+  const initialDraft = project.measurementDraft;
+  const initialDraftMatches = initialDraft && initialDraft.number === defaultNextNumber;
+
   // Form de filtros (modo "live" = preview antes de gerar)
-  const [startDate, setStartDate] = useState(monthAgo);
-  const [endDate, setEndDate] = useState(today);
-  const [chapterFilter, setChapterFilter] = useState<string>('all');
-  const [search, setSearch] = useState('');
+  const [startDate, setStartDate] = useState(
+    initialDraftMatches && initialDraft?.startDate ? initialDraft.startDate : monthAgo,
+  );
+  const [endDate, setEndDate] = useState(
+    initialDraftMatches && initialDraft?.endDate ? initialDraft.endDate : today,
+  );
+  const [chapterFilter, setChapterFilter] = useState<string>(
+    initialDraftMatches && initialDraft?.chapterFilter ? initialDraft.chapterFilter : 'all',
+  );
+  const [search, setSearch] = useState(
+    initialDraftMatches && initialDraft?.search ? initialDraft.search : '',
+  );
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // Cabeçalho (formulário contratual)
@@ -234,9 +251,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const [bdiInput, setBdiInput] = useState(
     contract.bdiPercent !== undefined ? String(contract.bdiPercent) : '25',
   );
-  const [measurementNumber, setMeasurementNumber] = useState(
-    contract.nextMeasurementNumber?.toString() || '1',
-  );
+  const [measurementNumber, setMeasurementNumber] = useState(String(defaultNextNumber));
   const issueDate = today;
 
   // Diálogos
@@ -256,15 +271,61 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     setLocation(c.location || '');
     setBudgetSource(c.budgetSource || '');
     setBdiInput(c.bdiPercent !== undefined ? String(c.bdiPercent) : '25');
+
+    // Recarrega rascunho de filtros ao trocar de obra
+    const sortedMs = (project.measurements || []).slice().sort((a, b) => a.number - b.number);
+    const nextNum =
+      (c.nextMeasurementNumber ?? ((sortedMs[sortedMs.length - 1]?.number || 0) + 1)) || 1;
+    setMeasurementNumber(String(nextNum));
+    const d = project.measurementDraft;
+    if (d && d.number === nextNum) {
+      if (d.startDate) setStartDate(d.startDate);
+      if (d.endDate) setEndDate(d.endDate);
+      setChapterFilter(d.chapterFilter || 'all');
+      setSearch(d.search || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  // Sincroniza nº sugerido quando muda quantidade de medições
+  // Sincroniza nº sugerido quando muda quantidade de medições; tenta restaurar rascunho
   useEffect(() => {
-    if (activeId === 'live') {
-      const next = (measurements[measurements.length - 1]?.number || 0) + 1;
-      setMeasurementNumber(String(next || 1));
+    if (activeId !== 'live') return;
+    const next = (measurements[measurements.length - 1]?.number || 0) + 1;
+    setMeasurementNumber(prev => (prev === String(next) ? prev : String(next || 1)));
+    const d = project.measurementDraft;
+    if (d && d.number === next) {
+      if (d.startDate) setStartDate(d.startDate);
+      if (d.endDate) setEndDate(d.endDate);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measurements.length, activeId]);
+
+  // Persiste rascunho (datas + filtros) por nº de medição em preparação
+  useEffect(() => {
+    if (activeId !== 'live') return;
+    const num = Number(measurementNumber);
+    if (!Number.isFinite(num) || num <= 0) return;
+    const current = project.measurementDraft;
+    const nextDraft = {
+      number: num,
+      startDate,
+      endDate,
+      chapterFilter,
+      search,
+    };
+    if (
+      current &&
+      current.number === nextDraft.number &&
+      current.startDate === nextDraft.startDate &&
+      current.endDate === nextDraft.endDate &&
+      (current.chapterFilter || 'all') === nextDraft.chapterFilter &&
+      (current.search || '') === nextDraft.search
+    ) {
+      return;
+    }
+    onProjectChange({ ...project, measurementDraft: nextDraft });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, measurementNumber, startDate, endDate, chapterFilter, search]);
 
   const bdiPercent = Number.isFinite(parseFloat(bdiInput)) ? Math.max(0, parseFloat(bdiInput)) : 0;
   const bdiFactor = 1 + bdiPercent / 100;
@@ -706,6 +767,8 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         nextMeasurementNumber: number + 1,
       },
       measurements: [...(project.measurements || []), snapshot],
+      // Limpa rascunho antigo — o effect criará um novo para a próxima medição
+      measurementDraft: undefined,
     });
     // Prepara automaticamente a próxima medição (volta ao modo "live")
     const nextStart = new Date(endDate);
