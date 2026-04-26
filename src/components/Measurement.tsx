@@ -113,6 +113,8 @@ const fmtBRL = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const fmtPct = (n: number) => `${n.toFixed(2)}%`;
+/** Truncamento financeiro em 2 casas decimais (NUNCA arredonda). */
+const trunc2 = (value: number): number => Math.trunc((value || 0) * 100) / 100;
 const fmtDateBR = (iso: string) => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
@@ -307,14 +309,16 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         const qtyCurrentAccum = it.qtyPriorAccum + qtyPeriod;
         const qtyBalance = Math.max(it.qtyContracted - qtyCurrentAccum, 0);
         const pct = it.qtyContracted > 0 ? (qtyCurrentAccum / it.qtyContracted) * 100 : 0;
-        const valueContracted = it.unitPriceWithBDI * it.qtyContracted;
-        const valuePeriod = it.unitPriceWithBDI * qtyPeriod;
-        const valueAccum = it.unitPriceWithBDI * qtyCurrentAccum;
-        const valueBalance = Math.max(valueContracted - valueAccum, 0);
-        const valueContractedNoBDI = it.unitPriceNoBDI * it.qtyContracted;
-        const valuePeriodNoBDI = it.unitPriceNoBDI * qtyPeriod;
-        const valueAccumNoBDI = it.unitPriceNoBDI * qtyCurrentAccum;
-        const valueBalanceNoBDI = Math.max(valueContractedNoBDI - valueAccumNoBDI, 0);
+        const unitPriceWithBDI = trunc2(it.unitPriceWithBDI);
+        const unitPriceNoBDI = trunc2(it.unitPriceNoBDI);
+        const valueContracted = trunc2(unitPriceWithBDI * it.qtyContracted);
+        const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
+        const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
+        const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
+        const valueContractedNoBDI = trunc2(unitPriceNoBDI * it.qtyContracted);
+        const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
+        const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
+        const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
         return {
           item: it.item,
           phaseId: it.phaseId,
@@ -332,8 +336,8 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
           qtyCurrentAccum,
           qtyBalance,
           percentExecuted: pct,
-          unitPriceNoBDI: it.unitPriceNoBDI,
-          unitPriceWithBDI: it.unitPriceWithBDI,
+          unitPriceNoBDI,
+          unitPriceWithBDI,
           unitPriceIsEstimated: false,
           valueContractedNoBDI, valuePeriodNoBDI, valueAccumNoBDI, valueBalanceNoBDI,
           valueContracted, valuePeriod, valueAccum, valueBalance,
@@ -390,25 +394,26 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
 
       if (unitPriceNoBDI > 0) {
         // Sempre recalcular c/BDI a partir do BDI vigente — nunca substituir o preço importado
-        unitPriceWithBDI = unitPriceNoBDI * effBdiFactor;
+        unitPriceWithBDI = trunc2(unitPriceNoBDI * effBdiFactor);
       } else if ((task.unitPrice ?? 0) > 0) {
-        unitPriceWithBDI = task.unitPrice!;
-        unitPriceNoBDI = unitPriceWithBDI / effBdiFactor;
+        unitPriceWithBDI = trunc2(task.unitPrice!);
+        unitPriceNoBDI = trunc2(unitPriceWithBDI / effBdiFactor);
       } else {
         const est = estimateTaskValue(task);
-        unitPriceWithBDI = qtyContracted > 0 ? est / qtyContracted : 0;
-        unitPriceNoBDI = unitPriceWithBDI / effBdiFactor;
+        unitPriceWithBDI = qtyContracted > 0 ? trunc2(est / qtyContracted) : 0;
+        unitPriceNoBDI = trunc2(unitPriceWithBDI / effBdiFactor);
         unitPriceIsEstimated = unitPriceWithBDI > 0;
       }
+      unitPriceNoBDI = trunc2(unitPriceNoBDI);
 
-      const valueContracted = unitPriceWithBDI * qtyContracted;
-      const valuePeriod = unitPriceWithBDI * qtyPeriod;
-      const valueAccum = unitPriceWithBDI * qtyCurrentAccum;
-      const valueBalance = Math.max(valueContracted - valueAccum, 0);
-      const valueContractedNoBDI = unitPriceNoBDI * qtyContracted;
-      const valuePeriodNoBDI = unitPriceNoBDI * qtyPeriod;
-      const valueAccumNoBDI = unitPriceNoBDI * qtyCurrentAccum;
-      const valueBalanceNoBDI = Math.max(valueContractedNoBDI - valueAccumNoBDI, 0);
+      const valueContracted = trunc2(unitPriceWithBDI * qtyContracted);
+      const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
+      const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
+      const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
+      const valueContractedNoBDI = trunc2(unitPriceNoBDI * qtyContracted);
+      const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
+      const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
+      const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
 
       return {
         item: itemNumber, phaseId: phase.id, phaseChain: chain, taskId: task.id,
@@ -759,35 +764,35 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         dataRows.push([
           r.item, r.itemCode, r.priceBank, r.description, r.unit,
           Number(r.qtyContracted.toFixed(3)),
-          Number(r.unitPriceNoBDI.toFixed(2)),
-          Number(r.unitPriceWithBDI.toFixed(2)),
-          Number(r.valueContracted.toFixed(2)),
+          trunc2(r.unitPriceNoBDI),
+          trunc2(r.unitPriceWithBDI),
+          trunc2(r.valueContracted),
           Number(r.qtyPeriod.toFixed(3)),
-          Number(r.valuePeriod.toFixed(2)),
+          trunc2(r.valuePeriod),
           Number(r.qtyCurrentAccum.toFixed(3)),
-          Number(r.valueAccum.toFixed(2)),
+          trunc2(r.valueAccum),
           Number(r.qtyBalance.toFixed(3)),
-          Number(r.valueBalance.toFixed(2)),
+          trunc2(r.valueBalance),
         ]);
       });
       group.children.forEach(walkXLSX);
       dataRows.push([
         '', '', '', `${indent}Subtotal ${group.number} ${group.name}`,
         '', '', '', '',
-        Number(group.totals.contracted.toFixed(2)), '',
-        Number(group.totals.period.toFixed(2)), '',
-        Number(group.totals.accum.toFixed(2)), '',
-        Number(group.totals.balance.toFixed(2)),
+        trunc2(group.totals.contracted), '',
+        trunc2(group.totals.period), '',
+        trunc2(group.totals.accum), '',
+        trunc2(group.totals.balance),
       ]);
     };
     groupTree.forEach(walkXLSX);
 
     dataRows.push([
       '', '', '', 'TOTAL GERAL', '', '', '', '',
-      Number(totals.contracted.toFixed(2)), '',
-      Number(totals.period.toFixed(2)), '',
-      Number(totals.accum.toFixed(2)), '',
-      Number(totals.balance.toFixed(2)),
+      trunc2(totals.contracted), '',
+      trunc2(totals.period), '',
+      trunc2(totals.accum), '',
+      trunc2(totals.balance),
     ]);
 
     const sheetData = [...headerRows, ...dataRows];
