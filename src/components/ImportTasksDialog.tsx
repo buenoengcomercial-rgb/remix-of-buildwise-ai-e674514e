@@ -773,3 +773,55 @@ function filterSelectedChapters(chapters: ParsedChapter[], prefix: string, selec
     return { ...ch, compositions: filteredComps, children: filteredChildren };
   }).filter(ch => ch.compositions.length > 0 || ch.children.length > 0);
 }
+
+// ── Counter chip ──
+function Counter({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'primary' | 'success' | 'warning' | 'destructive' }) {
+  const toneClass =
+    tone === 'primary' ? 'text-primary' :
+    tone === 'success' ? 'text-success' :
+    tone === 'warning' ? 'text-warning' :
+    tone === 'destructive' ? 'text-destructive' :
+    'text-foreground';
+  return (
+    <div className="flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-md bg-secondary/40 border border-border">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className={`text-sm font-bold ${toneClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// ── Single issue row ──
+function IssueRow({ issue }: { issue: ImportIssue }) {
+  const Icon = issue.level === 'error' ? AlertCircle : issue.level === 'warning' ? AlertTriangle : Info;
+  const colorClass =
+    issue.level === 'error' ? 'text-destructive' :
+    issue.level === 'warning' ? 'text-warning' :
+    'text-info';
+  const bgClass =
+    issue.level === 'error' ? 'bg-destructive/5' :
+    issue.level === 'warning' ? 'bg-warning/5' : '';
+  const label =
+    issue.level === 'error' ? 'Erro' :
+    issue.level === 'warning' ? 'Aviso' : 'Informação';
+
+  return (
+    <div className={`px-3 py-1.5 ${bgClass}`}>
+      <div className="flex items-start gap-2">
+        <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${colorClass}`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap text-[10px]">
+            <span className={`px-1.5 py-0.5 rounded font-medium ${colorClass} bg-muted`}>{label}</span>
+            {issue.line != null && <span className="text-muted-foreground">Linha {issue.line}</span>}
+            {issue.code && <span className="font-mono text-muted-foreground">{issue.code}</span>}
+            {issue.type && <span className="text-muted-foreground">{issue.type}</span>}
+            {issue.description && <span className="text-foreground truncate max-w-[280px]">{issue.description}</span>}
+          </div>
+          <p className="text-[11px] text-foreground mt-0.5">{issue.message}</p>
+          {issue.suggestion && (
+            <p className="text-[10px] text-muted-foreground mt-0.5 italic">→ {issue.suggestion}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
