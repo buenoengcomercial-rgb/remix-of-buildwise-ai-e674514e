@@ -327,12 +327,17 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
                           <Copy className="w-3 h-3" />
                         </button>
                         <button
+                          onClick={(e) => { e.stopPropagation(); handleExportProject(p.id); }}
+                          title="Exportar obra"
+                          className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-[hsl(var(--sidebar-border))]'}`}
+                        >
+                          <Download className="w-3 h-3" />
+                        </button>
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (projects.length <= 1) {
-                              import('sonner').then(({ toast }) =>
-                                toast.error('Não é possível excluir a única obra existente. Crie outra obra antes de excluir esta.')
-                              );
+                              toast.error('Não é possível excluir a única obra existente. Crie outra obra antes de excluir esta.');
                               return;
                             }
                             setConfirmDeleteId(p.id);
