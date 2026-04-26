@@ -254,7 +254,7 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
                   <p className="text-xs text-muted-foreground">PDF (SINAPI / relatórios RUP) • Excel (.xlsx) • CSV</p>
                   <div className="mt-2 p-3 rounded-lg bg-muted/50 text-[10px] text-muted-foreground max-w-md">
                     <p className="font-medium text-foreground mb-1">📊 Formato Excel esperado:</p>
-                    <p>A: Código • B: Tipo • C: Descrição • D: Unidade • E: Quantidade • F: RUP • G: Horas • H: Dias</p>
+                    <p>A: Código • B: Banco • C: Tipo • D: Resumo • E: Ud • F: Quant. • G: Prod. • H: Preço s/ BDI • I: Horas • J: Dias</p>
                     <p className="mt-1">O sistema detecta automaticamente capítulos, composições e mão de obra.</p>
                   </div>
                 </>

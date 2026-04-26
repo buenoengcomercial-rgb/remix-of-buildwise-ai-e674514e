@@ -12,9 +12,11 @@ export interface ParsedLabor {
 
 export interface ParsedComposition {
   code: string;
+  bank?: string;
   name: string;
   unit: string;
   quantity: number;
+  unitPriceNoBdi?: number;
   labor: ParsedLabor[];
   needsReview: boolean;
   reviewReason?: string;
@@ -45,55 +47,68 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
 
   // Code → chapter for hierarchy lookup
   const codeToChapter = new Map<string, ParsedChapter>();
-  // Stack-based tracking: last active chapter/composition by sequential order
   let lastChapter: ParsedChapter | null = null;
   let lastComposition: ParsedComposition | null = null;
 
-  // Skip header row if detected
-  const startRow = detectHeaderRow(rows);
+  // Detect header row + dynamic column indices
+  const { startRow, cols } = detectHeaderAndColumns(rows);
 
   for (let i = startRow; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
 
-    const colA = cellStr(row[0]); // Código
-    const colB = cellStr(row[1]); // Tipo
-    const colC = cellStr(row[2]); // Resumo/Descrição
-    const colD = cellStr(row[3]); // Unidade
-    const colE = cellNum(row[4]); // Quantidade
-    const colF = cellNum(row[5]); // Coeficiente (RUP)
-    const colG = cellNum(row[6]); // Horas
-    const colH = cellNum(row[7]); // Dias
+    const code = cellStr(row[cols.code]);
+    const bank = cellStr(row[cols.bank]);
+    const type = cellStr(row[cols.type]);
+    const description = cellStr(row[cols.description]);
+    const unit = cellStr(row[cols.unit]);
+    const quantity = cellNum(row[cols.quantity]);
+    const productivity = cellNum(row[cols.productivity]);
+    const unitPriceNoBdi = cellNum(row[cols.unitPriceNoBdi]);
+    const hours = cellNum(row[cols.hours]);
+    const days = cellNum(row[cols.days]);
 
-    const hasD = colD !== '';
-    const hasE = colE > 0;
-    const hasF = colF > 0;
-    const hasG = colG > 0;
-    const hasH = colH > 0;
+    const hasD = description !== '' || unit !== '';
+    const hasE = quantity > 0;
+    const hasF = productivity > 0;
+    const hasG = hours > 0;
+    const hasH = days > 0;
+    const hasPrice = unitPriceNoBdi > 0;
 
     // Skip completely empty rows
-    const desc = colC || colB || colA;
-    if (!desc && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
+    const desc = description || type || code;
+    if (!desc && !hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice) continue;
+    if (!code && !hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice) continue;
 
-    // Skip rows with empty code AND no useful data
-    if (!colA && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
-
-    // ── Normalize column B for type detection (PRIORITY) ──
-    const tipoNorm = colB.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    const isTypeCap = tipoNorm === 'capitulo' || tipoNorm === 'cap' || tipoNorm === 'subcapitulo';
+    // Type detection (PRIORITY)
+    const tipoNorm = normalizeText(type);
+    const isTypeCap = tipoNorm === 'capitulo' || tipoNorm === 'cap';
+    const isTypeSub = tipoNorm === 'subcapitulo' || tipoNorm === 'subcap';
     const isTypeComp = tipoNorm === 'composicao' || tipoNorm === 'comp' || tipoNorm === 'servico' || tipoNorm === 'atividade';
     const isTypeLabor = tipoNorm === 'mao de obra' || tipoNorm === 'mdo' || tipoNorm === 'recurso' || tipoNorm === 'insumo mao de obra';
-    const hasTypeHint = isTypeCap || isTypeComp || isTypeLabor;
+    const hasTypeHint = isTypeCap || isTypeSub || isTypeComp || isTypeLabor;
 
-    // ── Classification: Column B PRIORITY, columns D-H as fallback ──
-    const classifiedAsChapter = hasTypeHint ? isTypeCap : (!hasD && !hasE && !hasF && !hasG && !hasH && !!desc);
+    // Compatibility aliases for downstream blocks
+    const colA = code;
+    const colB = type;
+    const colC = description;
+    const colD = unit;
+    const colE = quantity;
+    const colF = productivity;
+    const colG = hours;
+    const colH = days;
+
+    // ── Classification: Column Tipo PRIORITY, columns as fallback ──
+    const classifiedAsChapter = hasTypeHint
+      ? (isTypeCap || isTypeSub)
+      : (!hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice && !!desc);
     const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
     const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
 
     // ── CHAPTER / SUBCHAPTER ──
     if (classifiedAsChapter) {
       if (!colA) {
-        warnings.push(`Linha ${i + 1}: capítulo sem código na coluna A, ignorado`);
+        warnings.push(`Linha ${i + 1}: capítulo sem código, ignorado`);
         continue;
       }
 
@@ -104,7 +119,6 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         compositions: [],
       };
 
-      // Use code hierarchy (column A) to find parent
       const parentCode = getParentCode(colA);
       const parent = parentCode ? codeToChapter.get(parentCode) : null;
 
@@ -114,10 +128,9 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         rootChapters.push(chapter);
       }
 
-      // Register by unique code — NEVER merge by name
       codeToChapter.set(colA, chapter);
       lastChapter = chapter;
-      lastComposition = null; // reset composition context on new chapter
+      lastComposition = null;
       continue;
     }
 
@@ -125,14 +138,15 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     if (classifiedAsComposition) {
       const comp: ParsedComposition = {
         code: colA,
+        bank: bank || undefined,
         name: (colC || colB || '').trim(),
         unit: colD || 'un',
         quantity: colE || 1,
+        unitPriceNoBdi: hasPrice ? unitPriceNoBdi : undefined,
         labor: [],
         needsReview: false,
       };
 
-      // Try code-based parent first, then fall back to last active chapter
       const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
@@ -425,6 +439,9 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
           level: 0,
           quantity: comp.quantity,
           unit: comp.unit,
+          itemCode: comp.code || undefined,
+          priceBank: comp.bank || undefined,
+          unitPriceNoBDI: comp.unitPriceNoBdi,
           laborCompositions: laborComps,
           materials: [],
           observations: comp.code ? `Código: ${comp.code}` : undefined,
@@ -540,40 +557,105 @@ export function detectExcelFormat(data: ArrayBuffer): 'structured' | 'flat' {
 
   if (rows.length < 2) return 'flat';
 
-  // Check if it matches the structured pattern (8 columns: A-H)
-  // Look for rows where D-H are empty (chapter pattern)
+  // 1) If we can locate a header row with Código + Tipo + Resumo → structured
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const headerNorm = row.map(c =>
+      String(c ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+    );
+    const hasCode = headerNorm.some(h => h === 'codigo' || h === 'cod' || h === 'code');
+    const hasType = headerNorm.some(h => h === 'tipo' || h === 'type');
+    const hasDesc = headerNorm.some(h => h === 'resumo' || h === 'descricao' || h === 'description' || h === 'nome');
+    if (hasCode && hasType && hasDesc) return 'structured';
+  }
+
+  // 2) Fallback heuristic: chapter-like + labor-like patterns
   let chapterLikeRows = 0;
   let laborLikeRows = 0;
-
   for (let i = 0; i < Math.min(rows.length, 50); i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
-
     const hasDesc = row[2] != null && String(row[2]).trim() !== '';
     const hasD = row[3] != null && String(row[3]).trim() !== '';
     const hasE = row[4] != null && parseFloat(String(row[4])) > 0;
     const hasF = row[5] != null && parseFloat(String(row[5])) > 0;
     const hasG = row[6] != null && parseFloat(String(row[6])) > 0;
     const hasH = row[7] != null && parseFloat(String(row[7])) > 0;
-
     if (hasDesc && !hasD && !hasE && !hasF && !hasG && !hasH) chapterLikeRows++;
     if (hasD && !hasE && (hasF || hasG || hasH)) laborLikeRows++;
   }
-
-  // If we find chapter-like and labor-like patterns, it's structured
   if (chapterLikeRows >= 1 && laborLikeRows >= 1) return 'structured';
   return 'flat';
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
-function detectHeaderRow(rows: any[][]): number {
-  if (rows.length === 0) return 0;
-  const first = rows[0];
-  if (!first) return 0;
-  const textCells = first.filter((c: any) => typeof c === 'string' && c.trim().length > 0).length;
-  const numCells = first.filter((c: any) => typeof c === 'number').length;
-  // If first row is mostly text, it's a header
-  return textCells > numCells && textCells >= 2 ? 1 : 0;
+interface ColumnMap {
+  code: number;
+  bank: number;
+  type: number;
+  description: number;
+  unit: number;
+  quantity: number;
+  productivity: number;
+  unitPriceNoBdi: number;
+  hours: number;
+  days: number;
+}
+
+const DEFAULT_COLS: ColumnMap = {
+  code: 0, bank: -1, type: 1, description: 2, unit: 3,
+  quantity: 4, productivity: 5, unitPriceNoBdi: -1, hours: 6, days: 7,
+};
+
+function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: ColumnMap } {
+  // Search for the header row in first 20 rows
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+    const headerNorm = row.map(c => normalizeText(c));
+    const hasCode = headerNorm.some(h => h === 'codigo' || h === 'cod' || h === 'code');
+    const hasType = headerNorm.some(h => h === 'tipo' || h === 'type');
+    const hasDesc = headerNorm.some(h => h === 'resumo' || h === 'descricao' || h === 'description' || h === 'nome');
+    if (hasCode && hasType && hasDesc) {
+      const cols: ColumnMap = {
+        code: findCol(headerNorm, ['codigo', 'cod', 'code', 'id']),
+        bank: findCol(headerNorm, ['banco', 'fonte', 'origem']),
+        type: findCol(headerNorm, ['tipo', 'type']),
+        description: findCol(headerNorm, ['resumo', 'descricao', 'description', 'nome', 'servico']),
+        unit: findCol(headerNorm, ['ud', 'und', 'unidade', 'unit', 'un']),
+        quantity: findCol(headerNorm, ['quant', 'qtd', 'quantidade', 'qty']),
+        productivity: findCol(headerNorm, ['prod', 'rup', 'coeficiente', 'produtividade']),
+        unitPriceNoBdi: findCol(headerNorm, ['preco s/ bdi', 'preco sem bdi', 'preco unit', 'p. unit', 'valor unit', 'preco', 'unit price']),
+        hours: findCol(headerNorm, ['horas trabalhadas', 'horas', 'hrs', 'h trab']),
+        days: findCol(headerNorm, ['dias trabalhados', 'dias', 'd trab']),
+      };
+      // Apply sensible defaults for missing columns
+      if (cols.code < 0) cols.code = 0;
+      if (cols.type < 0) cols.type = 1;
+      if (cols.description < 0) cols.description = 2;
+      if (cols.unit < 0) cols.unit = 3;
+      if (cols.quantity < 0) cols.quantity = 4;
+      if (cols.productivity < 0) cols.productivity = 5;
+      if (cols.hours < 0) cols.hours = 6;
+      if (cols.days < 0) cols.days = 7;
+      return { startRow: i + 1, cols };
+    }
+  }
+  // Fallback: assume legacy 8-column layout, no header row detection
+  return { startRow: 0, cols: { ...DEFAULT_COLS } };
+}
+
+function normalizeText(value: any): string {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function safeText(value: any): string {
+  return String(value ?? '').trim();
 }
 
 function getCodeDepth(code: string): number {
@@ -583,7 +665,6 @@ function getCodeDepth(code: string): number {
   return Math.max(0, parts.length - 1);
 }
 
-// Get parent code by removing the last segment (e.g., "1.1.1" → "1.1", "1.1" → "1")
 function getParentCode(code: string): string | null {
   if (!code) return null;
   const clean = code.replace(/\s/g, '');
@@ -592,7 +673,6 @@ function getParentCode(code: string): string | null {
   return clean.substring(0, lastDot);
 }
 
-// Find the closest parent chapter by walking up the code hierarchy
 function findParentChapter(code: string, codeMap: Map<string, ParsedChapter>): ParsedChapter | null {
   if (!code) return null;
   let parentCode = getParentCode(code);
@@ -617,7 +697,7 @@ function cellNum(val: any): number {
 
 function findCol(header: string[], keys: string[]): number {
   for (const key of keys) {
-    const idx = header.findIndex(h => h.includes(key));
+    const idx = header.findIndex(h => String(h ?? '').toLowerCase().includes(key));
     if (idx >= 0) return idx;
   }
   return -1;
