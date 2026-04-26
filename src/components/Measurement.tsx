@@ -983,7 +983,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       startY: y + 1,
       head,
       body,
-      margin: { left: margin, right: margin, top: margin, bottom: margin },
+      margin: { left: margin, right: margin, top: margin, bottom: margin + 14 },
       theme: 'grid',
       styles: {
         font: 'helvetica',
