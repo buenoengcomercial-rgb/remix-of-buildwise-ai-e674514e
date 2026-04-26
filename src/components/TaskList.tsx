@@ -24,6 +24,7 @@ function truncateWords(text: string, maxWords = 4): string {
 interface TaskListProps {
   project: Project;
   onProjectChange: (project: Project) => void;
+  undoButton?: React.ReactNode;
 }
 
 const DAILY_HOURS = 8;

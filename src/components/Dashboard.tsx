@@ -9,9 +9,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 interface DashboardProps {
   project: Project;
+  undoButton?: React.ReactNode;
 }
 
-export default function Dashboard({ project }: DashboardProps) {
+export default function Dashboard({ project, undoButton }: DashboardProps) {
   const tasks = useMemo(() => getAllTasks(project), [project]);
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.percentComplete === 100).length;
@@ -64,9 +65,12 @@ export default function Dashboard({ project }: DashboardProps) {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-sm text-muted-foreground mt-1">{project.name}</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+          <p className="text-sm text-muted-foreground mt-1">{project.name}</p>
+        </div>
+        {undoButton}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

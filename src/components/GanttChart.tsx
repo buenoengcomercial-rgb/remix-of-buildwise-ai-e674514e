@@ -23,9 +23,10 @@ import { toast } from 'sonner';
 interface GanttChartProps {
   project: Project;
   onProjectChange?: (project: Project) => void;
+  undoButton?: React.ReactNode;
 }
 
-export default function GanttChart({ project, onProjectChange }: GanttChartProps) {
+export default function GanttChart({ project, onProjectChange, undoButton }: GanttChartProps) {
   // Lista de equipes do projeto (com fallback aos defaults).
   const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
   // Helper local que sempre busca a definição na lista do projeto.
@@ -1057,6 +1058,7 @@ export default function GanttChart({ project, onProjectChange }: GanttChartProps
             <p className="text-[10px] text-muted-foreground">Gantt Interativo com CPM</p>
           </div>
           <div className="flex items-center gap-2">
+            {undoButton}
             <ConfiguracaoObra config={obraConfig} onConfigChange={setObraConfig} />
             <button
               onClick={() => setShowCriticalOnly(!showCriticalOnly)}

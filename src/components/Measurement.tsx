@@ -51,6 +51,7 @@ import { toast } from '@/hooks/use-toast';
 interface MeasurementProps {
   project: Project;
   onProjectChange: (project: Project) => void;
+  undoButton?: React.ReactNode;
 }
 
 // ───────────────────────── Tipos internos ─────────────────────────
