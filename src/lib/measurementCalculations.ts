@@ -41,6 +41,10 @@ export interface MeasurementLineResult {
   totalPeriod: number;
   totalAccumulated: number;
   totalBalance: number;
+  totalContractedNoBDI: number;
+  totalPeriodNoBDI: number;
+  totalAccumulatedNoBDI: number;
+  totalBalanceNoBDI: number;
   percentExecuted: number;
 }
 
