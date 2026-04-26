@@ -1,6 +1,6 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
-import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, CheckCircle2, Clock4, Activity, ArrowRight } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, DailyReportAttachment, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
+import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, CheckCircle2, Clock4, Activity, ArrowRight, Camera, Image as ImageIcon, X, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,11 +8,28 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+const PHOTO_BUCKET = 'daily-report-photos';
+const GENERAL_TASK_VALUE = '__general__';
+
+/** Lê arquivo como dataURL (usado para preview e fallback). */
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 interface DailyReportProps {
   project: Project;
