@@ -878,9 +878,11 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                                 ) : (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <button onClick={() => setExpandedRup(showRup ? null : task.id)} className={`text-xs font-medium truncate text-left transition-colors ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}>
+                                      <span
+                                        className={`text-xs font-medium truncate text-left transition-colors cursor-pointer ${rowTeam ? 'hover:opacity-70' : 'text-foreground hover:text-primary'}`}
+                                      >
                                         {truncateWords(task.name, 8)}
-                                      </button>
+                                      </span>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="max-w-md whitespace-normal break-words">
                                       {task.name}
