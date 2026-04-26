@@ -1304,6 +1304,50 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       },
     });
 
+    // ───── Resumo dos Diários de Obra do período ─────
+    const drSnap = activeMeasurement?.dailyReportSnapshot;
+    const drForPdf = drSnap ?? {
+      totalDays: dailyReportsSummary.totalDays,
+      filledReports: dailyReportsSummary.filledReports,
+      missingReports: dailyReportsSummary.missingReports,
+      productionDays: dailyReportsSummary.productionDays,
+      impedimentDays: dailyReportsSummary.impedimentDays,
+    };
+    const drDraw = () => {
+      const footerReserved = 14;
+      let yPos = (doc as any).lastAutoTable?.finalY ?? margin;
+      yPos += 6;
+      const blockH = 22;
+      if (yPos + blockH > pageH - margin - footerReserved) {
+        doc.addPage();
+        yPos = margin + 4;
+      }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(0);
+      doc.text('DIÁRIOS DE OBRA DO PERÍODO', margin, yPos);
+      yPos += 3;
+      doc.setDrawColor(180); doc.setLineWidth(0.2);
+      doc.line(margin, yPos, pageW - margin, yPos);
+      yPos += 4;
+      const cellW = (pageW - margin * 2) / 5;
+      const items: Array<[string, string]> = [
+        ['Total de dias', String(drForPdf.totalDays)],
+        ['Diarios preenchidos', String(drForPdf.filledReports)],
+        ['Diarios pendentes', String(drForPdf.missingReports)],
+        ['Dias com producao', String(drForPdf.productionDays)],
+        ['Dias c/ impedimento', String(drForPdf.impedimentDays)],
+      ];
+      items.forEach(([label, value], i) => {
+        const x = margin + cellW * i;
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(110); doc.setFontSize(6.5);
+        doc.text(label, x + 1, yPos);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(0); doc.setFontSize(9);
+        doc.text(value, x + 1, yPos + 5);
+      });
+      (doc as any).lastAutoTable = { finalY: yPos + 8 };
+      doc.setTextColor(0);
+    };
+    drDraw();
+
     // ───── Bloco de assinaturas (somente na última página) ─────
     const drawSignatures = () => {
       const blockH = 26; // altura necessária do bloco
