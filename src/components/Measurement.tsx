@@ -2024,16 +2024,41 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       <AlertDialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Gerar medição nº {measurementNumber}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Será criado um snapshot com {rows.length} item(ns) referente ao período de {fmtDateBR(startDate)} a {fmtDateBR(endDate)}.
-              Após gerar, esta medição ficará bloqueada para edição direta.
-              Alterações futuras na EAP ou nos apontamentos não afetarão o snapshot.
+            <AlertDialogTitle>
+              {validationSummary.warnings > 0
+                ? 'Esta medição possui avisos. Deseja gerar mesmo assim?'
+                : `Gerar medição nº ${measurementNumber}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Será criado um snapshot com {rows.length} item(ns) referente ao período de{' '}
+                  {fmtDateBR(startDate)} a {fmtDateBR(endDate)}.
+                  Após gerar, esta medição ficará bloqueada para edição direta.
+                  Alterações futuras na EAP ou nos apontamentos não afetarão o snapshot.
+                </p>
+                {validationSummary.warnings > 0 && (
+                  <div className="rounded border border-warning/30 bg-warning/10 p-2">
+                    <p className="font-medium text-warning mb-1">
+                      Avisos encontrados ({validationSummary.warnings}):
+                    </p>
+                    <ul className="list-disc pl-5 space-y-0.5 text-xs">
+                      {validationIssues
+                        .filter(i => i.level === 'warning')
+                        .map((i, idx) => (
+                          <li key={idx}>{i.message}</li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={generateMeasurement}>Gerar Medição</AlertDialogAction>
+            <AlertDialogAction onClick={generateMeasurement}>
+              {validationSummary.warnings > 0 ? 'Gerar mesmo assim' : 'Gerar Medição'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
