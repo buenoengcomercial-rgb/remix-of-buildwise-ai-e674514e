@@ -96,6 +96,7 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
   // Lista de equipes do projeto (com fallback aos defaults).
   const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
   const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
+  const { confirm: confirmDelete, dialog: confirmDialog } = useConfirmDelete();
   // Estado inicial respeita a persistência (uiState.collapsedPhaseIds).
   // Se não houver registro, todos os capítulos começam expandidos.
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(() => {
