@@ -64,7 +64,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const unit = cellStr(row[cols.unit]);
     const quantity = cellNum(row[cols.quantity]);
     const productivity = cellNum(row[cols.productivity]);
-    const unitPriceNoBdi = cellNum(row[cols.unitPriceNoBdi]);
+    const unitPriceNoBDI = cellNum(row[cols.unitPriceNoBDI]);
     const hours = cellNum(row[cols.hours]);
     const days = cellNum(row[cols.days]);
 
@@ -73,7 +73,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const hasF = productivity > 0;
     const hasG = hours > 0;
     const hasH = days > 0;
-    const hasPrice = unitPriceNoBdi > 0;
+    const hasPrice = unitPriceNoBDI > 0;
 
     // Skip completely empty rows
     const desc = description || type || code;
