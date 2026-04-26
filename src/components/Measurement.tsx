@@ -462,6 +462,34 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     });
   }, [rows, chapterFilter, search, project.phases, isSnapshotMode]);
 
+  // ───────── Validação da medição (somente no modo "live") ─────────
+  const validationIssues: ValidationIssue[] = useMemo(() => {
+    if (activeMeasurement) return [];
+    return validateMeasurement({
+      startDate,
+      endDate,
+      measurementNumber,
+      rows: rows.map(r => ({
+        taskId: r.taskId,
+        description: r.description,
+        itemCode: r.itemCode,
+        priceBank: r.priceBank,
+        unitPriceNoBDI: r.unitPriceNoBDI,
+        qtyContracted: r.qtyContracted,
+        qtyPeriod: r.qtyPeriod,
+        qtyPriorAccum: r.qtyPriorAccum,
+        qtyCurrentAccum: r.qtyCurrentAccum,
+        qtyBalance: r.qtyBalance,
+      })),
+      measurements,
+      contract: {
+        contractor, contracted, contractNumber, contractObject, location,
+        budgetSource, bdiPercent,
+      },
+    });
+  }, [activeMeasurement, startDate, endDate, measurementNumber, rows, measurements, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent]);
+  const validationSummary = useMemo(() => summarizeIssues(validationIssues), [validationIssues]);
+
   // ───────── Árvore de grupos ─────────
   const groupTree: GroupNode[] = useMemo(() => {
     const rowsByPhase = new Map<string, Row[]>();
