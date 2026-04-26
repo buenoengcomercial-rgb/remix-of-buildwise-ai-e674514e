@@ -13,6 +13,7 @@ import { formatISODateBR } from '@/components/gantt/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { getChapterTree, getChapterNumbering, moveChapter, getChapterTasks, safeMoveChapter, reorderChapter, reorderChapterByNumber } from '@/lib/chapters';
 import { toast } from 'sonner';
+import { useConfirmDelete } from '@/components/ConfirmDeleteDialog';
 
 /** Encurta o nome da tarefa para no máximo `maxWords` palavras, adicionando "…" no final. */
 function truncateWords(text: string, maxWords = 4): string {
@@ -95,6 +96,7 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
   // Lista de equipes do projeto (com fallback aos defaults).
   const projectTeams: TeamDefinition[] = project.teams ?? DEFAULT_TEAMS;
   const teamDef = useCallback((code?: TeamCode) => getTeamDefinition(code, projectTeams), [projectTeams]);
+  const { confirm: confirmDelete, dialog: confirmDialog } = useConfirmDelete();
   // Estado inicial respeita a persistência (uiState.collapsedPhaseIds).
   // Se não houver registro, todos os capítulos começam expandidos.
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(() => {
@@ -651,7 +653,22 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
               </button>
             )}
             <button
-              onClick={() => deletePhase(phase.id)}
+              onClick={() => confirmDelete(
+                {
+                  title: 'Deseja realmente excluir este capítulo?',
+                  description: (
+                    <>
+                      <p>Capítulo: <strong>{phase.name}</strong>.</p>
+                      <p>
+                        Tarefas, composições RUP, apontamentos diários e demais dados vinculados
+                        a este capítulo poderão ser removidos. Subcapítulos serão promovidos a principais.
+                      </p>
+                    </>
+                  ),
+                  confirmLabel: 'Excluir capítulo',
+                },
+                () => deletePhase(phase.id),
+              )}
               className="h-7 w-7 flex items-center justify-center rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
               title="Excluir capítulo"
             >
@@ -1043,7 +1060,26 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                                 >
                                   <Zap className="w-3 h-3" />
                                 </button>
-                                <button onClick={() => deleteTask(phase.id, task.id)} className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors" title="Excluir">
+                                <button
+                                  onClick={() => confirmDelete(
+                                    {
+                                      title: 'Deseja realmente excluir esta tarefa?',
+                                      description: (
+                                        <>
+                                          <p>Tarefa: <strong>{task.name}</strong>.</p>
+                                          <p>
+                                            Serão removidos: composição RUP, apontamentos diários,
+                                            vínculo com cronograma e dados que podem impactar medições futuras.
+                                          </p>
+                                        </>
+                                      ),
+                                      confirmLabel: 'Excluir tarefa',
+                                    },
+                                    () => deleteTask(phase.id, task.id),
+                                  )}
+                                  className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
+                                  title="Excluir tarefa"
+                                >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                                 <div className="hidden group-hover:flex items-center gap-1">
@@ -1143,9 +1179,21 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                                           <div className="text-center">
                                             {(task.laborCompositions?.length || 0) > 1 && (
                                               <button
-                                                onClick={() => removeLabor(phase.id, task.id, comp.id)}
+                                                onClick={() => confirmDelete(
+                                                  {
+                                                    title: 'Deseja remover este profissional da composição RUP?',
+                                                    description: (
+                                                      <>
+                                                        <p>Profissional: <strong>{comp.role}</strong>.</p>
+                                                        <p>Isso pode alterar duração, gargalo e cronograma da tarefa.</p>
+                                                      </>
+                                                    ),
+                                                    confirmLabel: 'Remover profissional',
+                                                  },
+                                                  () => removeLabor(phase.id, task.id, comp.id),
+                                                )}
                                                 className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
-                                                title="Remover"
+                                                title="Remover profissional"
                                               >
                                                 <X className="w-3 h-3" />
                                               </button>
@@ -1380,6 +1428,7 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
           </div>
         );
       })()}
+      {confirmDialog}
     </div>
   );
 }
