@@ -78,14 +78,21 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
   const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
   const warnings: string[] = [];
+  const issues: ImportIssue[] = [];
   const rootChapters: ParsedChapter[] = [];
   const flatCompositions: ParsedComposition[] = [];
+
+  const pushIssue = (issue: ImportIssue) => {
+    issues.push(issue);
+    if (issue.level !== 'info') warnings.push(`Linha ${issue.line ?? '?'}: ${issue.message}`);
+  };
 
   // Sequential trackers (Tipo column drives hierarchy)
   const codeToChapter = new Map<string, ParsedChapter>();
   let currentChapter: ParsedChapter | null = null;
   let currentSubchapter: ParsedChapter | null = null;
   let currentComposition: ParsedComposition | null = null;
+  let sawAnyChapter = false;
 
   // Detect header row + dynamic column indices
   const { startRow, cols } = detectHeaderAndColumns(rows);
@@ -94,6 +101,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const row = rows[i];
     if (!row || row.length === 0) continue;
 
+    const lineNo = i + 1;
     const code = cellStr(row[cols.code]);
     const bank = cellStr(row[cols.bank]);
     const type = cellStr(row[cols.type]);
@@ -125,7 +133,15 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const isTypeLabor = tipoNorm === 'mao de obra' || tipoNorm === 'mdo' || tipoNorm === 'recurso' || tipoNorm === 'insumo mao de obra';
     const hasTypeHint = isTypeCap || isTypeSub || isTypeComp || isTypeLabor;
 
-    // Compatibility aliases for downstream blocks
+    // ERROR: type column filled with unrecognized value
+    if (type && !hasTypeHint) {
+      pushIssue({
+        level: 'error', line: lineNo, code, type, description,
+        message: `Tipo inválido na coluna C: "${type}"`,
+        suggestion: 'Use Capítulo, Subcapítulo, Composição ou Mão de Obra na coluna C.',
+      });
+    }
+
     const colA = code;
     const colB = type;
     const colC = description;
@@ -135,14 +151,13 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const colG = hours;
     const colH = days;
 
-    // ── Classification: Column Tipo PRIORITY, columns as fallback ──
     const classifiedAsChapter = hasTypeHint
       ? (isTypeCap || isTypeSub)
       : (!hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice && !!desc);
     const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
     const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
 
-    // ── CHAPTER (top-level) ──
+    // ── CHAPTER ──
     if (hasTypeHint ? isTypeCap : (classifiedAsChapter && getCodeDepth(colA) === 0)) {
       if (!colA && !desc) continue;
       const chapter: ParsedChapter = {
@@ -150,12 +165,15 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         name: (colC || colB || colA).trim(),
         children: [],
         compositions: [],
+        sourceLine: lineNo,
+        kind: 'chapter',
       };
       rootChapters.push(chapter);
       if (colA) codeToChapter.set(colA, chapter);
       currentChapter = chapter;
       currentSubchapter = null;
       currentComposition = null;
+      sawAnyChapter = true;
       continue;
     }
 
@@ -167,18 +185,22 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         name: (colC || colB || colA).trim(),
         children: [],
         compositions: [],
+        sourceLine: lineNo,
+        kind: 'subchapter',
       };
 
-      // Try to find parent chapter by code first, fall back to current chapter
       const parentCode = getParentCode(colA);
       const parent = (parentCode && codeToChapter.get(parentCode)) || currentChapter;
 
       if (parent) {
         parent.children.push(subchapter);
       } else {
-        // Orphan subchapter — promote to root
         rootChapters.push(subchapter);
-        warnings.push(`Linha ${i + 1}: subcapítulo "${subchapter.name}" sem capítulo pai — promovido a capítulo`);
+        pushIssue({
+          level: 'error', line: lineNo, code: colA, type: 'Subcapítulo', description: subchapter.name,
+          message: `Subcapítulo "${subchapter.name}" sem capítulo pai (estrutura quebrada).`,
+          suggestion: 'Verificar se existe um capítulo acima deste subcapítulo.',
+        });
       }
 
       if (colA) codeToChapter.set(colA, subchapter);
@@ -187,7 +209,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
       continue;
     }
 
-    // ── COMPOSITION (SERVICE) ──
+    // ── COMPOSITION ──
     if (classifiedAsComposition) {
       const comp: ParsedComposition = {
         code: colA,
@@ -198,20 +220,79 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         unitPriceNoBDI: hasPrice ? unitPriceNoBDI : undefined,
         labor: [],
         needsReview: false,
+        sourceLine: lineNo,
+        issues: [],
       };
 
       const parentChapter = currentSubchapter || currentChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
       } else {
-        warnings.push(`Linha ${i + 1}: composição "${comp.name}" sem capítulo associado`);
+        const issue: ImportIssue = {
+          level: 'error', line: lineNo, code: colA, type: 'Composição', description: comp.name,
+          message: 'Composição sem capítulo ou subcapítulo associado.',
+          suggestion: 'Adicionar um capítulo acima desta composição na planilha.',
+        };
+        comp.issues!.push(issue);
+        pushIssue(issue);
       }
+
+      // Per-composition validations
+      if (!comp.name) {
+        const issue: ImportIssue = {
+          level: 'error', line: lineNo, code: colA, type: 'Composição',
+          message: 'Composição sem descrição.',
+          suggestion: 'Preencher coluna D (Resumo) com a descrição da composição.',
+        };
+        comp.issues!.push(issue); pushIssue(issue);
+      }
+      if (!hasE) {
+        const issue: ImportIssue = {
+          level: 'error', line: lineNo, code: colA, type: 'Composição', description: comp.name,
+          message: 'Composição sem quantidade.',
+          suggestion: 'Preencher coluna F com quantidade.',
+        };
+        comp.issues!.push(issue); pushIssue(issue);
+      }
+      if (!hasPrice) {
+        const issue: ImportIssue = {
+          level: 'warning', line: lineNo, code: colA, type: 'Composição', description: comp.name,
+          message: 'Composição sem preço s/ BDI.',
+          suggestion: 'Preencher coluna H com preço s/ BDI.',
+        };
+        comp.issues!.push(issue); pushIssue(issue);
+      }
+      if (!colA) {
+        const issue: ImportIssue = {
+          level: 'warning', line: lineNo, type: 'Composição', description: comp.name,
+          message: 'Composição sem código.',
+          suggestion: 'Preencher coluna A com o código da composição.',
+        };
+        comp.issues!.push(issue); pushIssue(issue);
+      }
+      if (!bank) {
+        const issue: ImportIssue = {
+          level: 'warning', line: lineNo, code: colA, type: 'Composição', description: comp.name,
+          message: 'Composição sem banco.',
+          suggestion: 'Preencher coluna B com o banco (SINAPI, SBC, etc.).',
+        };
+        comp.issues!.push(issue); pushIssue(issue);
+      }
+      if (!colD) {
+        const issue: ImportIssue = {
+          level: 'warning', line: lineNo, code: colA, type: 'Composição', description: comp.name,
+          message: 'Composição sem unidade.',
+          suggestion: 'Preencher coluna E com unidade.',
+        };
+        comp.issues!.push(issue); pushIssue(issue);
+      }
+
       flatCompositions.push(comp);
       currentComposition = comp;
       continue;
     }
 
-    // ── LABOR (ANALYTICAL COMPOSITION) ──
+    // ── LABOR ──
     if (classifiedAsLabor) {
       const labor: ParsedLabor = {
         role: (colC || colB || colD).trim(),
@@ -224,46 +305,81 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
 
       if (currentComposition) {
         currentComposition.labor.push(labor);
+
+        if (colF <= 0) {
+          const issue: ImportIssue = {
+            level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
+            message: `Coeficiente de produtividade (RUP) zerado para ${labor.role}.`,
+            suggestion: 'Preencher coluna G com a produtividade (h/un).',
+          };
+          currentComposition.issues = currentComposition.issues || [];
+          currentComposition.issues.push(issue);
+          pushIssue(issue);
+        }
+        if (colG <= 0) {
+          const issue: ImportIssue = {
+            level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
+            message: `Horas trabalhadas zeradas para ${labor.role}.`,
+            suggestion: 'Preencher coluna I com horas trabalhadas.',
+          };
+          currentComposition.issues = currentComposition.issues || [];
+          currentComposition.issues.push(issue);
+          pushIssue(issue);
+        }
+        if (colH <= 0) {
+          const issue: ImportIssue = {
+            level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
+            message: `Dias trabalhados zerados para ${labor.role}.`,
+            suggestion: 'Preencher coluna J com dias trabalhados.',
+          };
+          currentComposition.issues = currentComposition.issues || [];
+          currentComposition.issues.push(issue);
+          pushIssue(issue);
+        }
       } else {
-        warnings.push(`Linha ${i + 1}: mão de obra "${labor.role}" sem composição associada`);
+        pushIssue({
+          level: 'error', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
+          message: `Mão de obra "${labor.role}" sem composição associada (órfã).`,
+          suggestion: 'Verificar se existe uma composição acima desta linha.',
+        });
       }
       continue;
     }
 
-    // ── Fallback: composition with inline labor (D,E + F/G/H all present) ──
+    // ── Fallback: composition with inline labor ──
     if (desc && hasD && hasE && (hasF || hasG || hasH)) {
       const comp: ParsedComposition = {
         code: colA,
         name: (colC || colB || '').trim(),
         unit: colD,
         quantity: colE,
-        labor: [{
-          role: colB || 'Trabalhador',
-          unit: colD,
-          rup: colF,
-          hours: colG,
-          days: colH,
-          workerCount: 1,
-        }],
+        labor: [{ role: colB || 'Trabalhador', unit: colD, rup: colF, hours: colG, days: colH, workerCount: 1 }],
         needsReview: false,
+        sourceLine: lineNo,
+        issues: [],
       };
 
       const parentChapter = currentSubchapter || currentChapter;
-      if (parentChapter) {
-        parentChapter.compositions.push(comp);
-      }
+      if (parentChapter) parentChapter.compositions.push(comp);
       flatCompositions.push(comp);
       currentComposition = comp;
       continue;
     }
   }
 
-  // ── Validation ──
-  flatCompositions.forEach((comp, idx) => {
+  // ── Post-validation: composition without labor / RUP ──
+  flatCompositions.forEach((comp) => {
     if (comp.labor.length === 0) {
       comp.needsReview = true;
       comp.reviewReason = 'Sem composição analítica (mão de obra)';
-      warnings.push(`Composição "${comp.name}" (${comp.code}) sem mão de obra`);
+      const issue: ImportIssue = {
+        level: 'warning', line: comp.sourceLine, code: comp.code, type: 'Composição', description: comp.name,
+        message: 'Composição sem RUP/mão de obra.',
+        suggestion: 'Verificar coluna G ou adicionar mão de obra abaixo desta composição.',
+      };
+      comp.issues = comp.issues || [];
+      comp.issues.push(issue);
+      pushIssue(issue);
     }
     comp.labor.forEach(l => {
       if (l.rup <= 0) {
@@ -273,17 +389,36 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     });
   });
 
-  // If no chapters were detected, create a default one
+  // ── Empty chapters ──
+  function checkEmptyChapters(chapters: ParsedChapter[]) {
+    for (const ch of chapters) {
+      const totalComps = countCompsRec(ch);
+      if (totalComps === 0) {
+        pushIssue({
+          level: 'warning', line: ch.sourceLine, code: ch.code,
+          type: ch.kind === 'subchapter' ? 'Subcapítulo' : 'Capítulo',
+          description: ch.name,
+          message: `${ch.kind === 'subchapter' ? 'Subcapítulo' : 'Capítulo'} sem nenhuma composição dentro.`,
+          suggestion: 'Adicionar composições abaixo deste item ou removê-lo.',
+        });
+      }
+      checkEmptyChapters(ch.children);
+    }
+  }
+  checkEmptyChapters(rootChapters);
+
+  // If no chapters detected, create default
   if (rootChapters.length === 0 && flatCompositions.length > 0) {
-    rootChapters.push({
-      code: '1',
-      name: 'Importados',
-      children: [],
-      compositions: flatCompositions,
-    });
+    rootChapters.push({ code: '1', name: 'Importados', children: [], compositions: flatCompositions, kind: 'chapter' });
   }
 
-  return { chapters: rootChapters, flatCompositions, warnings };
+  return { chapters: rootChapters, flatCompositions, warnings, issues };
+}
+
+function countCompsRec(ch: ParsedChapter): number {
+  let n = ch.compositions.length;
+  for (const c of ch.children) n += countCompsRec(c);
+  return n;
 }
 
 // ─── Legacy flat parsing (CSV/simple Excel) ───────────────────
