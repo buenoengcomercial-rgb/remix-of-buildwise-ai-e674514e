@@ -52,15 +52,14 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
 import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
-import MeasurementDailyReportsPanel from '@/components/MeasurementDailyReportsPanel';
 import { summarizeDailyReportsForPeriod, buildDailyReportSnapshot } from '@/lib/dailyReportSummary';
 
 interface MeasurementProps {
   project: Project;
   onProjectChange: (project: Project) => void;
   undoButton?: React.ReactNode;
-  /** Navega até a aba Diário de Obra abrindo a data informada. */
-  onOpenDailyReport?: (dateISO: string) => void;
+  /** Navega até a aba Diário de Obra abrindo a data informada e, opcionalmente, aplicando o filtro de medição. */
+  onOpenDailyReport?: (dateISO: string, measurementFilter?: string) => void;
 }
 
 // ───────────────────────── Tipos internos ─────────────────────────
@@ -1660,15 +1659,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       {/* Painel de validação (somente em modo "live") */}
       {!activeMeasurement && (
         <div className="print:hidden">
-          <MeasurementValidationPanel issues={validationIssues} />
+          <MeasurementValidationPanel
+            issues={validationIssues}
+            onOpenDailyReport={
+              onOpenDailyReport
+                ? () => onOpenDailyReport(effStart, 'draft')
+                : undefined
+            }
+          />
         </div>
       )}
-
-      {/* Diários de Obra do período (live e snapshot) */}
-      <MeasurementDailyReportsPanel
-        summary={dailyReportsSummary}
-        onOpenDiary={onOpenDailyReport}
-      />
 
       {/* Cabeçalho técnico do boletim */}
       <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">
