@@ -236,6 +236,8 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
   const [confirmEdit, setConfirmEdit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editReason, setEditReason] = useState('');
+  const [editingPriceTaskId, setEditingPriceTaskId] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('');
 
   useEffect(() => {
     const c = project.contractInfo || {};
