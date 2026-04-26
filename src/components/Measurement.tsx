@@ -764,35 +764,35 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
         dataRows.push([
           r.item, r.itemCode, r.priceBank, r.description, r.unit,
           Number(r.qtyContracted.toFixed(3)),
-          Number(r.unitPriceNoBDI.toFixed(2)),
-          Number(r.unitPriceWithBDI.toFixed(2)),
-          Number(r.valueContracted.toFixed(2)),
+          trunc2(r.unitPriceNoBDI),
+          trunc2(r.unitPriceWithBDI),
+          trunc2(r.valueContracted),
           Number(r.qtyPeriod.toFixed(3)),
-          Number(r.valuePeriod.toFixed(2)),
+          trunc2(r.valuePeriod),
           Number(r.qtyCurrentAccum.toFixed(3)),
-          Number(r.valueAccum.toFixed(2)),
+          trunc2(r.valueAccum),
           Number(r.qtyBalance.toFixed(3)),
-          Number(r.valueBalance.toFixed(2)),
+          trunc2(r.valueBalance),
         ]);
       });
       group.children.forEach(walkXLSX);
       dataRows.push([
         '', '', '', `${indent}Subtotal ${group.number} ${group.name}`,
         '', '', '', '',
-        Number(group.totals.contracted.toFixed(2)), '',
-        Number(group.totals.period.toFixed(2)), '',
-        Number(group.totals.accum.toFixed(2)), '',
-        Number(group.totals.balance.toFixed(2)),
+        trunc2(group.totals.contracted), '',
+        trunc2(group.totals.period), '',
+        trunc2(group.totals.accum), '',
+        trunc2(group.totals.balance),
       ]);
     };
     groupTree.forEach(walkXLSX);
 
     dataRows.push([
       '', '', '', 'TOTAL GERAL', '', '', '', '',
-      Number(totals.contracted.toFixed(2)), '',
-      Number(totals.period.toFixed(2)), '',
-      Number(totals.accum.toFixed(2)), '',
-      Number(totals.balance.toFixed(2)),
+      trunc2(totals.contracted), '',
+      trunc2(totals.period), '',
+      trunc2(totals.accum), '',
+      trunc2(totals.balance),
     ]);
 
     const sheetData = [...headerRows, ...dataRows];
