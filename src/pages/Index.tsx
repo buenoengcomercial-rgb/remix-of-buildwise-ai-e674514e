@@ -218,6 +218,9 @@ export default function Index() {
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}
+          onRenameProject={handleRenameProject}
+          onDuplicateProject={handleDuplicateProject}
+          onDeleteProject={handleDeleteProject}
           activeProjectId={rawProject.id}
         />
       </div>
