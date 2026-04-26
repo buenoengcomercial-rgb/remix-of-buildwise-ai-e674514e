@@ -1355,11 +1355,11 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                               <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${BORDER_L} ${G_BG.contract}`}>
                                 {fmtNum(r.qtyContracted)}
                               </td>
-                              <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`}>
+                              <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`} style={{ minWidth: 210, width: 220 }}>
                                 {editingPriceTaskId === r.taskId ? (
-                                  <div className="flex items-center gap-1 print:hidden bg-accent/40 rounded px-1 py-0.5">
-                                    <div className="relative flex-1">
-                                      <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
+                                  <div className="flex items-center justify-end gap-1 print:hidden bg-accent/40 rounded px-1 py-0.5 min-w-[210px]">
+                                    <div className="relative">
+                                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
                                       <Input
                                         autoFocus
                                         type="number" step="0.01" min="0"
@@ -1374,12 +1374,12 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                             setEditingPriceTaskId(null);
                                           }
                                         }}
-                                        className="h-7 pl-6 pr-1.5 text-right tabular-nums text-[11px]"
+                                        className="h-7 pl-7 pr-2 text-right tabular-nums text-xs w-[150px] min-w-[150px]"
                                       />
                                     </div>
                                     <Button
                                       type="button" size="icon" variant="ghost"
-                                      className="h-6 w-6 text-success hover:text-success"
+                                      className="h-6 w-6 shrink-0 text-success hover:text-success"
                                       title="Confirmar (Enter)"
                                       onClick={() => {
                                         updateUnitPriceNoBDI(r.taskId, parseFloat(editingPriceValue) || 0);
@@ -1390,7 +1390,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                     </Button>
                                     <Button
                                       type="button" size="icon" variant="ghost"
-                                      className="h-6 w-6 text-destructive hover:text-destructive"
+                                      className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
                                       title="Cancelar (Esc)"
                                       onClick={() => setEditingPriceTaskId(null)}
                                     >
@@ -1405,7 +1405,7 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                     {!isLocked && (
                                       <Button
                                         type="button" size="icon" variant="ghost"
-                                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
                                         title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Editar valor unitário s/ BDI'}
                                         onClick={() => {
                                           setEditingPriceValue(((r.unitPriceNoBDI || 0)).toFixed(2));
