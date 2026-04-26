@@ -843,7 +843,20 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                               const rowTeam = teamDef(task.team);
                               return (
                             <div
-                              className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center ${
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                // Só dispara se o clique for em área neutra da linha
+                                // (não em inputs, selects, botões, links etc.)
+                                const target = e.target as HTMLElement;
+                                if (target.closest('button, input, select, textarea, a, [role="button"]')) return;
+                                // Abre Apontamento Diário desta tarefa, fecha o RUP da mesma tarefa
+                                setExpandedDaily(prev => (prev === task.id ? null : task.id));
+                                if (expandedRup === task.id) setExpandedRup(null);
+                              }}
+                              className={`group grid gap-1.5 px-3 py-1.5 border-t border-border hover:brightness-110 transition-colors items-center cursor-pointer ${
+                                expandedDaily === task.id ? 'ring-1 ring-info/40 bg-info/[0.04]' : ''
+                              } ${
                                 !rowTeam ? (isDelayed ? 'bg-destructive/5' : task.isCritical ? 'bg-destructive/[0.03]' : '') : ''
                               }`}
                               style={{ gridTemplateColumns: '36px 4fr 90px 100px 80px 90px 80px 120px 80px', ...(rowTeam ? { backgroundColor: rowTeam.bgColor, color: rowTeam.textColor } : {}) }}
