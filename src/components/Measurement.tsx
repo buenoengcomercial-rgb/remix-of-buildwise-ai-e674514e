@@ -883,12 +883,9 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
 
   const newMeasurementDraft = () => {
     const last = measurements[measurements.length - 1];
-    if (last) {
-      const next = new Date(last.endDate);
-      next.setDate(next.getDate() + 1);
-      setStartDate(next.toISOString().slice(0, 10));
-    }
-    setEndDate(today);
+    const suggested = suggestPeriodForNext(measurements, today, monthAgo);
+    setStartDate(suggested.startDate);
+    setEndDate(suggested.endDate);
     setMeasurementNumber(String((last?.number || 0) + 1));
     setActiveId('live');
   };
