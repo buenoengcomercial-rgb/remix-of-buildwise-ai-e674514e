@@ -653,7 +653,22 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
               </button>
             )}
             <button
-              onClick={() => deletePhase(phase.id)}
+              onClick={() => confirmDelete(
+                {
+                  title: 'Deseja realmente excluir este capítulo?',
+                  description: (
+                    <>
+                      <p>Capítulo: <strong>{phase.name}</strong>.</p>
+                      <p>
+                        Tarefas, composições RUP, apontamentos diários e demais dados vinculados
+                        a este capítulo poderão ser removidos. Subcapítulos serão promovidos a principais.
+                      </p>
+                    </>
+                  ),
+                  confirmLabel: 'Excluir capítulo',
+                },
+                () => deletePhase(phase.id),
+              )}
               className="h-7 w-7 flex items-center justify-center rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
               title="Excluir capítulo"
             >
