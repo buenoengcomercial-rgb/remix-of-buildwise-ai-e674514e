@@ -170,9 +170,10 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
             )}
             <button
               onClick={addLog}
-              className="text-[10px] px-2 py-1 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors flex items-center gap-1"
+              className="text-[10px] px-2 py-1 rounded-md bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors flex items-center gap-1"
+              title="Adicionar lançamento ao final"
             >
-              <Plus className="w-3 h-3" /> Lançamento
+              <Plus className="w-3 h-3" /> Novo
             </button>
           </div>
         </div>
