@@ -55,7 +55,7 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, activeProjectId }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [showProjects, setShowProjects] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
