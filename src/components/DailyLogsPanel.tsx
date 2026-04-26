@@ -246,12 +246,21 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
             key={row.id}
             className={`grid grid-cols-8 gap-2 text-[11px] items-center py-1 px-2 rounded ${STATUS_BG[row.status]}`}
           >
-            <input
-              type="date"
-              value={row.date}
-              onChange={e => updateLog(row.id, { date: e.target.value })}
-              className="bg-transparent border border-current/30 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:border-current"
-            />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); addLogAfter(row.id); }}
+                className="p-1 rounded hover:bg-primary/20 text-primary transition-colors shrink-0"
+                title="Adicionar novo lançamento abaixo"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+              </button>
+              <input
+                type="date"
+                value={row.date}
+                onChange={e => updateLog(row.id, { date: e.target.value })}
+                className="bg-transparent border border-current/30 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:border-current min-w-0 flex-1"
+              />
+            </div>
             <input
               type="number"
               min={0}
@@ -284,14 +293,7 @@ export default function DailyLogsPanel({ task, onChange }: DailyLogsPanelProps) 
               onChange={e => updateLog(row.id, { notes: e.target.value })}
               className="bg-transparent border border-current/30 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:border-current"
             />
-            <div className="flex items-center justify-center gap-1">
-              <button
-                onClick={(e) => { e.stopPropagation(); addLogAfter(row.id); }}
-                className="p-1 rounded hover:bg-primary/20 text-primary transition-colors"
-                title="Adicionar novo lançamento abaixo"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-              </button>
+            <div className="text-center">
               <button
                 onClick={(e) => { e.stopPropagation(); removeLog(row.id); }}
                 className="p-1 rounded hover:bg-destructive/20 text-destructive transition-colors"
