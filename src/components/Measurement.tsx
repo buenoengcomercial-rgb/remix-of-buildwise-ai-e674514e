@@ -767,6 +767,8 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         nextMeasurementNumber: number + 1,
       },
       measurements: [...(project.measurements || []), snapshot],
+      // Limpa rascunho antigo — o effect criará um novo para a próxima medição
+      measurementDraft: undefined,
     });
     // Prepara automaticamente a próxima medição (volta ao modo "live")
     const nextStart = new Date(endDate);
