@@ -205,6 +205,38 @@ const isLockedStatus = (s: MeasurementStatus) =>
   s === 'generated' || s === 'in_review' || s === 'approved';
 
 // ───────────────────────── Componente principal ─────────────────────────
+// Helpers de data ISO (yyyy-mm-dd) sem timezone shift
+const isoAddDays = (iso: string, days: number): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+};
+
+/**
+ * Calcula o período sugerido para a próxima medição em preparação.
+ * - startDate = (data final da última medição) + 1 dia
+ * - endDate   = startDate + 30 dias
+ * Sem medições anteriores: startDate = hoje - 30 dias, endDate = hoje.
+ */
+function suggestPeriodForNext(
+  measurements: SavedMeasurement[],
+  today: string,
+  monthAgo: string,
+): { startDate: string; endDate: string } {
+  if (!measurements.length) {
+    return { startDate: monthAgo, endDate: today };
+  }
+  // Última pelo maior nº; em empate, pela data final mais recente
+  const last = [...measurements].sort((a, b) => {
+    if (a.number !== b.number) return a.number - b.number;
+    return a.endDate.localeCompare(b.endDate);
+  })[measurements.length - 1];
+  const start = isoAddDays(last.endDate, 1);
+  const end = isoAddDays(start, 30);
+  return { startDate: start, endDate: end };
+}
+
 export default function Measurement({ project, onProjectChange, undoButton }: MeasurementProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
@@ -226,12 +258,15 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const initialDraft = project.measurementDraft;
   const initialDraftMatches = initialDraft && initialDraft.number === defaultNextNumber;
 
+  // Período sugerido (caso não exista rascunho válido)
+  const initialSuggested = suggestPeriodForNext(measurements, today, monthAgo);
+
   // Form de filtros (modo "live" = preview antes de gerar)
   const [startDate, setStartDate] = useState(
-    initialDraftMatches && initialDraft?.startDate ? initialDraft.startDate : monthAgo,
+    initialDraftMatches && initialDraft?.startDate ? initialDraft.startDate : initialSuggested.startDate,
   );
   const [endDate, setEndDate] = useState(
-    initialDraftMatches && initialDraft?.endDate ? initialDraft.endDate : today,
+    initialDraftMatches && initialDraft?.endDate ? initialDraft.endDate : initialSuggested.endDate,
   );
   const [chapterFilter, setChapterFilter] = useState<string>(
     initialDraftMatches && initialDraft?.chapterFilter ? initialDraft.chapterFilter : 'all',
@@ -278,27 +313,44 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       (c.nextMeasurementNumber ?? ((sortedMs[sortedMs.length - 1]?.number || 0) + 1)) || 1;
     setMeasurementNumber(String(nextNum));
     const d = project.measurementDraft;
-    if (d && d.number === nextNum) {
-      if (d.startDate) setStartDate(d.startDate);
-      if (d.endDate) setEndDate(d.endDate);
+    if (d && d.number === nextNum && d.startDate && d.endDate) {
+      setStartDate(d.startDate);
+      setEndDate(d.endDate);
       setChapterFilter(d.chapterFilter || 'all');
       setSearch(d.search || '');
+    } else {
+      const s = suggestPeriodForNext(sortedMs, today, monthAgo);
+      setStartDate(s.startDate);
+      setEndDate(s.endDate);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  // Sincroniza nº sugerido quando muda quantidade de medições; tenta restaurar rascunho
+  // Sincroniza nº sugerido quando muda quantidade de medições; restaura rascunho ou sugere período
   useEffect(() => {
     if (activeId !== 'live') return;
     const next = (measurements[measurements.length - 1]?.number || 0) + 1;
     setMeasurementNumber(prev => (prev === String(next) ? prev : String(next || 1)));
     const d = project.measurementDraft;
-    if (d && d.number === next) {
-      if (d.startDate) setStartDate(d.startDate);
-      if (d.endDate) setEndDate(d.endDate);
+    if (d && d.number === next && d.startDate && d.endDate) {
+      setStartDate(d.startDate);
+      setEndDate(d.endDate);
+    } else {
+      const s = suggestPeriodForNext(measurements, today, monthAgo);
+      setStartDate(s.startDate);
+      setEndDate(s.endDate);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measurements.length, activeId]);
+
+  // Autocorreção: se Data final < Data inicial, ajusta para início + 30 dias
+  useEffect(() => {
+    if (activeId !== 'live') return;
+    if (startDate && endDate && endDate < startDate) {
+      setEndDate(isoAddDays(startDate, 30));
+    }
+  }, [activeId, startDate, endDate]);
+
 
   // Persiste rascunho (datas + filtros) por nº de medição em preparação
   useEffect(() => {
@@ -771,10 +823,10 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       measurementDraft: undefined,
     });
     // Prepara automaticamente a próxima medição (volta ao modo "live")
-    const nextStart = new Date(endDate);
-    nextStart.setDate(nextStart.getDate() + 1);
-    setStartDate(nextStart.toISOString().slice(0, 10));
-    setEndDate(today);
+    const nextStartIso = isoAddDays(endDate, 1);
+    const nextEndIso = isoAddDays(nextStartIso, 30);
+    setStartDate(nextStartIso);
+    setEndDate(nextEndIso);
     setMeasurementNumber(String(number + 1));
     setActiveId('live');
     setConfirmGenerate(false);
@@ -831,12 +883,9 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
 
   const newMeasurementDraft = () => {
     const last = measurements[measurements.length - 1];
-    if (last) {
-      const next = new Date(last.endDate);
-      next.setDate(next.getDate() + 1);
-      setStartDate(next.toISOString().slice(0, 10));
-    }
-    setEndDate(today);
+    const suggested = suggestPeriodForNext(measurements, today, monthAgo);
+    setStartDate(suggested.startDate);
+    setEndDate(suggested.endDate);
     setMeasurementNumber(String((last?.number || 0) + 1));
     setActiveId('live');
   };
