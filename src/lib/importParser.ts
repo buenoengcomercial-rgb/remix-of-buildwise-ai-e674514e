@@ -45,10 +45,11 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
   const rootChapters: ParsedChapter[] = [];
   const flatCompositions: ParsedComposition[] = [];
 
-  // Code → chapter for hierarchy lookup
+  // Sequential trackers (Tipo column drives hierarchy)
   const codeToChapter = new Map<string, ParsedChapter>();
-  let lastChapter: ParsedChapter | null = null;
-  let lastComposition: ParsedComposition | null = null;
+  let currentChapter: ParsedChapter | null = null;
+  let currentSubchapter: ParsedChapter | null = null;
+  let currentComposition: ParsedComposition | null = null;
 
   // Detect header row + dynamic column indices
   const { startRow, cols } = detectHeaderAndColumns(rows);
