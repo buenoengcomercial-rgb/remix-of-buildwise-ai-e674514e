@@ -1001,23 +1001,23 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
         fontStyle: 'bold',
         halign: 'center',
       },
-      columnStyles: {
-        0: { cellWidth: (pageW - margin * 2) * 0.04, halign: 'center' },
-        1: { cellWidth: (pageW - margin * 2) * 0.06 },
-        2: { cellWidth: (pageW - margin * 2) * 0.05 },
-        3: { cellWidth: (pageW - margin * 2) * 0.22 },
-        4: { cellWidth: (pageW - margin * 2) * 0.04, halign: 'center' },
-        5: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        6: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
-        7: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
-        8: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
-        9: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        10: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
-        11: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        12: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
-        13: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
-        14: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
-      },
+      tableWidth: pageW - margin * 2,
+      columnStyles: (() => {
+        // Larguras proporcionais (somam 108) — normalizadas para a largura útil.
+        const pct = [4, 5, 5, 20, 4, 6, 7, 7, 8, 6, 8, 6, 8, 6, 8];
+        const sum = pct.reduce((a, b) => a + b, 0);
+        const usable = pageW - margin * 2;
+        const aligns: Array<'left' | 'right' | 'center'> = [
+          'center', 'left', 'left', 'left', 'center',
+          'right', 'right', 'right', 'right',
+          'right', 'right', 'right', 'right', 'right', 'right',
+        ];
+        const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
+        pct.forEach((p, i) => {
+          styles[i] = { cellWidth: (usable * p) / sum, halign: aligns[i] };
+        });
+        return styles;
+      })(),
       didParseCell: (data) => {
         if (data.section === 'head') {
           const c = groupColor(data.column.index);
@@ -1516,9 +1516,9 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="measurement-table w-full text-[11px] border-collapse">
+        <CardContent className="p-0 overflow-hidden">
+          <div className="overflow-x-auto max-w-full print:overflow-visible">
+            <table className="measurement-table w-full text-[11px] border-collapse print:min-w-0">
               <colgroup>
                 <col className="col-item" />
                 <col className="col-code" />
