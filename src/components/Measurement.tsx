@@ -358,12 +358,15 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   }, [activeId, startDate, endDate]);
 
 
-  // Persiste rascunho (datas + filtros) por nº de medição em preparação
+  // Persiste rascunho (datas + filtros) por nº de medição em preparação.
+  // Usa projectRef para garantir que estamos espalhando o projeto MAIS RECENTE
+  // (após generateMeasurement, o `project` do closure ainda não reflete o snapshot).
   useEffect(() => {
     if (activeId !== 'live') return;
     const num = Number(measurementNumber);
     if (!Number.isFinite(num) || num <= 0) return;
-    const current = project.measurementDraft;
+    const latestProject = projectRef.current;
+    const current = latestProject.measurementDraft;
     const nextDraft = {
       number: num,
       startDate,
@@ -381,7 +384,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     ) {
       return;
     }
-    onProjectChange({ ...project, measurementDraft: nextDraft });
+    onProjectChange({ ...latestProject, measurementDraft: nextDraft });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, measurementNumber, startDate, endDate, chapterFilter, search]);
 
