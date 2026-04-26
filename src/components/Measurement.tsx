@@ -241,6 +241,12 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
+  // Mantém referência sempre atualizada do projeto, para evitar que callbacks/effects
+  // usem versões obsoletas após múltiplas chamadas a onProjectChange no mesmo tick
+  // (ex.: gerar medição + persistir rascunho da próxima).
+  const projectRef = useRef(project);
+  useEffect(() => { projectRef.current = project; }, [project]);
+
   const measurements = useMemo<SavedMeasurement[]>(
     () => (project.measurements || []).slice().sort((a, b) => a.number - b.number),
     [project.measurements],
