@@ -285,6 +285,11 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     () => new Map(projectTeams.map(t => [t.code, t])),
     [projectTeams],
   );
+  /** Exibição amigável da equipe: composition → label → code. */
+  const teamDisplay = (def?: TeamDefinition, fallback?: string): string => {
+    if (def) return (def.composition?.trim() || def.label?.trim() || def.code);
+    return fallback?.trim() || '—';
+  };
 
   // Equipes sugeridas: códigos vindos das tarefas com produção no dia
   const suggestedTeamCodes = useMemo(() => {
