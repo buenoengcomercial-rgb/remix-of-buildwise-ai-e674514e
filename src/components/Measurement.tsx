@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
   Project,
   Task,
@@ -241,6 +241,12 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
+  // Mantém referência sempre atualizada do projeto, para evitar que callbacks/effects
+  // usem versões obsoletas após múltiplas chamadas a onProjectChange no mesmo tick
+  // (ex.: gerar medição + persistir rascunho da próxima).
+  const projectRef = useRef(project);
+  useEffect(() => { projectRef.current = project; }, [project]);
+
   const measurements = useMemo<SavedMeasurement[]>(
     () => (project.measurements || []).slice().sort((a, b) => a.number - b.number),
     [project.measurements],
@@ -352,12 +358,15 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   }, [activeId, startDate, endDate]);
 
 
-  // Persiste rascunho (datas + filtros) por nº de medição em preparação
+  // Persiste rascunho (datas + filtros) por nº de medição em preparação.
+  // Usa projectRef para garantir que estamos espalhando o projeto MAIS RECENTE
+  // (após generateMeasurement, o `project` do closure ainda não reflete o snapshot).
   useEffect(() => {
     if (activeId !== 'live') return;
     const num = Number(measurementNumber);
     if (!Number.isFinite(num) || num <= 0) return;
-    const current = project.measurementDraft;
+    const latestProject = projectRef.current;
+    const current = latestProject.measurementDraft;
     const nextDraft = {
       number: num,
       startDate,
@@ -375,7 +384,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     ) {
       return;
     }
-    onProjectChange({ ...project, measurementDraft: nextDraft });
+    onProjectChange({ ...latestProject, measurementDraft: nextDraft });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, measurementNumber, startDate, endDate, chapterFilter, search]);
 
@@ -383,9 +392,10 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   const bdiFactor = 1 + bdiPercent / 100;
 
   const persistContractInfo = (next: Partial<ContractInfo>) => {
+    const latestProject = projectRef.current;
     onProjectChange({
-      ...project,
-      contractInfo: { ...(project.contractInfo || {}), ...next },
+      ...latestProject,
+      contractInfo: { ...(latestProject.contractInfo || {}), ...next },
     });
   };
 
