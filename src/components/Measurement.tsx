@@ -49,6 +49,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
+import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
+import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
 
 interface MeasurementProps {
   project: Project;
@@ -460,6 +462,34 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     });
   }, [rows, chapterFilter, search, project.phases, isSnapshotMode]);
 
+  // ───────── Validação da medição (somente no modo "live") ─────────
+  const validationIssues: ValidationIssue[] = useMemo(() => {
+    if (activeMeasurement) return [];
+    return validateMeasurement({
+      startDate,
+      endDate,
+      measurementNumber,
+      rows: rows.map(r => ({
+        taskId: r.taskId,
+        description: r.description,
+        itemCode: r.itemCode,
+        priceBank: r.priceBank,
+        unitPriceNoBDI: r.unitPriceNoBDI,
+        qtyContracted: r.qtyContracted,
+        qtyPeriod: r.qtyPeriod,
+        qtyPriorAccum: r.qtyPriorAccum,
+        qtyCurrentAccum: r.qtyCurrentAccum,
+        qtyBalance: r.qtyBalance,
+      })),
+      measurements,
+      contract: {
+        contractor, contracted, contractNumber, contractObject, location,
+        budgetSource, bdiPercent,
+      },
+    });
+  }, [activeMeasurement, startDate, endDate, measurementNumber, rows, measurements, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent]);
+  const validationSummary = useMemo(() => summarizeIssues(validationIssues), [validationIssues]);
+
   // ───────── Árvore de grupos ─────────
   const groupTree: GroupNode[] = useMemo(() => {
     const rowsByPhase = new Map<string, Row[]>();
@@ -625,6 +655,16 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
 
   // Gerar nova medição (snapshot a partir do live)
   const generateMeasurement = () => {
+    // Defesa: nunca gerar se houver erros bloqueantes
+    if (validationSummary.hasBlocking) {
+      toast({
+        title: 'Não é possível gerar a medição',
+        description: 'Corrija os erros listados no painel de validação antes de prosseguir.',
+        variant: 'destructive',
+      });
+      setConfirmGenerate(false);
+      return;
+    }
     const number = Number(measurementNumber) || (measurements[measurements.length - 1]?.number || 0) + 1;
     const items: MeasurementSnapshotItem[] = rows.map(r => ({
       item: r.item,
@@ -1311,7 +1351,15 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
 
             <div className="ml-auto flex items-center gap-2">
               {!activeMeasurement && (
-                <Button size="sm" variant="default" onClick={() => setConfirmGenerate(true)}>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => setConfirmGenerate(true)}
+                  disabled={validationSummary.hasBlocking}
+                  title={validationSummary.hasBlocking
+                    ? 'Existem erros de validação que impedem gerar a medição.'
+                    : undefined}
+                >
                   <FileCheck2 className="w-4 h-4 mr-1" /> Gerar Medição
                 </Button>
               )}
@@ -1377,6 +1425,13 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
           )}
         </CardContent>
       </Card>
+
+      {/* Painel de validação (somente em modo "live") */}
+      {!activeMeasurement && (
+        <div className="print:hidden">
+          <MeasurementValidationPanel issues={validationIssues} />
+        </div>
+      )}
 
       {/* Cabeçalho técnico do boletim */}
       <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">
@@ -1969,16 +2024,41 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       <AlertDialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Gerar medição nº {measurementNumber}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Será criado um snapshot com {rows.length} item(ns) referente ao período de {fmtDateBR(startDate)} a {fmtDateBR(endDate)}.
-              Após gerar, esta medição ficará bloqueada para edição direta.
-              Alterações futuras na EAP ou nos apontamentos não afetarão o snapshot.
+            <AlertDialogTitle>
+              {validationSummary.warnings > 0
+                ? 'Esta medição possui avisos. Deseja gerar mesmo assim?'
+                : `Gerar medição nº ${measurementNumber}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Será criado um snapshot com {rows.length} item(ns) referente ao período de{' '}
+                  {fmtDateBR(startDate)} a {fmtDateBR(endDate)}.
+                  Após gerar, esta medição ficará bloqueada para edição direta.
+                  Alterações futuras na EAP ou nos apontamentos não afetarão o snapshot.
+                </p>
+                {validationSummary.warnings > 0 && (
+                  <div className="rounded border border-warning/30 bg-warning/10 p-2">
+                    <p className="font-medium text-warning mb-1">
+                      Avisos encontrados ({validationSummary.warnings}):
+                    </p>
+                    <ul className="list-disc pl-5 space-y-0.5 text-xs">
+                      {validationIssues
+                        .filter(i => i.level === 'warning')
+                        .map((i, idx) => (
+                          <li key={idx}>{i.message}</li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={generateMeasurement}>Gerar Medição</AlertDialogAction>
+            <AlertDialogAction onClick={generateMeasurement}>
+              {validationSummary.warnings > 0 ? 'Gerar mesmo assim' : 'Gerar Medição'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
