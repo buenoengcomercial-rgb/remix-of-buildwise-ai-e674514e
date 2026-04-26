@@ -665,9 +665,18 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       },
       measurements: [...(project.measurements || []), snapshot],
     });
-    setActiveId(snapshot.id);
+    // Prepara automaticamente a próxima medição (volta ao modo "live")
+    const nextStart = new Date(endDate);
+    nextStart.setDate(nextStart.getDate() + 1);
+    setStartDate(nextStart.toISOString().slice(0, 10));
+    setEndDate(today);
+    setMeasurementNumber(String(number + 1));
+    setActiveId('live');
     setConfirmGenerate(false);
-    toast({ title: `Medição nº ${number} gerada`, description: 'Snapshot bloqueado para edição.' });
+    toast({
+      title: `Medição nº ${number} gerada`,
+      description: `Snapshot bloqueado. Preparando ${number + 1}ª Medição.`,
+    });
   };
 
   // Editar medição gerada (destrava parcialmente)
