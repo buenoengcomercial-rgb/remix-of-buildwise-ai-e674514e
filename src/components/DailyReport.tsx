@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition, Task, Phase } from '@/types/project';
 import { NotebookPen, CalendarDays, Cloud, CloudRain, CloudSun, Sun, AlertTriangle, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
