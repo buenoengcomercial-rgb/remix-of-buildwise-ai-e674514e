@@ -822,27 +822,38 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       history: [],
     };
 
-    onProjectChange({
-      ...project,
-      contractInfo: {
-        ...(project.contractInfo || {}),
-        nextMeasurementNumber: number + 1,
-      },
-      measurements: [...(project.measurements || []), snapshot],
-      // Limpa rascunho antigo — o effect criará um novo para a próxima medição
-      measurementDraft: undefined,
-    });
-    // Prepara automaticamente a próxima medição (volta ao modo "live")
     const nextStartIso = isoAddDays(endDate, 1);
     const nextEndIso = isoAddDays(nextStartIso, 30);
+    const nextNumber = number + 1;
+    const latestProject = projectRef.current;
+    const nextProject: Project = {
+      ...latestProject,
+      contractInfo: {
+        ...(latestProject.contractInfo || {}),
+        nextMeasurementNumber: nextNumber,
+      },
+      measurements: [...(latestProject.measurements || []), snapshot],
+      measurementDraft: {
+        number: nextNumber,
+        startDate: nextStartIso,
+        endDate: nextEndIso,
+        chapterFilter: 'all',
+        search: '',
+      },
+    };
+    projectRef.current = nextProject;
+    onProjectChange(nextProject);
+    // Prepara automaticamente a próxima medição (volta ao modo "live")
     setStartDate(nextStartIso);
     setEndDate(nextEndIso);
-    setMeasurementNumber(String(number + 1));
+    setChapterFilter('all');
+    setSearch('');
+    setMeasurementNumber(String(nextNumber));
     setActiveId('live');
     setConfirmGenerate(false);
     toast({
       title: `Medição nº ${number} gerada`,
-      description: `Snapshot bloqueado. Preparando ${number + 1}ª Medição.`,
+      description: `Snapshot bloqueado. Preparando ${nextNumber}ª Medição.`,
     });
   };
 
