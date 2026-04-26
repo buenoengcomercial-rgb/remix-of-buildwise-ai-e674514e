@@ -1,5 +1,5 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown, Building2, Users } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown, Building2, Users, NotebookPen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -64,6 +64,7 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'gantt', label: 'Cronograma', icon: GanttChart },
   { view: 'tasks', label: 'Tarefas (EAP)', icon: ListTodo },
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
+  { view: 'dailyReport', label: 'Diário de Obra', icon: NotebookPen },
 ];
 
 export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId, projectsList, userEmail, onLogout, orgName, roleLabel, canManageTeam, onOpenTeam }: AppSidebarProps) {
