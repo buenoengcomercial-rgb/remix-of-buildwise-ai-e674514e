@@ -420,22 +420,62 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
-          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-            <CalendarDays className="w-4 h-4 text-muted-foreground" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              className="bg-transparent text-sm focus:outline-none"
-            />
-          </div>
+          <Select value={measurementFilter} onValueChange={setMeasurementFilter}>
+            <SelectTrigger className="h-9 w-[230px] text-xs">
+              <SelectValue placeholder="Filtrar por medição" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as datas</SelectItem>
+              {measurementPeriods.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {activePeriod && periodDates.length > 0 ? (
+            <Select value={selectedDate} onValueChange={setSelectedDate}>
+              <SelectTrigger className="h-9 w-[170px] text-xs">
+                <SelectValue placeholder="Data" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[260px]">
+                {periodDates.map(d => (
+                  <SelectItem key={d} value={d}>{formatBR(d)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                className="bg-transparent text-sm focus:outline-none"
+              />
+            </div>
+          )}
           <Button onClick={handlePrint} variant="outline" size="sm">
             <Printer className="w-4 h-4 mr-1.5" /> Imprimir / PDF
           </Button>
         </div>
       </div>
+
+      {/* Vínculo com Medição */}
+      {dateMembership && (
+        <div className={`rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
+          dateMembership.kind === 'generated'
+            ? 'border-info/40 bg-info/10 text-info'
+            : 'border-warning/40 bg-warning/10 text-warning'
+        }`}>
+          <FileText className="w-3.5 h-3.5" />
+          <span>
+            {dateMembership.kind === 'generated'
+              ? <>Este diário faz parte da <strong>{dateMembership.label}</strong>.</>
+              : <>Este diário está dentro do período da <strong>{dateMembership.label}</strong>.</>}
+          </span>
+        </div>
+      )}
 
       {/* Resumo */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
