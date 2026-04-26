@@ -226,6 +226,49 @@ export interface MeasurementDraft {
   search?: string;
 }
 
+export type WeatherCondition = 'ensolarado' | 'nublado' | 'chuvoso' | 'parcialmente_nublado' | 'outro';
+export type WorkCondition = 'normal' | 'parcialmente_prejudicada' | 'paralisada' | 'outro';
+
+export interface DailyReportTeamRow {
+  id: string;
+  name: string;
+  role?: string;
+  count?: number;
+}
+
+export interface DailyReportEquipmentRow {
+  id: string;
+  name: string;
+  count?: number;
+  notes?: string;
+}
+
+export interface DailyReportAttachment {
+  id: string;
+  name: string;
+  /** dataURL ou referência local; opcional. */
+  dataUrl?: string;
+}
+
+export interface DailyReport {
+  id: string;
+  /** ISO yyyy-mm-dd — chave por data. */
+  date: string;
+  responsible?: string;
+  weather?: WeatherCondition;
+  weatherOther?: string;
+  workCondition?: WorkCondition;
+  workConditionOther?: string;
+  teamsPresent?: DailyReportTeamRow[];
+  equipment?: DailyReportEquipmentRow[];
+  occurrences?: string;
+  impediments?: string;
+  observations?: string;
+  attachments?: DailyReportAttachment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -243,7 +286,9 @@ export interface Project {
   measurements?: SavedMeasurement[];
   /** Rascunho de filtros da medição em preparação (datas, capítulo, busca). */
   measurementDraft?: MeasurementDraft;
+  /** Diários de obra registrados, indexados por data. */
+  dailyReports?: DailyReport[];
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
-export type AppView = 'dashboard' | 'gantt' | 'tasks' | 'measurement';
+export type AppView = 'dashboard' | 'gantt' | 'tasks' | 'measurement' | 'dailyReport';
