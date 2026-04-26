@@ -285,6 +285,11 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     () => new Map(projectTeams.map(t => [t.code, t])),
     [projectTeams],
   );
+  /** Exibição amigável da equipe: composition → label → code. */
+  const teamDisplay = (def?: TeamDefinition, fallback?: string): string => {
+    if (def) return (def.composition?.trim() || def.label?.trim() || def.code);
+    return fallback?.trim() || '—';
+  };
 
   // Equipes sugeridas: códigos vindos das tarefas com produção no dia
   const suggestedTeamCodes = useMemo(() => {
@@ -585,7 +590,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
           startY: y,
           head: [['Equipe', 'Qtd.', 'Observação']],
           body: teams.map(t => {
-            const label = (t.teamCode && teamByCode.get(t.teamCode)?.label) || t.name || '—';
+            const label = teamDisplay(t.teamCode ? teamByCode.get(t.teamCode) : undefined, t.role || t.name);
             return [label, String(t.count ?? 1), t.notes || ''];
           }),
           theme: 'grid',
@@ -939,7 +944,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
                   }}
                 >
                   <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder={t.name || 'Selecionar equipe...'} />
+                    <SelectValue placeholder={teamDisplay(undefined, t.role || t.name) === '—' ? 'Selecionar equipe...' : teamDisplay(t.teamCode ? teamByCode.get(t.teamCode) : undefined, t.role || t.name)} />
                   </SelectTrigger>
                   <SelectContent>
                     {projectTeams.map(team => (
@@ -949,8 +954,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
                             className="inline-block w-2.5 h-2.5 rounded-sm border"
                             style={{ backgroundColor: team.barColor, borderColor: team.borderColor }}
                           />
-                          <span>{team.label}</span>
-                          <span className="text-muted-foreground text-[10px]">— {team.composition}</span>
+                          <span>{teamDisplay(team)}</span>
                         </span>
                       </SelectItem>
                     ))}
