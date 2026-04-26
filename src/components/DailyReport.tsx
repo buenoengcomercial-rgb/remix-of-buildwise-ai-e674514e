@@ -496,6 +496,81 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     }
   };
 
+  /**
+   * Carrega a imagem respeitando orientação EXIF e devolve dataURL JPEG
+   * com largura/altura naturais já corrigidas. Usa createImageBitmap quando
+   * disponível (aplica EXIF) com fallback para <img> + canvas.
+   */
+  const loadOrientedImage = async (
+    src: string,
+    mimeType?: string,
+  ): Promise<{ dataUrl: string; width: number; height: number } | null> => {
+    try {
+      let bitmapW = 0, bitmapH = 0;
+      let canvas: HTMLCanvasElement;
+
+      // Caminho preferido: createImageBitmap com correção EXIF
+      if (typeof createImageBitmap === 'function') {
+        const res = await fetch(src);
+        const blob = await res.blob();
+        const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' } as ImageBitmapOptions).catch(async () => {
+          // Safari antigos: sem opção EXIF — usa fallback
+          return await createImageBitmap(blob);
+        });
+        bitmapW = bmp.width; bitmapH = bmp.height;
+        canvas = document.createElement('canvas');
+        canvas.width = bitmapW; canvas.height = bitmapH;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(bmp, 0, 0);
+        bmp.close?.();
+      } else {
+        // Fallback: <img> (em navegadores modernos respeita EXIF ao desenhar)
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.crossOrigin = 'anonymous';
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error('img load fail'));
+          i.src = src;
+        });
+        bitmapW = img.naturalWidth; bitmapH = img.naturalHeight;
+        canvas = document.createElement('canvas');
+        canvas.width = bitmapW; canvas.height = bitmapH;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+      }
+
+      // Reduz dimensão máxima para um PDF leve (longest side <= 1600px)
+      const MAX = 1600;
+      const longest = Math.max(bitmapW, bitmapH);
+      if (longest > MAX) {
+        const scale = MAX / longest;
+        const dw = Math.round(bitmapW * scale);
+        const dh = Math.round(bitmapH * scale);
+        const c2 = document.createElement('canvas');
+        c2.width = dw; c2.height = dh;
+        c2.getContext('2d')!.drawImage(canvas, 0, 0, dw, dh);
+        canvas = c2;
+        bitmapW = dw; bitmapH = dh;
+      }
+
+      const isPng = (mimeType || '').includes('png');
+      const dataUrl = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.85);
+      return { dataUrl, width: bitmapW, height: bitmapH };
+    } catch {
+      return null;
+    }
+  };
+
+  /** Nome curto da atividade para títulos de fotos no PDF. */
+  const shortTaskName = (raw?: string, max = 50): string => {
+    if (!raw) return '—';
+    let s = raw.trim();
+    // Corta no primeiro separador estrutural
+    const cut = s.search(/[,.;\-–—()\/]/);
+    if (cut > 0) s = s.slice(0, cut).trim();
+    if (s.length > max) s = s.slice(0, max - 1).trimEnd() + '…';
+    return s || '—';
+  };
+
   // ───── PDF ─────
   /**
    * Gera o PDF do Diário de Obra.
@@ -860,16 +935,18 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       const dayPhotos = (report?.attachments || []).filter(a => (a.type ?? 'image') === 'image');
       if (dayPhotos.length > 0) {
         ensureSpace(14);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-        doc.text(`Fotos da Obra (${dayPhotos.length})`, margin, y); y += 2;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(20);
+        doc.text(`Fotos da Obra (${dayPhotos.length})`, margin, y); y += 3;
 
-        // Agrupar por tarefa
-        const byTask = new Map<string, { taskName: string; phaseChain?: string; photos: DailyReportAttachment[] }>();
+        // Agrupar por tarefa mantendo numeração geral sequencial
+        const byTask = new Map<string, { taskShort: string; phaseChain?: string; photos: DailyReportAttachment[] }>();
+        const taskOrder: string[] = [];
         dayPhotos.forEach(p => {
           const k = p.taskId || GENERAL_TASK_VALUE;
           if (!byTask.has(k)) {
+            taskOrder.push(k);
             byTask.set(k, {
-              taskName: p.taskName || (k === GENERAL_TASK_VALUE ? 'Geral / Sem atividade específica' : '—'),
+              taskShort: k === GENERAL_TASK_VALUE ? 'Geral' : shortTaskName(p.taskName),
               phaseChain: p.phaseChain,
               photos: [],
             });
@@ -877,61 +954,108 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
           byTask.get(k)!.photos.push(p);
         });
 
-        const cols = 3;
-        const gap = 3;
-        const thumbW = (usable - gap * (cols - 1)) / cols;
-        const thumbH = thumbW * 0.72;
-        const captionH = 9;
+        const cols = 2;
+        const gap = 4;
+        const cardW = (usable - gap * (cols - 1)) / cols;
+        const imgBoxH = 55;       // altura máxima da imagem (mm)
+        const headerH = 4.6;
+        const captionMaxH = 6.8;  // ~2 linhas
+        const metaH = 3.4;
+        const cardPad = 2;
+        const cardH = headerH + imgBoxH + captionMaxH + metaH + cardPad * 2 + 1;
 
-        for (const group of byTask.values()) {
-          ensureSpace(8);
-          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(31, 41, 55);
-          const groupTitle = group.phaseChain
-            ? `${group.taskName}  —  ${group.phaseChain}`
-            : group.taskName;
-          doc.text(groupTitle, margin, y); y += 3.4;
+        const totalPad = dayPhotos.length.toString().length;
+        let photoIndex = 0;
+
+        for (const k of taskOrder) {
+          const group = byTask.get(k)!;
+          // Cabeçalho discreto da atividade (curto)
+          ensureSpace(6 + cardH);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.6); doc.setTextColor(55, 65, 81);
+          doc.text(`Atividade: ${group.taskShort}`, margin, y);
+          y += 3.2;
           doc.setTextColor(20);
 
           for (let pIdx = 0; pIdx < group.photos.length; pIdx += cols) {
-            ensureSpace(thumbH + captionH + 2);
+            ensureSpace(cardH + 2);
             const rowPhotos = group.photos.slice(pIdx, pIdx + cols);
+            const rowTopY = y;
+
             for (let c = 0; c < rowPhotos.length; c++) {
               const ph = rowPhotos[c];
-              const x = margin + c * (thumbW + gap);
-              // Carrega imagem (publicUrl ou dataUrl)
-              let dataUrl: string | null = ph.dataUrl || null;
-              if (!dataUrl && ph.publicUrl) {
-                dataUrl = await fetchAsDataURL(ph.publicUrl);
-              }
-              if (dataUrl) {
-                try {
-                  const fmt = (ph.mimeType || '').includes('png') ? 'PNG' : 'JPEG';
-                  doc.addImage(dataUrl, fmt, x, y, thumbW, thumbH, undefined, 'FAST');
-                } catch {
-                  doc.setDrawColor(220); doc.rect(x, y, thumbW, thumbH);
-                  doc.setFontSize(6); doc.setTextColor(150);
-                  doc.text('Imagem indisponível', x + thumbW / 2, y + thumbH / 2, { align: 'center' });
-                  doc.setTextColor(20);
+              photoIndex += 1;
+              const x = margin + c * (cardW + gap);
+              const cardTop = rowTopY;
+
+              // Card border
+              doc.setDrawColor(220); doc.setLineWidth(0.2);
+              doc.rect(x, cardTop, cardW, cardH);
+
+              // Header: "Foto NN — Nome curto"
+              const num = String(photoIndex).padStart(Math.max(2, totalPad), '0');
+              const shortName = group.taskShort;
+              const titleRaw = `Foto ${num} — ${shortName}`;
+              doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(31, 41, 55);
+              const titleLines = doc.splitTextToSize(titleRaw, cardW - cardPad * 2);
+              doc.text(titleLines[0], x + cardPad, cardTop + cardPad + 2.6);
+
+              // Image area
+              const imgTop = cardTop + cardPad + headerH;
+              const imgAreaW = cardW - cardPad * 2;
+              const imgAreaH = imgBoxH;
+
+              let drew = false;
+              const srcUrl = ph.publicUrl || ph.dataUrl || null;
+              if (srcUrl) {
+                const oriented = await loadOrientedImage(srcUrl, ph.mimeType);
+                if (oriented) {
+                  // Encaixa preservando proporção (sem distorcer)
+                  const ratio = oriented.width / oriented.height;
+                  let drawW = imgAreaW;
+                  let drawH = drawW / ratio;
+                  if (drawH > imgAreaH) {
+                    drawH = imgAreaH;
+                    drawW = drawH * ratio;
+                  }
+                  const dx = x + cardPad + (imgAreaW - drawW) / 2;
+                  const dy = imgTop + (imgAreaH - drawH) / 2;
+                  try {
+                    const fmt = oriented.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+                    doc.addImage(oriented.dataUrl, fmt, dx, dy, drawW, drawH, undefined, 'FAST');
+                    drew = true;
+                  } catch { /* fallback below */ }
                 }
-              } else {
-                doc.setDrawColor(220); doc.rect(x, y, thumbW, thumbH);
-                doc.setFontSize(6); doc.setTextColor(150);
-                doc.text('Imagem indisponível', x + thumbW / 2, y + thumbH / 2, { align: 'center' });
+              }
+              if (!drew) {
+                doc.setDrawColor(230); doc.rect(x + cardPad, imgTop, imgAreaW, imgAreaH);
+                doc.setFontSize(6.5); doc.setTextColor(150);
+                doc.text('Imagem indisponível', x + cardPad + imgAreaW / 2, imgTop + imgAreaH / 2, { align: 'center' });
                 doc.setTextColor(20);
               }
-              // Legenda
-              doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(70);
-              const cap = ph.caption?.trim() || '—';
-              const when = ph.uploadedAt ? new Date(ph.uploadedAt).toLocaleString('pt-BR') : '';
-              const capLines = doc.splitTextToSize(cap, thumbW);
-              doc.text(capLines.slice(0, 2), x, y + thumbH + 2.6);
-              if (when) {
-                doc.setFontSize(5.6); doc.setTextColor(140);
-                doc.text(when, x, y + thumbH + captionH - 1);
-              }
+
+              // Observação
+              const capTop = imgTop + imgAreaH + 2;
+              doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6); doc.setTextColor(60);
+              const capRaw = ph.caption?.trim() ? `Observação: ${ph.caption.trim()}` : 'Observação: —';
+              const capLines = doc.splitTextToSize(capRaw, imgAreaW).slice(0, 2);
+              doc.text(capLines, x + cardPad, capTop + 1.6);
+
+              // Meta: data, hora, atividade curta, qtd
+              const metaTop = capTop + captionMaxH;
+              doc.setFontSize(5.8); doc.setTextColor(130);
+              const when = ph.uploadedAt ? new Date(ph.uploadedAt) : null;
+              const dateStr = when ? when.toLocaleDateString('pt-BR') : '';
+              const timeStr = when ? when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+              const qtyStr = (ph.quantity != null && ph.unit) ? ` — ${ph.quantity} ${ph.unit}` : '';
+              const metaParts = [
+                [dateStr, timeStr].filter(Boolean).join(', '),
+                shortName,
+              ].filter(Boolean).join(' — ') + qtyStr;
+              const metaLines = doc.splitTextToSize(metaParts, imgAreaW).slice(0, 1);
+              doc.text(metaLines, x + cardPad, metaTop + 1.4);
               doc.setTextColor(20);
             }
-            y += thumbH + captionH + 1;
+            y = rowTopY + cardH + 2;
           }
           y += 1;
         }
