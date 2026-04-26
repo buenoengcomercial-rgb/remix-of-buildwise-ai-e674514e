@@ -441,7 +441,7 @@ export function convertStructuredToProject(result: ParseResult, startDate: strin
           unit: comp.unit,
           itemCode: comp.code || undefined,
           priceBank: comp.bank || undefined,
-          unitPriceNoBDI: comp.unitPriceNoBdi,
+          unitPriceNoBDI: comp.unitPriceNoBDI,
           laborCompositions: laborComps,
           materials: [],
           observations: comp.code ? `Código: ${comp.code}` : undefined,
