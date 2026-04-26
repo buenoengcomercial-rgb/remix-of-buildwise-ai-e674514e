@@ -32,6 +32,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import logoFull from '@/assets/logo-bueno.png';
+import logoIcon from '@/assets/logo-bueno-icon.png';
 
 interface AppSidebarProps {
   currentView: AppView;
