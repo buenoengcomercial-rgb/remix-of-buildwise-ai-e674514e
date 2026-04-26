@@ -206,8 +206,17 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
                           <Copy className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id); }}
-                          title="Excluir"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (projects.length <= 1) {
+                              import('sonner').then(({ toast }) =>
+                                toast.error('Não é possível excluir a única obra existente. Crie outra obra antes de excluir esta.')
+                              );
+                              return;
+                            }
+                            setConfirmDeleteId(p.id);
+                          }}
+                          title="Excluir obra"
                           className={`p-1 rounded ${isActive ? 'hover:bg-primary-foreground/20' : 'hover:bg-destructive/20 text-destructive'}`}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -232,16 +241,18 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
+            <AlertDialogTitle>Deseja realmente excluir esta obra?</AlertDialogTitle>
             <AlertDialogDescription>
-              Todos os dados da obra <strong>{projectToDelete?.name}</strong> (tarefas, medições, configurações)
-              serão removidos permanentemente. Esta ação não pode ser desfeita.
+              Você está prestes a excluir a obra: <strong>{projectToDelete?.name}</strong>.
+              <br /><br />
+              Esta ação pode remover cronograma, tarefas, medições e demais dados vinculados a esta obra.
+              Não é possível desfazer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmedDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+              Excluir obra
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
