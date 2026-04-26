@@ -6,6 +6,7 @@ import Dashboard from '@/components/Dashboard';
 import GanttChart from '@/components/GanttChart';
 import TaskList from '@/components/TaskList';
 import Measurement from '@/components/Measurement';
+import DailyReport from '@/components/DailyReport';
 import UndoButton from '@/components/UndoButton';
 import SaveStatusIndicator, { SaveStatus } from '@/components/SaveStatusIndicator';
 import MigrationDialog from '@/components/MigrationDialog';
@@ -48,7 +49,7 @@ export default function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const undoStacksRef = useRef<UndoStacks>({ dashboard: [], gantt: [], tasks: [], measurement: [] });
+  const undoStacksRef = useRef<UndoStacks>({ dashboard: [], gantt: [], tasks: [], measurement: [], dailyReport: [] });
   const [undoVersion, setUndoVersion] = useState(0);
   const saveTimerRef = useRef<number | null>(null);
   const initialLoadRef = useRef(false);
@@ -169,6 +170,7 @@ export default function Index() {
   const ganttSetter = useMemo(() => makeViewSetter('gantt'), [makeViewSetter]);
   const tasksSetter = useMemo(() => makeViewSetter('tasks'), [makeViewSetter]);
   const measurementSetter = useMemo(() => makeViewSetter('measurement'), [makeViewSetter]);
+  const dailyReportSetter = useMemo(() => makeViewSetter('dailyReport'), [makeViewSetter]);
 
   const handleUndo = useCallback((view: AppView) => {
     const stack = undoStacksRef.current[view];
@@ -187,7 +189,7 @@ export default function Index() {
       const proj = await loadCloudProject(id);
       if (proj) {
         setRawProject(proj);
-        undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+        undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [], dailyReport: [] };
         setUndoVersion(v => v + 1);
       }
     } catch {
@@ -203,7 +205,7 @@ export default function Index() {
       const newProj = await createCloudProject(finalName, orgId);
       await refreshCloudList();
       setRawProject(newProj);
-      undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+      undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [], dailyReport: [] };
       setUndoVersion(v => v + 1);
       return newProj.id;
     } catch {
@@ -252,7 +254,7 @@ export default function Index() {
           const proj = await loadCloudProject(next.id);
           if (proj) {
             setRawProject(proj);
-            undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [] };
+            undoStacksRef.current = { dashboard: [], gantt: [], tasks: [], measurement: [], dailyReport: [] };
           }
         }
       }
@@ -319,6 +321,8 @@ export default function Index() {
         return <TaskList project={project} onProjectChange={tasksSetter} undoButton={<UndoButton canUndo={canUndo('tasks')} onUndo={() => handleUndo('tasks')} />} />;
       case 'measurement':
         return <Measurement project={project} onProjectChange={measurementSetter} undoButton={<UndoButton canUndo={canUndo('measurement')} onUndo={() => handleUndo('measurement')} />} />;
+      case 'dailyReport':
+        return <DailyReport project={project} onProjectChange={dailyReportSetter} undoButton={<UndoButton canUndo={canUndo('dailyReport')} onUndo={() => handleUndo('dailyReport')} />} />;
     }
   };
 
