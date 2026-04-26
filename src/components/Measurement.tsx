@@ -824,7 +824,252 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
     XLSX.writeFile(wb, `medicao_${effNumber}_${effStart}_a_${effEnd}.xlsx`);
   };
 
-  const handlePrint = () => window.print();
+  // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
+  const exportPDF = () => {
+    const headerCtx = activeMeasurement?.contractSnapshot ?? {
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+    };
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 5;
+
+    // ── Cabeçalho do boletim ──
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('BOLETIM DE MEDIÇÃO PARA PAGAMENTO', pageW / 2, margin + 4, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const labelVal = (label: string, value: string) => {
+      doc.setFont('helvetica', 'bold');
+      const lw = doc.getTextWidth(label + ' ');
+      doc.text(label, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      doc.text(value, lw, 0);
+    };
+    // Linhas em duas colunas
+    const col1X = margin;
+    const col2X = pageW / 2 + 2;
+    let y = margin + 8;
+    const lineH = 3.2;
+
+    const drawPair = (lbl1: string, val1: string, lbl2: string, val2: string) => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+      doc.text(lbl1, col1X, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(val1 || '-'), col1X + doc.getTextWidth(lbl1 + ' '), y, {
+        maxWidth: col2X - col1X - doc.getTextWidth(lbl1 + ' ') - 2,
+      });
+      doc.setFont('helvetica', 'bold');
+      doc.text(lbl2, col2X, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(val2 || '-'), col2X + doc.getTextWidth(lbl2 + ' '), y, {
+        maxWidth: pageW - margin - col2X - doc.getTextWidth(lbl2 + ' ') - 2,
+      });
+      y += lineH;
+    };
+
+    drawPair('Obra:', project.name || '', 'Local/Município:', headerCtx.location || '');
+    drawPair('Contratante:', headerCtx.contractor || '', 'Contratada:', headerCtx.contracted || '');
+    drawPair('Objeto:', headerCtx.contractObject || '', 'Nº Contrato:', headerCtx.contractNumber || '');
+    drawPair(
+      'Medição Nº:', String(effNumber),
+      'Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`
+    );
+    drawPair(
+      'Data emissão:', fmtDateBR(effIssue),
+      'BDI %:', `${effBdi}`
+    );
+    drawPair(
+      'Fonte de orçamento:', headerCtx.budgetSource || '',
+      'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'
+    );
+
+    // Faixa resumida de totais
+    y += 1;
+    doc.setDrawColor(180); doc.setLineWidth(0.2);
+    doc.line(margin, y, pageW - margin, y);
+    y += 3;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    const summary = [
+      ['Contratado', fmtBRL(totals.contracted)],
+      ['Medição', fmtBRL(totals.period)],
+      ['Acumulado', fmtBRL(totals.accum)],
+      ['Saldo', fmtBRL(totals.balance)],
+    ];
+    const cellW = (pageW - margin * 2) / summary.length;
+    summary.forEach((s, i) => {
+      const x = margin + i * cellW;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+      doc.text(s[0], x + 2, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      doc.text(s[1], x + cellW - 2, y, { align: 'right' });
+    });
+    y += 2;
+
+    // ── Tabela ──
+    const head = [[
+      'Item', 'Código', 'Banco', 'Descrição', 'Und.',
+      'Q. Contrat.', 'V.Un. s/BDI', 'V.Un. c/BDI', 'Total Contrat.',
+      'Q. Medição', 'Subt. Medição',
+      'Q. Acum.', 'Subt. Acum.',
+      'Q. Saldo', 'Subt. Saldo',
+    ]];
+
+    type Row = (string | number)[];
+    type RowMeta = { kind: 'chapter' | 'item' | 'subtotal' | 'total'; depth: number };
+    const body: Row[] = [];
+    const meta: RowMeta[] = [];
+
+    const walkPDF = (group: GroupNode) => {
+      const indent = '  '.repeat(group.depth);
+      body.push([`${group.number}`, '', '', `${indent}${group.name}`, '', '', '', '', '', '', '', '', '', '', '']);
+      meta.push({ kind: 'chapter', depth: group.depth });
+      group.rows.forEach(r => {
+        body.push([
+          r.item, r.itemCode || '', r.priceBank || '', r.description, r.unit || '',
+          fmtNum(r.qtyContracted),
+          fmtBRL(r.unitPriceNoBDI),
+          fmtBRL(r.unitPriceWithBDI),
+          fmtBRL(r.valueContracted),
+          fmtNum(r.qtyPeriod),
+          fmtBRL(r.valuePeriod),
+          fmtNum(r.qtyCurrentAccum),
+          fmtBRL(r.valueAccum),
+          fmtNum(r.qtyBalance),
+          fmtBRL(r.valueBalance),
+        ]);
+        meta.push({ kind: 'item', depth: group.depth });
+      });
+      group.children.forEach(walkPDF);
+      body.push([
+        '', '', '', `${indent}Subtotal ${group.number} ${group.name}`, '', '', '', '',
+        fmtBRL(group.totals.contracted), '',
+        fmtBRL(group.totals.period), '',
+        fmtBRL(group.totals.accum), '',
+        fmtBRL(group.totals.balance),
+      ]);
+      meta.push({ kind: 'subtotal', depth: group.depth });
+    };
+    groupTree.forEach(walkPDF);
+
+    body.push([
+      '', '', '', 'TOTAL GERAL', '', '', '', '',
+      fmtBRL(totals.contracted), '',
+      fmtBRL(totals.period), '',
+      fmtBRL(totals.accum), '',
+      fmtBRL(totals.balance),
+    ]);
+    meta.push({ kind: 'total', depth: 0 });
+
+    // Cores por grupo (em RGB neutros para PDF)
+    const C_ID = [245, 245, 245] as [number, number, number];
+    const C_CONTRACT = [219, 234, 254] as [number, number, number];   // azul claro
+    const C_PERIOD = [220, 252, 231] as [number, number, number];     // verde claro
+    const C_ACCUM = [254, 243, 199] as [number, number, number];      // amarelo claro
+    const C_BALANCE = [254, 226, 226] as [number, number, number];    // vermelho claro
+
+    const groupColor = (col: number): [number, number, number] | undefined => {
+      if (col <= 4) return C_ID;
+      if (col <= 8) return C_CONTRACT;
+      if (col <= 10) return C_PERIOD;
+      if (col <= 12) return C_ACCUM;
+      return C_BALANCE;
+    };
+
+    autoTable(doc, {
+      startY: y + 1,
+      head,
+      body,
+      margin: { left: margin, right: margin, top: margin, bottom: margin },
+      theme: 'grid',
+      styles: {
+        font: 'helvetica',
+        fontSize: 6.2,
+        cellPadding: 1,
+        overflow: 'linebreak',
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1,
+        valign: 'top',
+      },
+      headStyles: {
+        fillColor: [60, 60, 70],
+        textColor: 255,
+        fontSize: 6.2,
+        fontStyle: 'bold',
+        halign: 'center',
+      },
+      columnStyles: {
+        0: { cellWidth: (pageW - margin * 2) * 0.04, halign: 'center' },
+        1: { cellWidth: (pageW - margin * 2) * 0.06 },
+        2: { cellWidth: (pageW - margin * 2) * 0.05 },
+        3: { cellWidth: (pageW - margin * 2) * 0.22 },
+        4: { cellWidth: (pageW - margin * 2) * 0.04, halign: 'center' },
+        5: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
+        6: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
+        7: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
+        8: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
+        9: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
+        10: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
+        11: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
+        12: { cellWidth: (pageW - margin * 2) * 0.08, halign: 'right' },
+        13: { cellWidth: (pageW - margin * 2) * 0.06, halign: 'right' },
+        14: { cellWidth: (pageW - margin * 2) * 0.07, halign: 'right' },
+      },
+      didParseCell: (data) => {
+        if (data.section === 'head') {
+          const c = groupColor(data.column.index);
+          if (c) {
+            // sobrescreve com tons de cabeçalho mais escuros
+            const darken = (rgb: [number, number, number]): [number, number, number] =>
+              [Math.max(0, rgb[0] - 40), Math.max(0, rgb[1] - 40), Math.max(0, rgb[2] - 40)];
+            data.cell.styles.fillColor = darken(c);
+            data.cell.styles.textColor = [30, 30, 30];
+          }
+          return;
+        }
+        const m = meta[data.row.index];
+        if (!m) return;
+        if (m.kind === 'chapter') {
+          data.cell.styles.fillColor = m.depth === 0 ? [219, 234, 254] : [241, 245, 249];
+          data.cell.styles.fontStyle = 'bold';
+        } else if (m.kind === 'subtotal') {
+          data.cell.styles.fillColor = m.depth === 0 ? [224, 231, 255] : [243, 244, 246];
+          data.cell.styles.fontStyle = 'bold';
+        } else if (m.kind === 'total') {
+          data.cell.styles.fillColor = [55, 65, 81];
+          data.cell.styles.textColor = 255;
+          data.cell.styles.fontStyle = 'bold';
+        } else {
+          // body row: tonalizar conforme grupo
+          const c = groupColor(data.column.index);
+          if (c) data.cell.styles.fillColor = c;
+        }
+      },
+      didDrawPage: () => {
+        // Numeração de páginas (sem URL/data do navegador)
+        const pageCount = doc.getNumberOfPages();
+        const current = doc.getCurrentPageInfo().pageNumber;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
+        doc.setTextColor(120);
+        doc.text(
+          `Medição Nº ${effNumber} — ${project.name || ''}`,
+          margin, pageH - 1.5
+        );
+        doc.text(`Página ${current} / ${pageCount}`, pageW - margin, pageH - 1.5, { align: 'right' });
+        doc.setTextColor(0);
+      },
+    });
+
+    const safe = (s: string) => (s || '').replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '');
+    const num = String(effNumber).padStart(2, '0');
+    const projectSlug = safe(project.name || 'Obra');
+    doc.save(`Medicao_${num}_${projectSlug}.pdf`);
+  };
+
+  const handlePrint = () => exportPDF();
 
   // ───────── RENDER ─────────
   const COLSPAN = 15;
