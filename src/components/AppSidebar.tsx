@@ -384,6 +384,51 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Confirmação de importação de backup */}
+      <AlertDialog open={!!pendingBackup} onOpenChange={(o) => !o && cancelImport()}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingBackup?.kind === 'multi'
+                ? `Deseja importar ${pendingSummaries.length} obra(s)?`
+                : 'Deseja importar esta obra?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p className="text-muted-foreground">
+                  Resumo do backup ({pendingBackup?.kind === 'multi' ? 'geral' : 'obra única'}):
+                </p>
+                <div className="max-h-64 overflow-y-auto rounded border border-border divide-y divide-border">
+                  {pendingSummaries.map((s, i) => (
+                    <div key={i} className="p-2.5 text-xs">
+                      <div className="font-semibold text-foreground">{s.name}</div>
+                      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
+                        <span>Capítulos: <strong>{s.chapterCount}</strong></span>
+                        <span>Tarefas: <strong>{s.taskCount}</strong></span>
+                        <span>Medições: <strong>{s.measurementCount}</strong></span>
+                        {s.startDate && s.endDate && (
+                          <span>Período: {s.startDate} → {s.endDate}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  As obras existentes não serão alteradas. Caso já exista uma obra com o mesmo nome,
+                  a importada receberá o sufixo "(importada)".
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmImport}>
+              {pendingBackup?.kind === 'multi' ? 'Importar obras' : 'Importar obra'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <nav className="flex-1 p-2 space-y-1">
         {navItems.map(({ view, label, icon: Icon }) => {
           const isActive = currentView === view;
