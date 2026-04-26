@@ -52,7 +52,6 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
 import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
-import MeasurementDailyReportsPanel from '@/components/MeasurementDailyReportsPanel';
 import { summarizeDailyReportsForPeriod, buildDailyReportSnapshot } from '@/lib/dailyReportSummary';
 
 interface MeasurementProps {
@@ -1660,15 +1659,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       {/* Painel de validação (somente em modo "live") */}
       {!activeMeasurement && (
         <div className="print:hidden">
-          <MeasurementValidationPanel issues={validationIssues} />
+          <MeasurementValidationPanel
+            issues={validationIssues}
+            onOpenDailyReport={
+              onOpenDailyReport
+                ? () => onOpenDailyReport(effStart, 'draft')
+                : undefined
+            }
+          />
         </div>
       )}
-
-      {/* Diários de Obra do período (live e snapshot) */}
-      <MeasurementDailyReportsPanel
-        summary={dailyReportsSummary}
-        onOpenDiary={onOpenDailyReport}
-      />
 
       {/* Cabeçalho técnico do boletim */}
       <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">
