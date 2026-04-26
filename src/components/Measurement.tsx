@@ -49,6 +49,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
+import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
+import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
 
 interface MeasurementProps {
   project: Project;
