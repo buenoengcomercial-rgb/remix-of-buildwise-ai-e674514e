@@ -496,6 +496,81 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     }
   };
 
+  /**
+   * Carrega a imagem respeitando orientação EXIF e devolve dataURL JPEG
+   * com largura/altura naturais já corrigidas. Usa createImageBitmap quando
+   * disponível (aplica EXIF) com fallback para <img> + canvas.
+   */
+  const loadOrientedImage = async (
+    src: string,
+    mimeType?: string,
+  ): Promise<{ dataUrl: string; width: number; height: number } | null> => {
+    try {
+      let bitmapW = 0, bitmapH = 0;
+      let canvas: HTMLCanvasElement;
+
+      // Caminho preferido: createImageBitmap com correção EXIF
+      if (typeof createImageBitmap === 'function') {
+        const res = await fetch(src);
+        const blob = await res.blob();
+        const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' } as ImageBitmapOptions).catch(async () => {
+          // Safari antigos: sem opção EXIF — usa fallback
+          return await createImageBitmap(blob);
+        });
+        bitmapW = bmp.width; bitmapH = bmp.height;
+        canvas = document.createElement('canvas');
+        canvas.width = bitmapW; canvas.height = bitmapH;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(bmp, 0, 0);
+        bmp.close?.();
+      } else {
+        // Fallback: <img> (em navegadores modernos respeita EXIF ao desenhar)
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.crossOrigin = 'anonymous';
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error('img load fail'));
+          i.src = src;
+        });
+        bitmapW = img.naturalWidth; bitmapH = img.naturalHeight;
+        canvas = document.createElement('canvas');
+        canvas.width = bitmapW; canvas.height = bitmapH;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+      }
+
+      // Reduz dimensão máxima para um PDF leve (longest side <= 1600px)
+      const MAX = 1600;
+      const longest = Math.max(bitmapW, bitmapH);
+      if (longest > MAX) {
+        const scale = MAX / longest;
+        const dw = Math.round(bitmapW * scale);
+        const dh = Math.round(bitmapH * scale);
+        const c2 = document.createElement('canvas');
+        c2.width = dw; c2.height = dh;
+        c2.getContext('2d')!.drawImage(canvas, 0, 0, dw, dh);
+        canvas = c2;
+        bitmapW = dw; bitmapH = dh;
+      }
+
+      const isPng = (mimeType || '').includes('png');
+      const dataUrl = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.85);
+      return { dataUrl, width: bitmapW, height: bitmapH };
+    } catch {
+      return null;
+    }
+  };
+
+  /** Nome curto da atividade para títulos de fotos no PDF. */
+  const shortTaskName = (raw?: string, max = 50): string => {
+    if (!raw) return '—';
+    let s = raw.trim();
+    // Corta no primeiro separador estrutural
+    const cut = s.search(/[,.;\-–—()\/]/);
+    if (cut > 0) s = s.slice(0, cut).trim();
+    if (s.length > max) s = s.slice(0, max - 1).trimEnd() + '…';
+    return s || '—';
+  };
+
   // ───── PDF ─────
   /**
    * Gera o PDF do Diário de Obra.
