@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
+import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
