@@ -45,45 +45,56 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
 
   // Code → chapter for hierarchy lookup
   const codeToChapter = new Map<string, ParsedChapter>();
-  // Stack-based tracking: last active chapter/composition by sequential order
   let lastChapter: ParsedChapter | null = null;
   let lastComposition: ParsedComposition | null = null;
 
-  // Skip header row if detected
-  const startRow = detectHeaderRow(rows);
+  // Detect header row + dynamic column indices
+  const { startRow, cols } = detectHeaderAndColumns(rows);
 
   for (let i = startRow; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
 
-    const colA = cellStr(row[0]); // Código
-    const colB = cellStr(row[1]); // Tipo
-    const colC = cellStr(row[2]); // Resumo/Descrição
-    const colD = cellStr(row[3]); // Unidade
-    const colE = cellNum(row[4]); // Quantidade
-    const colF = cellNum(row[5]); // Coeficiente (RUP)
-    const colG = cellNum(row[6]); // Horas
-    const colH = cellNum(row[7]); // Dias
+    const code = cellStr(row[cols.code]);
+    const bank = cellStr(row[cols.bank]);
+    const type = cellStr(row[cols.type]);
+    const description = cellStr(row[cols.description]);
+    const unit = cellStr(row[cols.unit]);
+    const quantity = cellNum(row[cols.quantity]);
+    const productivity = cellNum(row[cols.productivity]);
+    const unitPriceNoBdi = cellNum(row[cols.unitPriceNoBdi]);
+    const hours = cellNum(row[cols.hours]);
+    const days = cellNum(row[cols.days]);
 
-    const hasD = colD !== '';
-    const hasE = colE > 0;
-    const hasF = colF > 0;
-    const hasG = colG > 0;
-    const hasH = colH > 0;
+    const hasD = description !== '' || unit !== '';
+    const hasE = quantity > 0;
+    const hasF = productivity > 0;
+    const hasG = hours > 0;
+    const hasH = days > 0;
+    const hasPrice = unitPriceNoBdi > 0;
 
     // Skip completely empty rows
-    const desc = colC || colB || colA;
-    if (!desc && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
+    const desc = description || type || code;
+    if (!desc && !hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice) continue;
+    if (!code && !hasD && !hasE && !hasF && !hasG && !hasH && !hasPrice) continue;
 
-    // Skip rows with empty code AND no useful data
-    if (!colA && !hasD && !hasE && !hasF && !hasG && !hasH) continue;
-
-    // ── Normalize column B for type detection (PRIORITY) ──
-    const tipoNorm = colB.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    const isTypeCap = tipoNorm === 'capitulo' || tipoNorm === 'cap' || tipoNorm === 'subcapitulo';
+    // Type detection (PRIORITY)
+    const tipoNorm = normalizeText(type);
+    const isTypeCap = tipoNorm === 'capitulo' || tipoNorm === 'cap';
+    const isTypeSub = tipoNorm === 'subcapitulo' || tipoNorm === 'subcap';
     const isTypeComp = tipoNorm === 'composicao' || tipoNorm === 'comp' || tipoNorm === 'servico' || tipoNorm === 'atividade';
     const isTypeLabor = tipoNorm === 'mao de obra' || tipoNorm === 'mdo' || tipoNorm === 'recurso' || tipoNorm === 'insumo mao de obra';
-    const hasTypeHint = isTypeCap || isTypeComp || isTypeLabor;
+    const hasTypeHint = isTypeCap || isTypeSub || isTypeComp || isTypeLabor;
+
+    // Compatibility aliases for downstream blocks
+    const colA = code;
+    const colB = type;
+    const colC = description;
+    const colD = unit;
+    const colE = quantity;
+    const colF = productivity;
+    const colG = hours;
+    const colH = days;
 
     // ── Classification: Column B PRIORITY, columns D-H as fallback ──
     const classifiedAsChapter = hasTypeHint ? isTypeCap : (!hasD && !hasE && !hasF && !hasG && !hasH && !!desc);
