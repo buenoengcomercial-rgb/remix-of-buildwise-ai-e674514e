@@ -1516,9 +1516,9 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="measurement-table w-full text-[11px] border-collapse">
+        <CardContent className="p-0 overflow-hidden">
+          <div className="overflow-x-auto max-w-full print:overflow-visible">
+            <table className="measurement-table w-full text-[11px] border-collapse print:min-w-0">
               <colgroup>
                 <col className="col-item" />
                 <col className="col-code" />
