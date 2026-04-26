@@ -59,6 +59,35 @@ export function deleteProject(id: string) {
   saveIndex(listProjects().filter(p => p.id !== id));
 }
 
+export function renameProject(id: string, newName: string): Project | null {
+  const proj = loadProject(id);
+  if (!proj) return null;
+  const updated = { ...proj, name: newName };
+  saveProject(updated);
+  return updated;
+}
+
+export function duplicateProject(id: string): Project | null {
+  const proj = loadProject(id);
+  if (!proj) return null;
+  const newId = `project-${Date.now()}`;
+  const copy: Project = {
+    ...JSON.parse(JSON.stringify(proj)),
+    id: newId,
+    name: `${proj.name} (cópia)`,
+  };
+  saveProject(copy);
+  return copy;
+}
+
+export function generateUniqueProjectName(base = 'Nova obra'): string {
+  const names = new Set(listProjects().map(p => p.name));
+  if (!names.has(base)) return base;
+  let i = 2;
+  while (names.has(`${base} ${i}`)) i++;
+  return `${base} ${i}`;
+}
+
 export function getActiveProjectId(): string | null {
   return localStorage.getItem(ACTIVE_PROJECT_KEY);
 }
