@@ -12,9 +12,11 @@ export interface ParsedLabor {
 
 export interface ParsedComposition {
   code: string;
+  bank?: string;
   name: string;
   unit: string;
   quantity: number;
+  unitPriceNoBdi?: number;
   labor: ParsedLabor[];
   needsReview: boolean;
   reviewReason?: string;
