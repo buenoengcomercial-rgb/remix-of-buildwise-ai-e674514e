@@ -15,6 +15,8 @@ interface DailyReportProps {
   project: Project;
   onProjectChange: (next: Project | ((prev: Project) => Project)) => void;
   undoButton?: React.ReactNode;
+  /** Data ISO inicial vinda da Medição (ao clicar em "Abrir Diário"). */
+  initialDate?: string;
 }
 
 const WEATHER_OPTIONS: Array<{ value: WeatherCondition; label: string; icon: React.ElementType }> = [
