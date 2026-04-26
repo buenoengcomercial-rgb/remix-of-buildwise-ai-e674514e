@@ -31,6 +31,9 @@ import {
   XCircle,
   FileCheck2,
   Trash2,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -236,6 +239,8 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
   const [confirmEdit, setConfirmEdit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editReason, setEditReason] = useState('');
+  const [editingPriceTaskId, setEditingPriceTaskId] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('');
 
   useEffect(() => {
     const c = project.contractInfo || {};
@@ -1351,38 +1356,74 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
                                 {fmtNum(r.qtyContracted)}
                               </td>
                               <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`}>
-                                <div className="relative print:hidden">
-                                  <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
-                                  <Input
-                                    type="number" step="0.01" min="0"
-                                    value={Number((r.unitPriceNoBDI || 0).toFixed(2))}
-                                    placeholder="0,00"
-                                    disabled={isLocked}
-                                    onChange={e => updateUnitPriceNoBDI(r.taskId, parseFloat(e.target.value) || 0)}
-                                    className={`h-7 pl-6 pr-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 ${
-                                      r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
-                                    }`}
-                                    title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Valor unitário sem BDI'}
-                                  />
-                                </div>
+                                {editingPriceTaskId === r.taskId ? (
+                                  <div className="flex items-center gap-1 print:hidden bg-accent/40 rounded px-1 py-0.5">
+                                    <div className="relative flex-1">
+                                      <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
+                                      <Input
+                                        autoFocus
+                                        type="number" step="0.01" min="0"
+                                        value={editingPriceValue}
+                                        placeholder="0,00"
+                                        onChange={e => setEditingPriceValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            updateUnitPriceNoBDI(r.taskId, parseFloat(editingPriceValue) || 0);
+                                            setEditingPriceTaskId(null);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingPriceTaskId(null);
+                                          }
+                                        }}
+                                        className="h-7 pl-6 pr-1.5 text-right tabular-nums text-[11px]"
+                                      />
+                                    </div>
+                                    <Button
+                                      type="button" size="icon" variant="ghost"
+                                      className="h-6 w-6 text-success hover:text-success"
+                                      title="Confirmar (Enter)"
+                                      onClick={() => {
+                                        updateUnitPriceNoBDI(r.taskId, parseFloat(editingPriceValue) || 0);
+                                        setEditingPriceTaskId(null);
+                                      }}
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      type="button" size="icon" variant="ghost"
+                                      className="h-6 w-6 text-destructive hover:text-destructive"
+                                      title="Cancelar (Esc)"
+                                      onClick={() => setEditingPriceTaskId(null)}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-end gap-1 print:hidden">
+                                    <span className={`tabular-nums text-[11px] ${r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''}`}>
+                                      {fmtBRL(r.unitPriceNoBDI || 0)}
+                                    </span>
+                                    {!isLocked && (
+                                      <Button
+                                        type="button" size="icon" variant="ghost"
+                                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                        title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Editar valor unitário s/ BDI'}
+                                        onClick={() => {
+                                          setEditingPriceValue(((r.unitPriceNoBDI || 0)).toFixed(2));
+                                          setEditingPriceTaskId(r.taskId);
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    {isLocked && (
+                                      <Lock className="h-3 w-3 text-muted-foreground" aria-label="Medição bloqueada" />
+                                    )}
+                                  </div>
+                                )}
                                 <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceNoBDI || 0)}</span>
                               </td>
-                              <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`}>
-                                <div className="relative print:hidden">
-                                  <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
-                                  <Input
-                                    type="number" step="0.01" min="0"
-                                    value={Number((r.unitPriceWithBDI || 0).toFixed(2))}
-                                    placeholder="0,00"
-                                    disabled={isLocked}
-                                    onChange={e => updateUnitPriceWithBDI(r.taskId, parseFloat(e.target.value) || 0)}
-                                    className={`h-7 pl-6 pr-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 ${
-                                      r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''
-                                    }`}
-                                    title="Valor unitário com BDI"
-                                  />
-                                </div>
-                                <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceWithBDI || 0)}</span>
+                              <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${G_BG.contract}`}>
+                                {fmtBRL(r.unitPriceWithBDI || 0)}
                               </td>
                               <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${G_BG.contract}`}>
                                 {fmtBRL(r.valueContracted)}
