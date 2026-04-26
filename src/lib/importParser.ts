@@ -598,14 +598,14 @@ interface ColumnMap {
   unit: number;
   quantity: number;
   productivity: number;
-  unitPriceNoBdi: number;
+  unitPriceNoBDI: number;
   hours: number;
   days: number;
 }
 
 const DEFAULT_COLS: ColumnMap = {
   code: 0, bank: -1, type: 1, description: 2, unit: 3,
-  quantity: 4, productivity: 5, unitPriceNoBdi: -1, hours: 6, days: 7,
+  quantity: 4, productivity: 5, unitPriceNoBDI: -1, hours: 6, days: 7,
 };
 
 function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: ColumnMap } {
