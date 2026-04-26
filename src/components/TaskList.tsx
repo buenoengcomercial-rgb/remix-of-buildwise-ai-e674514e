@@ -1037,16 +1037,6 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() => {
-                                    setExpandedDaily(expandedDaily === task.id ? null : task.id);
-                                    if (expandedRup === task.id) setExpandedRup(null);
-                                  }}
-                                  className={`p-1 rounded transition-colors ${expandedDaily === task.id ? 'bg-info/30 text-info' : 'hover:bg-info/20 text-info'}`}
-                                  title="Apontamento diário"
-                                >
-                                  <ClipboardList className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => {
                                     setExpandedRup(expandedRup === task.id ? null : task.id);
                                     if (expandedDaily === task.id) setExpandedDaily(null);
                                   }}
