@@ -16,7 +16,7 @@ export interface ParsedComposition {
   name: string;
   unit: string;
   quantity: number;
-  unitPriceNoBdi?: number;
+  unitPriceNoBDI?: number;
   labor: ParsedLabor[];
   needsReview: boolean;
   reviewReason?: string;
