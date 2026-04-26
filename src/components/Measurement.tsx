@@ -394,25 +394,26 @@ export default function Measurement({ project, onProjectChange }: MeasurementPro
 
       if (unitPriceNoBDI > 0) {
         // Sempre recalcular c/BDI a partir do BDI vigente — nunca substituir o preço importado
-        unitPriceWithBDI = unitPriceNoBDI * effBdiFactor;
+        unitPriceWithBDI = trunc2(unitPriceNoBDI * effBdiFactor);
       } else if ((task.unitPrice ?? 0) > 0) {
-        unitPriceWithBDI = task.unitPrice!;
-        unitPriceNoBDI = unitPriceWithBDI / effBdiFactor;
+        unitPriceWithBDI = trunc2(task.unitPrice!);
+        unitPriceNoBDI = trunc2(unitPriceWithBDI / effBdiFactor);
       } else {
         const est = estimateTaskValue(task);
-        unitPriceWithBDI = qtyContracted > 0 ? est / qtyContracted : 0;
-        unitPriceNoBDI = unitPriceWithBDI / effBdiFactor;
+        unitPriceWithBDI = qtyContracted > 0 ? trunc2(est / qtyContracted) : 0;
+        unitPriceNoBDI = trunc2(unitPriceWithBDI / effBdiFactor);
         unitPriceIsEstimated = unitPriceWithBDI > 0;
       }
+      unitPriceNoBDI = trunc2(unitPriceNoBDI);
 
-      const valueContracted = unitPriceWithBDI * qtyContracted;
-      const valuePeriod = unitPriceWithBDI * qtyPeriod;
-      const valueAccum = unitPriceWithBDI * qtyCurrentAccum;
-      const valueBalance = Math.max(valueContracted - valueAccum, 0);
-      const valueContractedNoBDI = unitPriceNoBDI * qtyContracted;
-      const valuePeriodNoBDI = unitPriceNoBDI * qtyPeriod;
-      const valueAccumNoBDI = unitPriceNoBDI * qtyCurrentAccum;
-      const valueBalanceNoBDI = Math.max(valueContractedNoBDI - valueAccumNoBDI, 0);
+      const valueContracted = trunc2(unitPriceWithBDI * qtyContracted);
+      const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
+      const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
+      const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
+      const valueContractedNoBDI = trunc2(unitPriceNoBDI * qtyContracted);
+      const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
+      const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
+      const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
 
       return {
         item: itemNumber, phaseId: phase.id, phaseChain: chain, taskId: task.id,
