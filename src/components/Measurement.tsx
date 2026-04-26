@@ -438,19 +438,17 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
       // Snapshot: não recalcula da EAP — usa o que foi salvo
       return activeMeasurement.items.map(it => {
         const qtyPeriod = it.qtyApproved ?? it.qtyProposed ?? 0;
-        const qtyCurrentAccum = it.qtyPriorAccum + qtyPeriod;
-        const qtyBalance = Math.max(it.qtyContracted - qtyCurrentAccum, 0);
-        const pct = it.qtyContracted > 0 ? (qtyCurrentAccum / it.qtyContracted) * 100 : 0;
-        const unitPriceWithBDI = trunc2(it.unitPriceWithBDI);
-        const unitPriceNoBDI = trunc2(it.unitPriceNoBDI);
-        const valueContracted = trunc2(unitPriceWithBDI * it.qtyContracted);
-        const valuePeriod = trunc2(unitPriceWithBDI * qtyPeriod);
-        const valueAccum = trunc2(unitPriceWithBDI * qtyCurrentAccum);
-        const valueBalance = Math.max(trunc2(valueContracted - valueAccum), 0);
-        const valueContractedNoBDI = trunc2(unitPriceNoBDI * it.qtyContracted);
-        const valuePeriodNoBDI = trunc2(unitPriceNoBDI * qtyPeriod);
-        const valueAccumNoBDI = trunc2(unitPriceNoBDI * qtyCurrentAccum);
-        const valueBalanceNoBDI = Math.max(trunc2(valueContractedNoBDI - valueAccumNoBDI), 0);
+        // Snapshot: preserva preços já congelados — derivamos BDI implícito p/ manter c/BDI exato
+        const snapNoBDI = trunc2(it.unitPriceNoBDI);
+        const snapWithBDI = trunc2(it.unitPriceWithBDI);
+        const implicitBdi = snapNoBDI > 0 ? ((snapWithBDI / snapNoBDI) - 1) * 100 : 0;
+        const calc = calculateMeasurementLine({
+          quantityContracted: it.qtyContracted,
+          quantityPeriod: qtyPeriod,
+          quantityPriorAccum: it.qtyPriorAccum,
+          unitPriceNoBDI: snapNoBDI,
+          bdiPercent: implicitBdi,
+        });
         return {
           item: it.item,
           phaseId: it.phaseId,
@@ -465,14 +463,20 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
           qtyPeriod,
           qtyProposed: it.qtyProposed,
           qtyApproved: it.qtyApproved,
-          qtyCurrentAccum,
-          qtyBalance,
-          percentExecuted: pct,
-          unitPriceNoBDI,
-          unitPriceWithBDI,
+          qtyCurrentAccum: calc.quantityCurrentAccum,
+          qtyBalance: calc.quantityBalance,
+          percentExecuted: calc.percentExecuted,
+          unitPriceNoBDI: calc.unitPriceNoBDI,
+          unitPriceWithBDI: calc.unitPriceWithBDI,
           unitPriceIsEstimated: false,
-          valueContractedNoBDI, valuePeriodNoBDI, valueAccumNoBDI, valueBalanceNoBDI,
-          valueContracted, valuePeriod, valueAccum, valueBalance,
+          valueContractedNoBDI: calc.totalContractedNoBDI,
+          valuePeriodNoBDI: calc.totalPeriodNoBDI,
+          valueAccumNoBDI: calc.totalAccumulatedNoBDI,
+          valueBalanceNoBDI: calc.totalBalanceNoBDI,
+          valueContracted: calc.totalContracted,
+          valuePeriod: calc.totalPeriod,
+          valueAccum: calc.totalAccumulated,
+          valueBalance: calc.totalBalance,
           hasNoLogsInPeriod: qtyPeriod === 0,
           hasNoLogsAtAll: false,
           notes: it.notes,
