@@ -1,5 +1,5 @@
 import { AppView } from '@/types/project';
-import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown } from 'lucide-react';
+import { LayoutDashboard, GanttChart, ListTodo, ClipboardList, HardHat, Sparkles, ChevronsLeft, ChevronsRight, FolderOpen, Plus, ChevronDown, ChevronRight, Pencil, Copy, Trash2, Check, X, MoreHorizontal, Download, Upload, FileDown, Building2, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -51,6 +51,12 @@ interface AppSidebarProps {
   /** Mostra botão de logout e e-mail do usuário no rodapé. */
   userEmail?: string;
   onLogout?: () => void;
+  /** Identidade da empresa/organização e função do usuário. */
+  orgName?: string;
+  roleLabel?: string;
+  /** Quando true, mostra a opção "Gerenciar acessos". */
+  canManageTeam?: boolean;
+  onOpenTeam?: () => void;
 }
 
 const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
@@ -60,7 +66,7 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId, projectsList, userEmail, onLogout }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId, projectsList, userEmail, onLogout, orgName, roleLabel, canManageTeam, onOpenTeam }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [showProjects, setShowProjects] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
