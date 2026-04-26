@@ -856,7 +856,7 @@ export default function Measurement({ project, onProjectChange, undoButton }: Me
   };
 
   return (
-    <div className="p-6 space-y-5 print:p-0 print:space-y-3">
+    <div className="measurement-print-root p-6 space-y-5 print:p-0 print:space-y-3">
       <style>{`
         .measurement-table { table-layout: fixed; min-width: 1400px; }
         .measurement-table col.col-item { width: 70px; }
