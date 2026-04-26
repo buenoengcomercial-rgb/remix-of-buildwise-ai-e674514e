@@ -123,8 +123,77 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
 
   const projectToDelete = projects.find(p => p.id === confirmDeleteId);
 
+  // ===== Backup / Import =====
+  const handleExportProject = (id: string) => {
+    const ok = exportProjectToFile(id);
+    if (ok) toast.success('Backup da obra exportado');
+    else toast.error('Não foi possível exportar a obra');
+  };
+
+  const handleExportAll = () => {
+    const ok = exportAllProjectsToFile();
+    if (ok) toast.success('Backup geral exportado');
+    else toast.error('Nenhuma obra para exportar');
+  };
+
+  const triggerImport = () => importInputRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await readFileAsText(file);
+      const backup = parseBackup(text);
+      if (!backup) {
+        toast.error('Arquivo de backup inválido ou incompatível.');
+        return;
+      }
+      const summaries = backup.kind === 'single'
+        ? [summarizeProject(backup.project)]
+        : backup.projects.map(summarizeProject);
+      setPendingBackup(backup);
+      setPendingSummaries(summaries);
+    } catch {
+      toast.error('Não foi possível ler o arquivo selecionado.');
+    }
+  };
+
+  const cancelImport = () => {
+    setPendingBackup(null);
+    setPendingSummaries([]);
+  };
+
+  const confirmImport = () => {
+    if (!pendingBackup) return;
+    try {
+      if (pendingBackup.kind === 'single') {
+        const saved = importProject(pendingBackup.project, { activate: true });
+        setProjects(listProjects());
+        toast.success(`Obra importada: ${saved.name}`);
+        onImportedProject?.(saved.id);
+      } else {
+        const saved = importAllProjects(pendingBackup.projects);
+        setProjects(listProjects());
+        toast.success(`${saved.length} obra(s) importada(s)`);
+        if (saved[0]) onImportedProject?.(saved[0].id);
+      }
+    } catch {
+      toast.error('Falha ao importar o backup.');
+    } finally {
+      cancelImport();
+    }
+  };
+
   return (
     <aside className={`${collapsed ? 'w-16' : 'w-64'} min-h-screen flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] transition-all duration-300`}>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={handleImportFile}
+      />
       <div className="p-3 border-b border-[hsl(var(--sidebar-border))] flex items-center justify-between">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
