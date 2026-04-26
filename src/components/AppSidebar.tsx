@@ -40,12 +40,17 @@ interface AppSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onSwitchProject: (id: string) => void;
-  onCreateProject: (name?: string) => string | void;
+  onCreateProject: (name?: string) => string | void | Promise<string | void>;
   onRenameProject: (id: string, newName: string) => void;
   onDuplicateProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
   onImportedProject?: (id: string) => void;
   activeProjectId: string;
+  /** Lista vinda da nuvem; se omitida, cai no localStorage. */
+  projectsList?: ProjectMeta[];
+  /** Mostra botão de logout e e-mail do usuário no rodapé. */
+  userEmail?: string;
+  onLogout?: () => void;
 }
 
 const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
@@ -55,7 +60,7 @@ const navItems: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'measurement', label: 'Medição', icon: ClipboardList },
 ];
 
-export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId }: AppSidebarProps) {
+export default function AppSidebar({ currentView, onViewChange, projectName, collapsed, onToggleCollapse, onSwitchProject, onCreateProject, onRenameProject, onDuplicateProject, onDeleteProject, onImportedProject, activeProjectId, projectsList, userEmail, onLogout }: AppSidebarProps) {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [showProjects, setShowProjects] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,8 +74,9 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
   const [pendingSummaries, setPendingSummaries] = useState<ProjectSummary[]>([]);
 
   useEffect(() => {
-    setProjects(listProjects());
-  }, [showProjects, activeProjectId, editingId]);
+    if (projectsList) setProjects(projectsList);
+    else setProjects(listProjects());
+  }, [showProjects, activeProjectId, editingId, projectsList]);
 
   useEffect(() => {
     if (editingId && editInputRef.current) {
@@ -100,17 +106,18 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
     cancelEdit();
   };
 
-  const handleNewProject = () => {
+  const handleNewProject = async () => {
     setShowProjects(true);
-    const newId = onCreateProject();
+    const newId = await onCreateProject();
     if (typeof newId === 'string') {
       setTimeout(() => {
-        const created = listProjects().find(p => p.id === newId);
+        const list = projectsList ?? listProjects();
+        const created = list.find(p => p.id === newId);
         if (created) {
           setEditingId(newId);
           setEditingName(created.name);
         }
-      }, 0);
+      }, 50);
     }
   };
 
@@ -450,7 +457,7 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
         })}
       </nav>
 
-      <div className="p-2 border-t border-[hsl(var(--sidebar-border))]">
+      <div className="p-2 border-t border-[hsl(var(--sidebar-border))] space-y-1">
         <button
           className={`w-full flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors`}
           title={collapsed ? 'Gerar com IA' : undefined}
@@ -458,6 +465,20 @@ export default function AppSidebar({ currentView, onViewChange, projectName, col
           <Sparkles className="w-4 h-4" />
           {!collapsed && 'Gerar com IA'}
         </button>
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className={`w-full flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-[hsl(var(--sidebar-hover))] transition-colors opacity-80`}
+            title={collapsed ? `Sair (${userEmail ?? ''})` : 'Sair'}
+          >
+            <X className="w-4 h-4" />
+            {!collapsed && (
+              <span className="truncate flex-1 text-left">
+                Sair{userEmail ? ` · ${userEmail}` : ''}
+              </span>
+            )}
+          </button>
+        )}
       </div>
     </aside>
   );
