@@ -1620,6 +1620,12 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         </div>
       )}
 
+      {/* Diários de Obra do período (live e snapshot) */}
+      <MeasurementDailyReportsPanel
+        summary={dailyReportsSummary}
+        onOpenDiary={onOpenDailyReport}
+      />
+
       {/* Cabeçalho técnico do boletim */}
       <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">
         <CardContent className="p-0">
