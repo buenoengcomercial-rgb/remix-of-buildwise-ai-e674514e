@@ -106,32 +106,48 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const classifiedAsComposition = hasTypeHint ? isTypeComp : (hasD && hasE && !hasF && !hasG && !hasH);
     const classifiedAsLabor = hasTypeHint ? isTypeLabor : (hasD && !hasE && (hasF || hasG || hasH));
 
-    // ── CHAPTER / SUBCHAPTER ──
-    if (classifiedAsChapter) {
-      if (!colA) {
-        warnings.push(`Linha ${i + 1}: capítulo sem código, ignorado`);
-        continue;
-      }
-
+    // ── CHAPTER (top-level) ──
+    if (hasTypeHint ? isTypeCap : (classifiedAsChapter && getCodeDepth(colA) === 0)) {
+      if (!colA && !desc) continue;
       const chapter: ParsedChapter = {
-        code: colA,
+        code: colA || `cap-${i}`,
+        name: (colC || colB || colA).trim(),
+        children: [],
+        compositions: [],
+      };
+      rootChapters.push(chapter);
+      if (colA) codeToChapter.set(colA, chapter);
+      currentChapter = chapter;
+      currentSubchapter = null;
+      currentComposition = null;
+      continue;
+    }
+
+    // ── SUBCHAPTER ──
+    if (hasTypeHint ? isTypeSub : (classifiedAsChapter && getCodeDepth(colA) >= 1)) {
+      if (!colA && !desc) continue;
+      const subchapter: ParsedChapter = {
+        code: colA || `sub-${i}`,
         name: (colC || colB || colA).trim(),
         children: [],
         compositions: [],
       };
 
+      // Try to find parent chapter by code first, fall back to current chapter
       const parentCode = getParentCode(colA);
-      const parent = parentCode ? codeToChapter.get(parentCode) : null;
+      const parent = (parentCode && codeToChapter.get(parentCode)) || currentChapter;
 
       if (parent) {
-        parent.children.push(chapter);
+        parent.children.push(subchapter);
       } else {
-        rootChapters.push(chapter);
+        // Orphan subchapter — promote to root
+        rootChapters.push(subchapter);
+        warnings.push(`Linha ${i + 1}: subcapítulo "${subchapter.name}" sem capítulo pai — promovido a capítulo`);
       }
 
-      codeToChapter.set(colA, chapter);
-      lastChapter = chapter;
-      lastComposition = null;
+      if (colA) codeToChapter.set(colA, subchapter);
+      currentSubchapter = subchapter;
+      currentComposition = null;
       continue;
     }
 
@@ -148,14 +164,14 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
+      const parentChapter = currentSubchapter || currentChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
       } else {
         warnings.push(`Linha ${i + 1}: composição "${comp.name}" sem capítulo associado`);
       }
       flatCompositions.push(comp);
-      lastComposition = comp;
+      currentComposition = comp;
       continue;
     }
 
@@ -170,9 +186,8 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         workerCount: 1,
       };
 
-      // Always attach to the last composition seen (sequential order)
-      if (lastComposition) {
-        lastComposition.labor.push(labor);
+      if (currentComposition) {
+        currentComposition.labor.push(labor);
       } else {
         warnings.push(`Linha ${i + 1}: mão de obra "${labor.role}" sem composição associada`);
       }
@@ -197,12 +212,12 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         needsReview: false,
       };
 
-      const parentChapter = findParentChapter(colA, codeToChapter) || lastChapter;
+      const parentChapter = currentSubchapter || currentChapter;
       if (parentChapter) {
         parentChapter.compositions.push(comp);
       }
       flatCompositions.push(comp);
-      lastComposition = comp;
+      currentComposition = comp;
       continue;
     }
   }
