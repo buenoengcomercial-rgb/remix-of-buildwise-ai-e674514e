@@ -12,6 +12,7 @@ import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface DailyReportProps {
   project: Project;
