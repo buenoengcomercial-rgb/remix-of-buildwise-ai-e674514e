@@ -692,9 +692,14 @@ function cellStr(val: any): string {
 }
 
 function cellNum(val: any): number {
-  if (val == null) return 0;
-  if (typeof val === 'number') return val;
-  return parseFloat(String(val).replace(',', '.')) || 0;
+  if (val == null || val === '') return 0;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+  const raw = String(val).trim().replace(/\s/g, '');
+  if (!raw) return 0;
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
+  return parseFloat(normalized) || 0;
 }
 
 function findCol(header: string[], keys: string[]): number {
