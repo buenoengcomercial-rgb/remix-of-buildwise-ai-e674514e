@@ -710,13 +710,25 @@ export function buildAdditiveFromSyntheticBudgetItems(
   const items = (project.budgetItems ?? []).filter(b => b.source === 'sintetica');
   if (items.length === 0) return null;
   const bdi = project.syntheticBdiPercent ?? project.contractInfo?.bdiPercent ?? 0;
-  const fator = 1 + bdi / 100;
+  const issues: AdditiveImportIssue[] = [
+    { level: 'info', message: `Sintética reaproveitada da Medição: ${items.length} composições.` },
+    { level: 'warning', message: 'Sem Analítica vinculada — importe a Analítica do aditivo para preencher os insumos.' },
+  ];
   const compositions: AdditiveComposition[] = items.map(b => {
     // Preserva EXATAMENTE os valores já normalizados na Medição — não recalcula com BDI.
-    const upNoBDI = b.unitPriceNoBDI;
-    const upWithBDI = b.unitPriceWithBDI || truncar2(upNoBDI * fator);
-    const tNoBDI = b.totalNoBDI || truncar2(upNoBDI * b.quantity);
-    const tWithBDI = b.totalWithBDI || truncar2(upWithBDI * b.quantity);
+    const upNoBDI = money2(b.unitPriceNoBDI);
+    const upWithBDI = money2(b.unitPriceWithBDI);
+    const hasTotalNoBDI = b.totalNoBDI !== null && b.totalNoBDI !== undefined;
+    const hasTotalWithBDI = b.totalWithBDI !== null && b.totalWithBDI !== undefined;
+    const tNoBDI = hasTotalNoBDI ? money2(b.totalNoBDI) : money2(truncar2(upNoBDI * b.quantity));
+    const tWithBDI = hasTotalWithBDI ? money2(b.totalWithBDI) : money2(truncar2(upWithBDI * b.quantity));
+    if (!hasTotalNoBDI || !hasTotalWithBDI) {
+      issues.push({
+        level: 'warning',
+        message: `Totais ausentes na Sintética da Medição (${b.code || b.description}); fallback calculado proporcionalmente.`,
+        code: b.code,
+      });
+    }
     return {
       id: uid(),
       item: b.item,
@@ -731,6 +743,7 @@ export function buildAdditiveFromSyntheticBudgetItems(
       totalNoBDI: tNoBDI,
       totalWithBDI: tWithBDI,
       inputs: [],
+      source: 'sintetica_medicao',
       changeKind: 'acrescido',
       originalQuantity: 0,
       addedQuantity: b.quantity,
@@ -742,10 +755,7 @@ export function buildAdditiveFromSyntheticBudgetItems(
     name,
     importedAt: new Date().toISOString(),
     compositions,
-    issues: [
-      { level: 'info', message: `Sintética reaproveitada da Medição: ${compositions.length} composições.` },
-      { level: 'warning', message: 'Sem Analítica vinculada — importe a Analítica do aditivo para preencher os insumos.' },
-    ],
+    issues,
     bdiPercent: bdi,
     status: 'rascunho',
   };
