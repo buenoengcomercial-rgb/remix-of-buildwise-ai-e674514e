@@ -221,12 +221,11 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
  */
 function parseAnalyticSheet(
   rows: unknown[][],
-  parentByNorm: Map<string, string>,
-): { byParent: Map<string, AnalyticParentData>; issues: AdditiveImportIssue[] } {
+): { blocks: AnalyticBlock[]; issues: AdditiveImportIssue[] } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
-  const byParent = new Map<string, AnalyticParentData>();
-  let currentParent: string | null = null;
+  const blocks: AnalyticBlock[] = [];
+  let current: AnalyticBlock | null = null;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const r = rows[i] || [];
@@ -255,40 +254,36 @@ function parseAnalyticSheet(
       !!codeRaw && !!bank && /^\d+(\.\d+)*$/.test(aRaw.replace(',', '.'));
 
     if (isParentLine) {
-      const norm1 = normalizeCode(codeRaw);
-      const originalParent = parentByNorm.get(norm1);
-      if (originalParent) {
-        currentParent = originalParent;
-        if (!byParent.has(currentParent)) byParent.set(currentParent, { inputs: [] });
-        const data = byParent.get(currentParent)!;
-        if (total > 0) data.parentTotalNoBDI = total;
-        continue;
-      } else {
-        // Pai analítico sem correspondência na Sintética
-        currentParent = null;
-        continue;
-      }
+      // Cada ocorrência de pai abre um NOVO bloco — mesmo que o código já tenha aparecido antes.
+      current = {
+        normCode: normalizeCode(codeRaw),
+        code: codeRaw,
+        inputs: [],
+        parentTotalNoBDI: total > 0 ? total : undefined,
+        startRow: i + 1,
+      };
+      blocks.push(current);
+      continue;
     }
 
-    // Insumo: A deve ser "Auxiliar" ou "Insumo" (ou compat: vazio com código)
+    // Insumo: A deve ser "Auxiliar" ou "Insumo"
     const isInsumo = aLow === 'auxiliar' || aLow === 'insumo' || aLow.startsWith('insumo') || aLow.startsWith('auxiliar');
 
     if (!isInsumo) continue;
-    if (!currentParent) continue;
+    if (!current) continue;
     if (!codeRaw && !description) continue;
 
     if (unitPrice <= 0) {
       issues.push({ level: 'warning', message: `Insumo sem preço (${codeRaw || description})`, line: i + 1 });
     }
 
-    const data = byParent.get(currentParent)!;
-    data.inputs.push({
+    current.inputs.push({
       code: codeRaw, bank, description, unit, coefficient, unitPrice, total,
       rowIndex: i + 1,
     });
   }
 
-  return { byParent, issues };
+  return { blocks, issues };
 }
 
 export async function importAdditiveFromExcel(file: File, additiveName: string): Promise<Additive> {
