@@ -307,6 +307,7 @@ export function parseAdditiveSyntheticWorkbook(
       unitPriceWithBDI,
       total,
       inputs: [],
+      source: 'excel_aditivo',
       changeKind: 'acrescido',
       originalQuantity: 0,
       addedQuantity: s.quantity,
@@ -546,26 +547,28 @@ export function totalAfterAdditive(c: AdditiveComposition): number {
 export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent: number) {
   const fator = 1 + (bdiPercent || 0) / 100;
   // Preserva valores importados quando existirem (Sintética da Medição/Excel).
-  const unitPriceWithBDI = comp.unitPriceWithBDI || truncar2(comp.unitPriceNoBDI * fator);
-  const qty = comp.quantity || 0;
+  const unitPriceNoBDI = money2(comp.unitPriceNoBDI);
+  const unitPriceWithBDI = money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
+  const qty = money2(comp.quantity ?? 0);
   const totalSyntheticWithBDI =
     comp.totalWithBDI != null
-      ? comp.totalWithBDI
-      : (comp.total || truncar2(unitPriceWithBDI * qty));
+      ? money2(comp.totalWithBDI)
+      : money2(comp.total ?? truncar2(unitPriceWithBDI * qty));
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
-  const totalAnalyticWithBDI = truncar2(sumAnalyticNoBDI * fator * qty);
-  const diff = +(totalAnalyticWithBDI - totalSyntheticWithBDI).toFixed(2);
+  const totalAnalyticWithBDI = money2(truncar2(sumAnalyticNoBDI * fator * qty));
+  const diff = money2(totalAnalyticWithBDI - totalSyntheticWithBDI);
   // Impacto financeiro considerando acréscimo/supressão.
-  // Se a quantidade efetiva == quantidade da composição, usa o total preservado.
-  const effQty = effectiveQuantity(comp);
-  const impactoSemBDI =
-    effQty === qty && comp.totalNoBDI != null
-      ? comp.totalNoBDI
-      : truncar2(comp.unitPriceNoBDI * effQty);
-  const impactoComBDI =
-    effQty === qty && comp.totalWithBDI != null
-      ? comp.totalWithBDI
-      : truncar2(unitPriceWithBDI * effQty);
+  const effQty = money2(effectiveQuantity(comp));
+  const isFullImportedAddition =
+    comp.source === 'sintetica_medicao' &&
+    (comp.changeKind ?? 'acrescido') === 'acrescido' &&
+    money2(comp.addedQuantity ?? comp.quantity) === qty;
+  const impactoSemBDI = isFullImportedAddition
+    ? money2(comp.totalNoBDI)
+    : money2(truncar2(unitPriceNoBDI * effQty));
+  const impactoComBDI = isFullImportedAddition
+    ? money2(comp.totalWithBDI)
+    : money2(truncar2(unitPriceWithBDI * effQty));
   return {
     unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
     impactoSemBDI, impactoComBDI,
