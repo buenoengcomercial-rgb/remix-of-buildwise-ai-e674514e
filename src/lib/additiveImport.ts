@@ -140,10 +140,16 @@ interface AnalyticRow {
   rowIndex: number;
 }
 
-interface AnalyticParentData {
+interface AnalyticBlock {
+  /** Código normalizado do bloco analítico. */
+  normCode: string;
+  /** Código original. */
+  code: string;
   inputs: AnalyticRow[];
   /** Total H da linha pai analítica, quando existir. */
   parentTotalNoBDI?: number;
+  /** Linha da planilha onde o bloco começa. */
+  startRow: number;
 }
 
 /**
