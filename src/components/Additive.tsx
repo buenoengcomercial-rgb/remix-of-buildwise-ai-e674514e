@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner';
 import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
-  additiveTotals, sumAnalyticTotal,
+  additiveTotals, sumAnalyticTotal, analyticComparisonTotal,
 } from '@/lib/additiveImport';
 
 interface Props {
