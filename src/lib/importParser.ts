@@ -318,21 +318,12 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
           currentComposition.issues.push(issue);
           pushIssue(issue);
         }
-        if (colG <= 0) {
+        // Só avisa se AMBOS Horas e Dias estiverem ausentes (vazios) na planilha
+        if (!hoursPresent && !daysPresent) {
           const issue: ImportIssue = {
             level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
-            message: `Horas trabalhadas zeradas para ${labor.role}.`,
-            suggestion: 'Preencher coluna H com horas trabalhadas.',
-          };
-          currentComposition.issues = currentComposition.issues || [];
-          currentComposition.issues.push(issue);
-          pushIssue(issue);
-        }
-        if (colH <= 0) {
-          const issue: ImportIssue = {
-            level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
-            message: `Dias trabalhados zerados para ${labor.role}.`,
-            suggestion: 'Preencher coluna I com dias trabalhados.',
+            message: `Horas e dias trabalhados ausentes para ${labor.role}.`,
+            suggestion: 'Preencher coluna H (Horas) ou I (Dias).',
           };
           currentComposition.issues = currentComposition.issues || [];
           currentComposition.issues.push(issue);
