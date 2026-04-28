@@ -643,8 +643,9 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       let lineBdi = effBdi;
 
       if (matchedBudget) {
-        const noBDI = trunc2(matchedBudget.unitPriceNoBDI);
-        const withBDI = trunc2(matchedBudget.unitPriceWithBDI);
+        // Valores vindos PRONTOS da Sintética: normalizar com money2 (preserva o que veio do Excel)
+        const noBDI = money2(matchedBudget.unitPriceNoBDI);
+        const withBDI = money2(matchedBudget.unitPriceWithBDI);
         unitPriceNoBDIBase = noBDI;
         // Preserva BDI implícito da Sintética (mantém c/BDI exato)
         lineBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
@@ -668,18 +669,18 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         bdiPercent: lineBdi,
       });
 
-      // Quando vinculado à Sintética, preserva totais contratados exatos da planilha
+      // Quando vinculado à Sintética, preserva totais contratados EXATOS da planilha (money2, sem trunc)
       const valueContracted = matchedBudget
-        ? trunc2(matchedBudget.totalWithBDI || calc.totalContracted)
+        ? money2(matchedBudget.totalWithBDI || calc.totalContracted)
         : calc.totalContracted;
       const valueContractedNoBDI = matchedBudget
-        ? trunc2(matchedBudget.totalNoBDI || calc.totalContractedNoBDI)
+        ? money2(matchedBudget.totalNoBDI || calc.totalContractedNoBDI)
         : calc.totalContractedNoBDI;
       const valueBalance = matchedBudget
-        ? Math.max(0, trunc2(valueContracted - calc.totalAccumulated))
+        ? Math.max(0, money2(valueContracted - calc.totalAccumulated))
         : calc.totalBalance;
       const valueBalanceNoBDI = matchedBudget
-        ? Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI))
+        ? Math.max(0, money2(valueContractedNoBDI - calc.totalAccumulatedNoBDI))
         : calc.totalBalanceNoBDI;
 
       return {
