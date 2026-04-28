@@ -132,16 +132,37 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     if (!pendingFile) return;
     try {
       toast.loading('Importando aditivo...', { id: 'imp-add' });
-      const additive = await importAdditiveFromExcel(pendingFile, importName.trim() || 'Aditivo');
-      onProjectChange(prev => ({
-        ...prev,
-        additives: [...(prev.additives ?? []), additive],
-      }));
-      setActiveId(additive.id);
-      const errCount = additive.issues?.filter(i => i.level === 'error').length ?? 0;
-      const warnCount = additive.issues?.filter(i => i.level === 'warning').length ?? 0;
+      // Para o modo "analytic_only", tentamos vincular ao aditivo ativo (em rascunho).
+      const draftCandidate = active && (active.status ?? 'rascunho') === 'rascunho' ? active : null;
+      const result = await importAdditiveFromExcel(
+        pendingFile,
+        importName.trim() || 'Aditivo',
+        draftCandidate,
+      );
+
+      if (result.mode === 'analytic_only' && draftCandidate) {
+        // Substitui o aditivo existente pela versão mesclada
+        const merged = result.additive;
+        onProjectChange(prev => ({
+          ...prev,
+          additives: (prev.additives ?? []).map(a =>
+            a.id === draftCandidate.id ? { ...merged, id: draftCandidate.id, name: draftCandidate.name } : a,
+          ),
+        }));
+        setActiveId(draftCandidate.id);
+      } else {
+        // Adiciona como novo aditivo (synthetic_only, both ou analytic_only sem draft)
+        onProjectChange(prev => ({
+          ...prev,
+          additives: [...(prev.additives ?? []), result.additive],
+        }));
+        setActiveId(result.additive.id);
+      }
+
+      const errCount = result.additive.issues?.filter(i => i.level === 'error').length ?? 0;
+      const warnCount = result.additive.issues?.filter(i => i.level === 'warning').length ?? 0;
       toast.success(
-        `Aditivo importado: ${additive.compositions.length} composições${errCount ? ` (${errCount} erros)` : ''}${warnCount ? ` (${warnCount} avisos)` : ''}`,
+        `${result.message}${errCount ? ` (${errCount} erros)` : ''}${warnCount ? ` (${warnCount} avisos)` : ''}`,
         { id: 'imp-add' },
       );
       if (errCount + warnCount > 0) setIssuesOpen(true);
@@ -341,8 +362,10 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       {!active && (
         <Card className="p-10 text-center border-dashed">
           <p className="text-muted-foreground mb-4">
-            Nenhum aditivo importado ainda. Importe uma planilha Excel com as abas
-            <strong> Sintética </strong> e <strong> Analítica</strong>.
+            Nenhum aditivo importado ainda. Importe uma planilha Excel contendo a aba
+            <strong> Sintética</strong>, a aba <strong>Analítica</strong>, ou ambas.
+            <br />
+            <span className="text-xs">Você pode importar a Sintética primeiro e a Analítica depois — o sistema vincula os insumos automaticamente.</span>
           </p>
           <Button onClick={() => fileRef.current?.click()}>
             <Upload className="w-4 h-4 mr-2" /> Importar planilha
@@ -652,6 +675,9 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             <Input value={importName} onChange={e => setImportName(e.target.value)} placeholder="Ex.: SINTÉTICA CORREÇÃO 02" />
             <p className="text-xs text-muted-foreground">
               Esse nome aparecerá no topo da tela e no PDF exportado.
+            </p>
+            <p className="text-[11px] text-muted-foreground border-t pt-2">
+              <strong>Formatos aceitos:</strong> arquivo único com SINTETICA + ANALITICA, somente SINTETICA, ou somente ANALITICA (vincula ao rascunho ativo).
             </p>
           </div>
           <DialogFooter>
