@@ -6,7 +6,10 @@ import type {
   AdditiveChangeKind,
   BudgetItem,
   Project,
+  Task,
+  Phase,
 } from '@/types/project';
+import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
