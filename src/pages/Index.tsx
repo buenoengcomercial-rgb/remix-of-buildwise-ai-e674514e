@@ -16,6 +16,7 @@ const GanttChart = lazy(() => import('@/components/GanttChart'));
 const TaskList = lazy(() => import('@/components/TaskList'));
 const Measurement = lazy(() => import('@/components/Measurement'));
 const DailyReport = lazy(() => import('@/components/DailyReport'));
+const Additive = lazy(() => import('@/components/Additive'));
 import { useAuth } from '@/hooks/useAuth';
 import { useOrganization } from '@/hooks/useOrganization';
 import { canCreateProject, canDeleteProject, canEditProject, ROLE_LABELS } from '@/lib/organizations';
