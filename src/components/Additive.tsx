@@ -132,16 +132,37 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     if (!pendingFile) return;
     try {
       toast.loading('Importando aditivo...', { id: 'imp-add' });
-      const additive = await importAdditiveFromExcel(pendingFile, importName.trim() || 'Aditivo');
-      onProjectChange(prev => ({
-        ...prev,
-        additives: [...(prev.additives ?? []), additive],
-      }));
-      setActiveId(additive.id);
-      const errCount = additive.issues?.filter(i => i.level === 'error').length ?? 0;
-      const warnCount = additive.issues?.filter(i => i.level === 'warning').length ?? 0;
+      // Para o modo "analytic_only", tentamos vincular ao aditivo ativo (em rascunho).
+      const draftCandidate = active && (active.status ?? 'rascunho') === 'rascunho' ? active : null;
+      const result = await importAdditiveFromExcel(
+        pendingFile,
+        importName.trim() || 'Aditivo',
+        draftCandidate,
+      );
+
+      if (result.mode === 'analytic_only' && draftCandidate) {
+        // Substitui o aditivo existente pela versão mesclada
+        const merged = result.additive;
+        onProjectChange(prev => ({
+          ...prev,
+          additives: (prev.additives ?? []).map(a =>
+            a.id === draftCandidate.id ? { ...merged, id: draftCandidate.id, name: draftCandidate.name } : a,
+          ),
+        }));
+        setActiveId(draftCandidate.id);
+      } else {
+        // Adiciona como novo aditivo (synthetic_only, both ou analytic_only sem draft)
+        onProjectChange(prev => ({
+          ...prev,
+          additives: [...(prev.additives ?? []), result.additive],
+        }));
+        setActiveId(result.additive.id);
+      }
+
+      const errCount = result.additive.issues?.filter(i => i.level === 'error').length ?? 0;
+      const warnCount = result.additive.issues?.filter(i => i.level === 'warning').length ?? 0;
       toast.success(
-        `Aditivo importado: ${additive.compositions.length} composições${errCount ? ` (${errCount} erros)` : ''}${warnCount ? ` (${warnCount} avisos)` : ''}`,
+        `${result.message}${errCount ? ` (${errCount} erros)` : ''}${warnCount ? ` (${warnCount} avisos)` : ''}`,
         { id: 'imp-add' },
       );
       if (errCount + warnCount > 0) setIssuesOpen(true);
