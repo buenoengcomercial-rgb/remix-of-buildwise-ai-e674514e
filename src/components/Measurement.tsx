@@ -134,9 +134,10 @@ interface GroupNode {
 
 // ───────────────────────── Helpers ─────────────────────────
 const fmtBRL = (n: number) => {
-  // Trunca em 2 casas (sem arredondar) antes de formatar
-  const truncated = Math.trunc((Number(n) || 0) * 100) / 100;
-  return truncated.toLocaleString('pt-BR', {
+  // money2: arredondamento seguro em 2 casas — preserva valores já vindos da Sintética
+  const v = Number(n) || 0;
+  const safe = Math.round((v + Number.EPSILON) * 100) / 100;
+  return safe.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,

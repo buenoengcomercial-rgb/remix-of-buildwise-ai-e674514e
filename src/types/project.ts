@@ -417,6 +417,15 @@ export interface AdditiveComposition {
   suppressedQuantity?: number;
   /** Quantidade acrescida pelo aditivo. */
   addedQuantity?: number;
+  // ----- Vínculo com a EAP/Medição (preenchido quando criado via "Usar Sintética da Medição") -----
+  /** Phase (capítulo) da EAP a que esta composição pertence. */
+  phaseId?: string;
+  /** Cadeia "Capítulo › Subcapítulo". */
+  phaseChain?: string;
+  /** Tarefa da EAP vinculada. */
+  taskId?: string;
+  /** Numeração hierárquica da EAP (ex.: "1.1.3"). */
+  itemNumber?: string;
 }
 
 export interface AdditiveImportIssue {

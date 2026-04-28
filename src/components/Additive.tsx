@@ -1,8 +1,9 @@
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, Fragment } from 'react';
 import {
   Project, Additive as AdditiveModel, AdditiveComposition,
   AdditiveChangeKind, AdditiveStatus,
 } from '@/types/project';
+import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -112,6 +113,77 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   }, [active, search, bankFilter, changeFilter]);
 
   const totals = active ? additiveTotals(active) : null;
+
+  // ── Árvore de grupos da EAP, refletindo a estrutura da Medição ──
+  type CompGroup = {
+    phaseId: string;
+    number: string;
+    name: string;
+    depth: number;
+    rows: AdditiveComposition[];
+    children: CompGroup[];
+    subtotalComBDI: number;
+    subtotalSemBDI: number;
+  };
+  const { groupTree, orphanRows, hasEapLink } = useMemo(() => {
+    const empty = { groupTree: [] as CompGroup[], orphanRows: [] as AdditiveComposition[], hasEapLink: false };
+    if (!active) return empty;
+    const bdi = active.bdiPercent ?? 0;
+    const compsByPhase = new Map<string, AdditiveComposition[]>();
+    const orphans: AdditiveComposition[] = [];
+    let anyLinked = false;
+    filteredComps.forEach(c => {
+      if (c.phaseId) {
+        anyLinked = true;
+        const arr = compsByPhase.get(c.phaseId) || [];
+        arr.push(c);
+        compsByPhase.set(c.phaseId, arr);
+      } else {
+        orphans.push(c);
+      }
+    });
+    if (!anyLinked) return { ...empty, orphanRows: filteredComps };
+
+    const numbering = getChapterNumbering(project);
+    const tree = getChapterTree(project);
+
+    const buildNode = (chapterNode: ChapterNode, depth: number): CompGroup | null => {
+      const directRows = compsByPhase.get(chapterNode.phase.id) || [];
+      const childGroups = chapterNode.children
+        .map(c => buildNode(c, depth + 1))
+        .filter((g): g is CompGroup => g !== null);
+      if (directRows.length === 0 && childGroups.length === 0) return null;
+
+      let subtotalComBDI = 0;
+      let subtotalSemBDI = 0;
+      directRows.forEach(c => {
+        const r = computeCompositionWithBDI(c, bdi);
+        subtotalComBDI += r.impactoComBDI;
+        subtotalSemBDI += r.impactoSemBDI;
+      });
+      childGroups.forEach(c => {
+        subtotalComBDI += c.subtotalComBDI;
+        subtotalSemBDI += c.subtotalSemBDI;
+      });
+      return {
+        phaseId: chapterNode.phase.id,
+        number: numbering.get(chapterNode.phase.id) || '',
+        name: chapterNode.phase.name,
+        depth,
+        rows: directRows,
+        children: childGroups,
+        subtotalComBDI,
+        subtotalSemBDI,
+      };
+    };
+
+    const groups = tree
+      .map(n => buildNode(n, 0))
+      .filter((g): g is CompGroup => g !== null)
+      .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+    return { groupTree: groups, orphanRows: orphans, hasEapLink: anyLinked };
+  }, [active, filteredComps, project]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -568,144 +640,206 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredComps.map(c => {
-                    const isOpen = expanded.has(c.id);
-                    const r = computeCompositionWithBDI(c, bdi);
-                    const hasInputs = c.inputs.length > 0;
-                    const diff = hasInputs ? r.diff : 0;
-                    const hasDiff = hasInputs && Math.abs(diff) > 0.05;
-                    const noAnalytic = !hasInputs;
-                    const kind: AdditiveChangeKind = c.changeKind ?? 'acrescido';
-                    return (
-                      <>
-                        <tr key={c.id} className="border-b hover:bg-muted/30 align-top">
-                          <td className="px-1 py-2 text-center">
-                            <button
-                              onClick={() => toggleExpand(c.id)}
-                              className="p-1 rounded hover:bg-muted"
-                              disabled={c.inputs.length === 0}
-                              title={c.inputs.length === 0 ? 'Sem analítico' : 'Expandir'}
-                            >
-                              {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                            </button>
-                          </td>
-                          <td className="px-2 py-2">{c.item}</td>
-                          <td className="px-2 py-2 font-mono text-[11px]">{c.code}</td>
-                          <td className="px-2 py-2">{c.bank}</td>
-                          <td className="px-2 py-2 max-w-[360px]">
-                            <div>{c.description}</div>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
-                              {hasDiff && (
-                                <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
-                                  Dif. analítica c/ BDI: {fmtBRL(diff)}
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-2 py-2">{c.unit}</td>
-                          <td className="px-2 py-2 text-right">
-                            <Input
-                              type="number" step="0.0001" min={0}
-                              value={c.originalQuantity ?? 0}
-                              disabled={isLocked}
-                              onChange={e => updateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
-                              className="h-7 w-20 text-xs text-right"
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-right">
-                            <Input
-                              type="number" step="0.0001" min={0}
-                              value={c.suppressedQuantity ?? 0}
-                              disabled={isLocked}
-                              onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
-                              className="h-7 w-20 text-xs text-right border-rose-200"
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-right">
-                            <Input
-                              type="number" step="0.0001" min={0}
-                              value={c.addedQuantity ?? c.quantity}
-                              disabled={isLocked}
-                              onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
-                              className="h-7 w-20 text-xs text-right border-emerald-200"
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-right font-medium">{fmtNum(totalAfterAdditive(c))}</td>
-                          <td className="px-2 py-2">
-                            <Select
-                              value={kind}
-                              disabled={isLocked}
-                              onValueChange={v => updateComposition(c.id, { changeKind: v as AdditiveChangeKind })}
-                            >
-                              <SelectTrigger className="h-7 text-[11px] w-[120px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="acrescido">Acrescido</SelectItem>
-                                <SelectItem value="suprimido">Suprimido</SelectItem>
-                                <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
-                          <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
-                          <td className={`px-2 py-2 text-right font-medium ${r.impactoComBDI < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                            {fmtBRL(r.impactoComBDI)}
-                          </td>
-                        </tr>
-                        {isOpen && showAnalytic && c.inputs.length > 0 && (
-                          <tr className="bg-muted/20 border-b">
-                            <td />
-                            <td colSpan={13} className="px-3 py-2">
-                              <table className="w-full text-[11px]">
-                                <thead>
-                                  <tr className="text-muted-foreground">
-                                    <th className="text-left px-1.5 py-1 font-medium">Código</th>
-                                    <th className="text-left px-1.5 py-1 font-medium">Banco</th>
-                                    <th className="text-left px-1.5 py-1 font-medium">Descrição</th>
-                                    <th className="text-left px-1.5 py-1 font-medium">Un</th>
-                                    <th className="text-right px-1.5 py-1 font-medium">Coef.</th>
-                                    <th className="text-right px-1.5 py-1 font-medium">V. Unit s/ BDI</th>
-                                    <th className="text-right px-1.5 py-1 font-medium">Total s/ BDI</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {c.inputs.map(i => (
-                                    <tr key={i.id} className="border-t border-border/50">
-                                      <td className="px-1.5 py-1 font-mono">{i.code}</td>
-                                      <td className="px-1.5 py-1">{i.bank}</td>
-                                      <td className="px-1.5 py-1">{i.description}</td>
-                                      <td className="px-1.5 py-1">{i.unit}</td>
-                                      <td className="px-1.5 py-1 text-right">{i.coefficient.toLocaleString('pt-BR')}</td>
-                                      <td className="px-1.5 py-1 text-right">{fmtBRL(i.unitPrice)}</td>
-                                      <td className="px-1.5 py-1 text-right">{fmtBRL(i.total)}</td>
-                                    </tr>
-                                  ))}
-                                  <tr className="border-t font-medium">
-                                    <td colSpan={6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
-                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotalNoBDI(c))}</td>
-                                  </tr>
-                                  <tr className="font-medium text-primary">
-                                    <td colSpan={6} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
-                                    <td className="px-1.5 py-1 text-right">{fmtBRL(computeCompositionWithBDI(c, bdi).totalAnalyticWithBDI)}</td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                  {(() => {
+                    const COL_COUNT = 14;
+                    const renderCompRow = (c: AdditiveComposition) => {
+                      const isOpen = expanded.has(c.id);
+                      const r = computeCompositionWithBDI(c, bdi);
+                      const hasInputs = c.inputs.length > 0;
+                      const diff = hasInputs ? r.diff : 0;
+                      const hasDiff = hasInputs && Math.abs(diff) > 0.05;
+                      const noAnalytic = !hasInputs;
+                      const kind: AdditiveChangeKind = c.changeKind ?? 'acrescido';
+                      return (
+                        <Fragment key={c.id}>
+                          <tr className="border-b hover:bg-muted/30 align-top">
+                            <td className="px-1 py-2 text-center">
+                              <button
+                                onClick={() => toggleExpand(c.id)}
+                                className="p-1 rounded hover:bg-muted"
+                                disabled={c.inputs.length === 0}
+                                title={c.inputs.length === 0 ? 'Sem analítico' : 'Expandir'}
+                              >
+                                {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                              </button>
+                            </td>
+                            <td className="px-2 py-2">{c.itemNumber || c.item}</td>
+                            <td className="px-2 py-2 font-mono text-[11px]">{c.code}</td>
+                            <td className="px-2 py-2">{c.bank}</td>
+                            <td className="px-2 py-2 max-w-[360px]">
+                              <div>{c.description}</div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
+                                {hasDiff && (
+                                  <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
+                                    Dif. analítica c/ BDI: {fmtBRL(diff)}
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 py-2">{c.unit}</td>
+                            <td className="px-2 py-2 text-right">
+                              <Input
+                                type="number" step="0.0001" min={0}
+                                value={c.originalQuantity ?? 0}
+                                disabled={isLocked}
+                                onChange={e => updateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
+                                className="h-7 w-20 text-xs text-right"
+                              />
+                            </td>
+                            <td className="px-2 py-2 text-right">
+                              <Input
+                                type="number" step="0.0001" min={0}
+                                value={c.suppressedQuantity ?? 0}
+                                disabled={isLocked}
+                                onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
+                                className="h-7 w-20 text-xs text-right border-rose-200"
+                              />
+                            </td>
+                            <td className="px-2 py-2 text-right">
+                              <Input
+                                type="number" step="0.0001" min={0}
+                                value={c.addedQuantity ?? c.quantity}
+                                disabled={isLocked}
+                                onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
+                                className="h-7 w-20 text-xs text-right border-emerald-200"
+                              />
+                            </td>
+                            <td className="px-2 py-2 text-right font-medium">{fmtNum(totalAfterAdditive(c))}</td>
+                            <td className="px-2 py-2">
+                              <Select
+                                value={kind}
+                                disabled={isLocked}
+                                onValueChange={v => updateComposition(c.id, { changeKind: v as AdditiveChangeKind })}
+                              >
+                                <SelectTrigger className="h-7 text-[11px] w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="acrescido">Acrescido</SelectItem>
+                                  <SelectItem value="suprimido">Suprimido</SelectItem>
+                                  <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
+                            <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
+                            <td className={`px-2 py-2 text-right font-medium ${r.impactoComBDI < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                              {fmtBRL(r.impactoComBDI)}
                             </td>
                           </tr>
+                          {isOpen && showAnalytic && c.inputs.length > 0 && (
+                            <tr className="bg-muted/20 border-b">
+                              <td />
+                              <td colSpan={COL_COUNT - 1} className="px-3 py-2">
+                                <table className="w-full text-[11px]">
+                                  <thead>
+                                    <tr className="text-muted-foreground">
+                                      <th className="text-left px-1.5 py-1 font-medium">Código</th>
+                                      <th className="text-left px-1.5 py-1 font-medium">Banco</th>
+                                      <th className="text-left px-1.5 py-1 font-medium">Descrição</th>
+                                      <th className="text-left px-1.5 py-1 font-medium">Un</th>
+                                      <th className="text-right px-1.5 py-1 font-medium">Coef.</th>
+                                      <th className="text-right px-1.5 py-1 font-medium">V. Unit s/ BDI</th>
+                                      <th className="text-right px-1.5 py-1 font-medium">Total s/ BDI</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {c.inputs.map(i => (
+                                      <tr key={i.id} className="border-t border-border/50">
+                                        <td className="px-1.5 py-1 font-mono">{i.code}</td>
+                                        <td className="px-1.5 py-1">{i.bank}</td>
+                                        <td className="px-1.5 py-1">{i.description}</td>
+                                        <td className="px-1.5 py-1">{i.unit}</td>
+                                        <td className="px-1.5 py-1 text-right">{i.coefficient.toLocaleString('pt-BR')}</td>
+                                        <td className="px-1.5 py-1 text-right">{fmtBRL(i.unitPrice)}</td>
+                                        <td className="px-1.5 py-1 text-right">{fmtBRL(i.total)}</td>
+                                      </tr>
+                                    ))}
+                                    <tr className="border-t font-medium">
+                                      <td colSpan={6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
+                                      <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotalNoBDI(c))}</td>
+                                    </tr>
+                                    <tr className="font-medium text-primary">
+                                      <td colSpan={6} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
+                                      <td className="px-1.5 py-1 text-right">{fmtBRL(computeCompositionWithBDI(c, bdi).totalAnalyticWithBDI)}</td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    };
+
+                    const renderGroup = (g: CompGroup): JSX.Element => {
+                      const indent = g.depth * 14;
+                      return (
+                        <Fragment key={g.phaseId}>
+                          <tr className="bg-primary/5 border-b border-primary/20 font-semibold">
+                            <td colSpan={COL_COUNT} className="px-2 py-1.5">
+                              <div className="flex items-center gap-2" style={{ paddingLeft: indent }}>
+                                <span className="text-[12px]">{g.number} {g.name}</span>
+                              </div>
+                            </td>
+                          </tr>
+                          {g.rows.map(c => renderCompRow(c))}
+                          {g.children.map(child => renderGroup(child))}
+                          <tr className="border-b bg-muted/30 font-medium">
+                            <td colSpan={COL_COUNT - 1} className="px-2 py-1 text-right text-[11px]" style={{ paddingLeft: indent }}>
+                              Subtotal {g.number} {g.name}
+                            </td>
+                            <td className="px-2 py-1 text-right text-[11px]">{fmtBRL(g.subtotalComBDI)}</td>
+                          </tr>
+                        </Fragment>
+                      );
+                    };
+
+                    if (filteredComps.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={COL_COUNT} className="text-center text-muted-foreground py-8">
+                            Nenhuma composição encontrada com os filtros atuais.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    if (!hasEapLink) {
+                      return <>{filteredComps.map(c => renderCompRow(c))}</>;
+                    }
+
+                    const grandComBDI = groupTree.reduce((a, g) => a + g.subtotalComBDI, 0);
+                    const orphanComBDI = orphanRows.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoComBDI, 0);
+                    return (
+                      <>
+                        {groupTree.map(g => renderGroup(g))}
+                        {orphanRows.length > 0 && (
+                          <>
+                            <tr className="bg-amber-50 border-b border-amber-200 font-semibold">
+                              <td colSpan={COL_COUNT} className="px-2 py-1.5 text-amber-900 text-[12px]">
+                                Itens da Sintética sem vínculo na EAP
+                              </td>
+                            </tr>
+                            {orphanRows.map(c => renderCompRow(c))}
+                            <tr className="border-b bg-amber-50/60 font-medium">
+                              <td colSpan={COL_COUNT - 1} className="px-2 py-1 text-right text-[11px]">
+                                Subtotal sem vínculo
+                              </td>
+                              <td className="px-2 py-1 text-right text-[11px]">{fmtBRL(orphanComBDI)}</td>
+                            </tr>
+                          </>
                         )}
+                        <tr className="bg-primary/10 border-t-2 border-primary/40 font-bold">
+                          <td colSpan={COL_COUNT - 1} className="px-2 py-2 text-right">TOTAL GERAL c/ BDI</td>
+                          <td className="px-2 py-2 text-right text-primary">{fmtBRL(grandComBDI + orphanComBDI)}</td>
+                        </tr>
                       </>
                     );
-                  })}
-                  {filteredComps.length === 0 && (
-                    <tr>
-                      <td colSpan={14} className="text-center text-muted-foreground py-8">
-                        Nenhuma composição encontrada com os filtros atuais.
-                      </td>
-                    </tr>
-                  )}
+                  })()}
                 </tbody>
+
               </table>
             </div>
           </Card>
