@@ -4,6 +4,7 @@ import type {
   AdditiveInput,
   AdditiveImportIssue,
   AdditiveChangeKind,
+  BudgetItem,
   Project,
 } from '@/types/project';
 
