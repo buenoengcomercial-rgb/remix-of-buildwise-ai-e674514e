@@ -634,6 +634,93 @@ export function getApprovedAdditiveItems(project: Project): ApprovedAdditiveItem
   return out;
 }
 
+/**
+ * Converte composições de aditivos APROVADOS em BudgetItems prontos para a Medição.
+ * - acrescido  → quantity = +addedQuantity (ou quantity)
+ * - suprimido  → quantity = -suppressedQuantity (impacto negativo)
+ * - sem_alteracao → ignorado
+ */
+export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
+  const out: BudgetItem[] = [];
+  for (const a of project.additives ?? []) {
+    if (a.status !== 'aprovado') continue;
+    const bdi = a.bdiPercent ?? 0;
+    const fator = 1 + bdi / 100;
+    for (const c of a.compositions) {
+      const kind = c.changeKind ?? 'acrescido';
+      if (kind === 'sem_alteracao') continue;
+      const qty = kind === 'suprimido'
+        ? -(c.suppressedQuantity ?? c.quantity ?? 0)
+        : (c.addedQuantity ?? c.quantity ?? 0);
+      if (!qty) continue;
+      const upNoBDI = c.unitPriceNoBDI || 0;
+      const upWithBDI = c.unitPriceWithBDI || truncar2(upNoBDI * fator);
+      out.push({
+        id: `add-${a.id}-${c.id}`,
+        item: c.item,
+        code: c.code,
+        bank: c.bank,
+        description: c.description,
+        unit: c.unit,
+        quantity: qty,
+        unitPriceNoBDI: upNoBDI,
+        unitPriceWithBDI: upWithBDI,
+        totalNoBDI: truncar2(upNoBDI * qty),
+        totalWithBDI: truncar2(upWithBDI * qty),
+        source: 'aditivo',
+        additiveId: a.id,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Constrói um Additive em rascunho a partir dos BudgetItems Sintéticos já importados
+ * em project.budgetItems (alimentados pela aba Tarefas/Medição).
+ */
+export function buildAdditiveFromSyntheticBudgetItems(
+  project: Project,
+  name = 'Aditivo (Sintética da Medição)',
+): Additive | null {
+  const items = (project.budgetItems ?? []).filter(b => b.source === 'sintetica');
+  if (items.length === 0) return null;
+  const bdi = project.syntheticBdiPercent ?? project.contractInfo?.bdiPercent ?? 0;
+  const fator = 1 + bdi / 100;
+  const compositions: AdditiveComposition[] = items.map(b => {
+    const upWithBDI = b.unitPriceWithBDI || truncar2(b.unitPriceNoBDI * fator);
+    return {
+      id: uid(),
+      item: b.item,
+      code: b.code,
+      bank: b.bank,
+      description: b.description,
+      quantity: b.quantity,
+      unit: b.unit,
+      unitPriceNoBDI: b.unitPriceNoBDI,
+      unitPriceWithBDI: upWithBDI,
+      total: truncar2(upWithBDI * b.quantity),
+      inputs: [],
+      changeKind: 'acrescido',
+      originalQuantity: 0,
+      addedQuantity: b.quantity,
+      suppressedQuantity: 0,
+    };
+  });
+  return {
+    id: uid(),
+    name,
+    importedAt: new Date().toISOString(),
+    compositions,
+    issues: [
+      { level: 'info', message: `Sintética reaproveitada da Medição: ${compositions.length} composições.` },
+      { level: 'warning', message: 'Sem Analítica vinculada — importe a Analítica do aditivo para preencher os insumos.' },
+    ],
+    bdiPercent: bdi,
+    status: 'rascunho',
+  };
+}
+
 // ============= Exportações =============
 
 export async function exportAdditiveToExcel(add: Additive) {
