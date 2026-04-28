@@ -36,7 +36,6 @@ export function attachCompKeys(result: ParseResult): ImportIssue[] {
 
 export function summarize(result: ParseResult, selectedKeys: Set<string>): ImportSummary {
   let chapters = 0, subchapters = 0, labors = 0, compositions = 0;
-  let withPrice = 0, withoutPrice = 0;
 
   function walk(list: ParsedChapter[]) {
     for (const ch of list) {
@@ -45,7 +44,6 @@ export function summarize(result: ParseResult, selectedKeys: Set<string>): Impor
       for (const c of ch.compositions) {
         compositions++;
         labors += c.labor.length;
-        if (c.unitPriceNoBDI && c.unitPriceNoBDI > 0) withPrice++; else withoutPrice++;
       }
       walk(ch.children);
     }
@@ -55,10 +53,11 @@ export function summarize(result: ParseResult, selectedKeys: Set<string>): Impor
   const errors = result.issues.filter(i => i.level === 'error').length;
   const warnings = result.issues.filter(i => i.level === 'warning').length;
 
+  // Produtividade não importa preço — campos withPrice/withoutPrice ficam zerados.
   return {
     chapters, subchapters, compositions,
     selectedCompositions: selectedKeys.size,
-    labors, errors, warnings, withPrice, withoutPrice,
+    labors, errors, warnings, withPrice: 0, withoutPrice: 0,
   };
 }
 
