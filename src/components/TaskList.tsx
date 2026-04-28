@@ -4,8 +4,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Settings2 } from 'lucide-react';
 import GerenciarEquipes from '@/components/GerenciarEquipes';
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
+import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder, FileSpreadsheet } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
+import ImportSyntheticDialog from '@/components/ImportSyntheticDialog';
 import DailyLogsPanel from '@/components/DailyLogsPanel';
 
 import { calculateRupDuration } from '@/lib/calculations';
@@ -128,6 +129,8 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
   const [simulating, setSimulating] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [importSyntheticOpen, setImportSyntheticOpen] = useState(false);
+  const additiveFileRef = useRef<HTMLInputElement>(null);
   const [editingPhase, setEditingPhase] = useState<string | null>(null);
   const [phaseNameDraft, setPhaseNameDraft] = useState('');
   const [editingNumberId, setEditingNumberId] = useState<string | null>(null);
@@ -591,9 +594,50 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"
+            title="Importa EAP, RUP, mão de obra e quantidades. Não importa valores financeiros."
           >
-            <Upload className="w-4 h-4" /> Importar PDF/Excel
+            <Upload className="w-4 h-4" /> Importar Produtividade
           </button>
+          <button
+            onClick={() => setImportSyntheticOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-success text-success-foreground font-medium text-sm hover:bg-success/90 transition-colors shadow-sm"
+            title="Importa a planilha Sintética do orçamento (alimenta a aba Medição). BDI lido em J8."
+          >
+            <FileSpreadsheet className="w-4 h-4" /> Importar Sintética
+          </button>
+          <button
+            onClick={() => additiveFileRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-warning text-warning-foreground font-medium text-sm hover:bg-warning/90 transition-colors shadow-sm"
+            title="Importa Sintética + Analítica do orçamento de aditivo (alimenta a aba Aditivo)."
+          >
+            <ArrowUpFromLine className="w-4 h-4" /> Importar Analítica / Aditivo
+          </button>
+          <input
+            ref={additiveFileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              try {
+                toast.loading('Importando aditivo...', { id: 'imp-add-tl' });
+                const { importAdditiveFromExcel } = await import('@/lib/additiveImport');
+                const base = f.name.replace(/\.(xlsx|xls)$/i, '');
+                const additive = await importAdditiveFromExcel(f, base || 'Aditivo');
+                onProjectChange({ ...project, additives: [...(project.additives ?? []), additive] });
+                toast.success(
+                  `Aditivo importado: ${additive.compositions.length} composições. Abra a aba Aditivo para revisar.`,
+                  { id: 'imp-add-tl' },
+                );
+              } catch (err) {
+                console.error(err);
+                toast.error('Falha ao importar aditivo.', { id: 'imp-add-tl' });
+              } finally {
+                if (additiveFileRef.current) additiveFileRef.current.value = '';
+              }
+            }}
+          />
           <button
             onClick={() => addPhase()}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border bg-card text-foreground font-medium text-sm hover:bg-muted/50 transition-colors shadow-sm"
@@ -606,6 +650,13 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
       <ImportTasksDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
+        project={project}
+        onProjectChange={onProjectChange}
+      />
+
+      <ImportSyntheticDialog
+        open={importSyntheticOpen}
+        onClose={() => setImportSyntheticOpen(false)}
         project={project}
         onProjectChange={onProjectChange}
       />
