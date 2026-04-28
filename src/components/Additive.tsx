@@ -1,9 +1,13 @@
 import { useMemo, useState, useRef } from 'react';
-import { Project, Additive as AdditiveModel, AdditiveInputType, AdditiveComposition } from '@/types/project';
+import {
+  Project, Additive as AdditiveModel, AdditiveComposition,
+  AdditiveChangeKind, AdditiveStatus,
+} from '@/types/project';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
@@ -15,12 +19,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Upload, Download, Printer, Search, ChevronRight, ChevronDown, AlertTriangle, Trash2,
+  Upload, Download, Printer, Search, ChevronRight, ChevronDown,
+  AlertTriangle, Trash2, CheckCircle2, XCircle, Send, RotateCcw, Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
+  totalAfterAdditive,
 } from '@/lib/additiveImport';
 
 interface Props {
@@ -29,21 +35,30 @@ interface Props {
   undoButton?: React.ReactNode;
 }
 
-const TYPE_LABEL: Record<AdditiveInputType, string> = {
-  material: 'Material',
-  mao_obra: 'Mão de obra',
-  equipamento: 'Equipamento',
-  outro: 'Outro',
+const STATUS_LABEL: Record<AdditiveStatus, string> = {
+  rascunho: 'Rascunho',
+  em_analise: 'Em análise fiscal',
+  reprovado: 'Reprovado',
+  aprovado: 'Aprovado',
 };
-const TYPE_BADGE: Record<AdditiveInputType, string> = {
-  material: 'bg-blue-100 text-blue-800',
-  mao_obra: 'bg-amber-100 text-amber-800',
-  equipamento: 'bg-purple-100 text-purple-800',
-  outro: 'bg-gray-200 text-gray-700',
+const STATUS_BADGE: Record<AdditiveStatus, string> = {
+  rascunho: 'bg-slate-100 text-slate-700 border-slate-300',
+  em_analise: 'bg-amber-100 text-amber-800 border-amber-300',
+  reprovado: 'bg-rose-100 text-rose-800 border-rose-300',
+  aprovado: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+};
+
+const CHANGE_LABEL: Record<AdditiveChangeKind, string> = {
+  acrescido: 'Acrescido',
+  suprimido: 'Suprimido',
+  sem_alteracao: 'Sem alteração',
 };
 
 const fmtBRL = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const fmtNum = (v: number) =>
+  (v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
 
 export default function Additive({ project, onProjectChange, undoButton }: Props) {
   const additives = project.additives ?? [];
@@ -55,7 +70,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const [search, setSearch] = useState('');
   const [bankFilter, setBankFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [changeFilter, setChangeFilter] = useState<string>('all');
   const [showAnalytic, setShowAnalytic] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -63,7 +78,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [approvedBy, setApprovedBy] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const status: AdditiveStatus = active?.status ?? 'rascunho';
+  const isLocked = status === 'em_analise' || status === 'aprovado';
 
   const banks = useMemo(() => {
     if (!active) return [] as string[];
@@ -77,16 +98,17 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     const term = search.trim().toLowerCase();
     return active.compositions.filter(c => {
       if (bankFilter !== 'all' && c.bank !== bankFilter) return false;
+      if (changeFilter !== 'all') {
+        const kind = c.changeKind ?? 'acrescido';
+        if (kind !== changeFilter) return false;
+      }
       if (term) {
         const hay = `${c.item} ${c.code} ${c.description}`.toLowerCase();
         if (!hay.includes(term)) return false;
       }
-      if (typeFilter !== 'all') {
-        if (!c.inputs.some(i => i.type === (typeFilter as AdditiveInputType))) return false;
-      }
       return true;
     });
-  }, [active, search, bankFilter, typeFilter]);
+  }, [active, search, bankFilter, changeFilter]);
 
   const totals = active ? additiveTotals(active) : null;
 
@@ -145,17 +167,19 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
   };
 
-  const handleChangeInputType = (compId: string, inputId: string, newType: AdditiveInputType) => {
+  // ===== Atualizações =====
+  const updateAdditive = (mutator: (a: AdditiveModel) => AdditiveModel) => {
     if (!active) return;
     onProjectChange(prev => ({
       ...prev,
-      additives: (prev.additives ?? []).map(a => a.id !== active.id ? a : ({
-        ...a,
-        compositions: a.compositions.map(c => c.id !== compId ? c : ({
-          ...c,
-          inputs: c.inputs.map(i => i.id === inputId ? { ...i, type: newType } : i),
-        })),
-      })),
+      additives: (prev.additives ?? []).map(a => a.id === active.id ? mutator(a) : a),
+    }));
+  };
+
+  const updateComposition = (compId: string, patch: Partial<AdditiveComposition>) => {
+    updateAdditive(a => ({
+      ...a,
+      compositions: a.compositions.map(c => c.id === compId ? { ...c, ...patch } : c),
     }));
   };
 
@@ -173,19 +197,49 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   };
 
   const handleChangeBdi = (value: string) => {
-    if (!active) return;
+    if (!active || isLocked) return;
     const num = Number(value.replace(',', '.'));
     if (!Number.isFinite(num) || num < 0) return;
-    onProjectChange(prev => ({
-      ...prev,
-      additives: (prev.additives ?? []).map(a => a.id === active.id ? { ...a, bdiPercent: num } : a),
-    }));
+    updateAdditive(a => ({ ...a, bdiPercent: num }));
+  };
+
+  const setStatus = (next: AdditiveStatus, extra?: Partial<AdditiveModel>) => {
+    updateAdditive(a => ({ ...a, status: next, ...(extra ?? {}) }));
+  };
+
+  const handleSendForReview = () => {
+    setStatus('em_analise');
+    toast.success('Aditivo enviado para análise fiscal');
+  };
+
+  const handleReject = () => {
+    setStatus('reprovado', { reviewNotes: reviewNotes || undefined });
+    toast.success('Aditivo reprovado — voltou para ajuste');
+    setReviewDialogOpen(false);
+    setReviewNotes('');
+  };
+
+  const handleApprove = () => {
+    setStatus('aprovado', {
+      approvedAt: new Date().toISOString(),
+      approvedBy: approvedBy || undefined,
+      reviewNotes: reviewNotes || undefined,
+    });
+    toast.success('Aditivo aprovado e integrado ao projeto');
+    setReviewDialogOpen(false);
+    setApprovedBy('');
+    setReviewNotes('');
+  };
+
+  const handleBackToDraft = () => {
+    setStatus('rascunho');
+    toast.success('Aditivo voltou para rascunho');
   };
 
   const bdi = active?.bdiPercent ?? 0;
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-[1600px] mx-auto">
+    <div className="p-4 lg:p-6 space-y-4 max-w-[1700px] mx-auto">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
@@ -194,6 +248,25 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <p className="text-sm text-muted-foreground mt-0.5">
             Importação de planilhas de aditivo contratual (Sintética + Analítica).
           </p>
+          {active && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className={STATUS_BADGE[status]}>
+                {status === 'aprovado' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                {status === 'em_analise' && <Lock className="w-3 h-3 mr-1" />}
+                {status === 'reprovado' && <XCircle className="w-3 h-3 mr-1" />}
+                {STATUS_LABEL[status]}
+              </Badge>
+              {active.approvedAt && (
+                <span className="text-[11px] text-muted-foreground">
+                  Aprovado em {new Date(active.approvedAt).toLocaleDateString('pt-BR')}
+                  {active.approvedBy ? ` por ${active.approvedBy}` : ''}
+                </span>
+              )}
+              {active.reviewNotes && (
+                <span className="text-[11px] text-muted-foreground italic">"{active.reviewNotes}"</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
@@ -205,6 +278,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 step="0.01"
                 min={0}
                 value={bdi}
+                disabled={isLocked}
                 onChange={e => handleChangeBdi(e.target.value)}
                 className="h-7 w-20 text-xs"
               />
@@ -231,23 +305,29 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       {additives.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">Aditivos:</span>
-          {additives.map(a => (
-            <div key={a.id} className="flex items-center">
-              <button
-                onClick={() => setActiveId(a.id)}
-                className={`px-2.5 py-1 rounded-l text-xs border ${a.id === active?.id ? 'bg-primary text-primary-foreground border-primary' : 'bg-card hover:bg-muted'}`}
-              >
-                {a.name}
-              </button>
-              <button
-                onClick={() => setConfirmDeleteId(a.id)}
-                title="Excluir aditivo"
-                className="px-1.5 py-1 rounded-r text-xs border border-l-0 hover:bg-destructive/10 text-destructive"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+          {additives.map(a => {
+            const st = a.status ?? 'rascunho';
+            return (
+              <div key={a.id} className="flex items-center">
+                <button
+                  onClick={() => setActiveId(a.id)}
+                  className={`px-2.5 py-1 rounded-l text-xs border flex items-center gap-1.5 ${a.id === active?.id ? 'bg-primary text-primary-foreground border-primary' : 'bg-card hover:bg-muted'}`}
+                >
+                  {a.name}
+                  <span className={`text-[9px] px-1 py-0.5 rounded ${STATUS_BADGE[st]}`}>
+                    {STATUS_LABEL[st]}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteId(a.id)}
+                  title="Excluir aditivo"
+                  className="px-1.5 py-1 rounded-r text-xs border border-l-0 hover:bg-destructive/10 text-destructive"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
           {active?.issues && active.issues.some(i => i.level !== 'info') && (
             <Button variant="ghost" size="sm" onClick={() => setIssuesOpen(true)}>
               <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-600" />
@@ -272,26 +352,83 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
       {active && totals && (
         <>
+          {/* Banner de status / fluxo de aprovação */}
+          <Card className="p-3 flex flex-wrap items-center justify-between gap-3 border-l-4"
+            style={{ borderLeftColor: status === 'aprovado' ? 'hsl(var(--primary))' : status === 'em_analise' ? '#d97706' : status === 'reprovado' ? '#e11d48' : '#94a3b8' }}>
+            <div className="text-xs space-y-0.5">
+              <div className="font-medium">Fluxo de aprovação</div>
+              {status === 'rascunho' && (
+                <div className="text-muted-foreground">Rascunho — uso interno apenas. Não integra Medição, Cronograma, Tarefas ou Diário.</div>
+              )}
+              {status === 'em_analise' && (
+                <div className="text-muted-foreground">Em análise fiscal — edição bloqueada, aguardando aprovação.</div>
+              )}
+              {status === 'reprovado' && (
+                <div className="text-muted-foreground">Reprovado — ajuste e reenvie para análise.</div>
+              )}
+              {status === 'aprovado' && (
+                <div className="text-emerald-700">Aprovado — itens integrados ao projeto (rastreáveis em Medição, Tarefas e Diário).</div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {status === 'rascunho' && (
+                <Button size="sm" variant="default" onClick={handleSendForReview}>
+                  <Send className="w-3.5 h-3.5 mr-1" /> Enviar para análise
+                </Button>
+              )}
+              {status === 'em_analise' && (
+                <>
+                  <Button size="sm" variant="outline" className="border-rose-300 text-rose-700"
+                    onClick={() => { setReviewNotes(''); setReviewDialogOpen(true); }}>
+                    <XCircle className="w-3.5 h-3.5 mr-1" /> Reprovar
+                  </Button>
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => { setApprovedBy(''); setReviewNotes(''); setReviewDialogOpen(true); }}>
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Aprovar
+                  </Button>
+                </>
+              )}
+              {status === 'reprovado' && (
+                <Button size="sm" variant="default" onClick={handleSendForReview}>
+                  <Send className="w-3.5 h-3.5 mr-1" /> Reenviar para análise
+                </Button>
+              )}
+              {status === 'aprovado' && (
+                <Button size="sm" variant="outline" onClick={handleBackToDraft}>
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Voltar para rascunho
+                </Button>
+              )}
+            </div>
+          </Card>
+
           {/* Cards resumo */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <Card className="p-3">
               <div className="text-[11px] text-muted-foreground">Composições</div>
               <div className="text-lg font-semibold">{totals.compCount}</div>
             </Card>
             <Card className="p-3">
-              <div className="text-[11px] text-muted-foreground">Total s/ BDI</div>
-              <div className="text-lg font-semibold">{fmtBRL(totals.totalSemBDI)}</div>
+              <div className="text-[11px] text-muted-foreground">Acrescidas</div>
+              <div className="text-lg font-semibold text-emerald-700">{totals.acrescidos}</div>
             </Card>
             <Card className="p-3">
-              <div className="text-[11px] text-muted-foreground">Total c/ BDI</div>
-              <div className="text-lg font-semibold">{fmtBRL(totals.totalComBDI)}</div>
+              <div className="text-[11px] text-muted-foreground">Suprimidas</div>
+              <div className="text-lg font-semibold text-rose-700">{totals.suprimidos}</div>
             </Card>
             <Card className="p-3">
-              <div className="text-[11px] text-muted-foreground">Total Geral</div>
-              <div className="text-lg font-semibold text-primary">{fmtBRL(totals.total)}</div>
+              <div className="text-[11px] text-muted-foreground">Impacto s/ BDI</div>
+              <div className={`text-lg font-semibold ${totals.impactoSemBDI < 0 ? 'text-rose-700' : ''}`}>
+                {fmtBRL(totals.impactoSemBDI)}
+              </div>
             </Card>
             <Card className="p-3">
-              <div className="text-[11px] text-muted-foreground">Insumos vinculados</div>
+              <div className="text-[11px] text-muted-foreground">Impacto c/ BDI</div>
+              <div className={`text-lg font-semibold ${totals.impactoComBDI < 0 ? 'text-rose-700' : 'text-primary'}`}>
+                {fmtBRL(totals.impactoComBDI)}
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-[11px] text-muted-foreground">Insumos</div>
               <div className="text-lg font-semibold">{totals.inputCount}</div>
             </Card>
             <Card className="p-3">
@@ -320,14 +457,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 {banks.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Tipo de insumo" /></SelectTrigger>
+            <Select value={changeFilter} onValueChange={setChangeFilter}>
+              <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Tipo de alteração" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="material">Material</SelectItem>
-                <SelectItem value="mao_obra">Mão de obra</SelectItem>
-                <SelectItem value="equipamento">Equipamento</SelectItem>
-                <SelectItem value="outro">Outro</SelectItem>
+                <SelectItem value="all">Todas as alterações</SelectItem>
+                <SelectItem value="acrescido">Acrescidas</SelectItem>
+                <SelectItem value="suprimido">Suprimidas</SelectItem>
+                <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -339,7 +475,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             </Button>
           </Card>
 
-          {/* Tabela */}
+          {/* Tabela principal — modelo "1ºADITIVO" */}
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -349,12 +485,16 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-left font-semibold">Item</th>
                     <th className="px-2 py-2 text-left font-semibold">Código</th>
                     <th className="px-2 py-2 text-left font-semibold">Banco</th>
-                    <th className="px-2 py-2 text-left font-semibold">Descrição</th>
-                    <th className="px-2 py-2 text-right font-semibold">Qtd</th>
-                    <th className="px-2 py-2 text-left font-semibold">Un</th>
+                    <th className="px-2 py-2 text-left font-semibold">Discriminação</th>
+                    <th className="px-2 py-2 text-left font-semibold">Und</th>
+                    <th className="px-2 py-2 text-right font-semibold">Quant. Contrat.</th>
+                    <th className="px-2 py-2 text-right font-semibold text-rose-700">Suprimidos</th>
+                    <th className="px-2 py-2 text-right font-semibold text-emerald-700">Aditivados</th>
+                    <th className="px-2 py-2 text-right font-semibold">Total após troca</th>
+                    <th className="px-2 py-2 text-left font-semibold">Tipo</th>
                     <th className="px-2 py-2 text-right font-semibold">V.Unit s/BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">V.Unit c/BDI</th>
-                    <th className="px-2 py-2 text-right font-semibold">Total</th>
+                    <th className="px-2 py-2 text-right font-semibold">Impacto c/BDI</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -365,6 +505,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     const diff = hasInputs ? r.diff : 0;
                     const hasDiff = hasInputs && Math.abs(diff) > 0.05;
                     const noAnalytic = !hasInputs;
+                    const kind: AdditiveChangeKind = c.changeKind ?? 'acrescido';
                     return (
                       <>
                         <tr key={c.id} className="border-b hover:bg-muted/30 align-top">
@@ -381,63 +522,89 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                           <td className="px-2 py-2">{c.item}</td>
                           <td className="px-2 py-2 font-mono text-[11px]">{c.code}</td>
                           <td className="px-2 py-2">{c.bank}</td>
-                          <td className="px-2 py-2 max-w-[420px]">
+                          <td className="px-2 py-2 max-w-[360px]">
                             <div>{c.description}</div>
                             <div className="flex flex-wrap gap-1 mt-1">
                               {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
                               {hasDiff && (
                                 <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
-                                  Diferença analítica c/ BDI: {fmtBRL(diff)}
+                                  Dif. analítica c/ BDI: {fmtBRL(diff)}
                                 </Badge>
                               )}
                             </div>
                           </td>
-                          <td className="px-2 py-2 text-right">{c.quantity.toLocaleString('pt-BR')}</td>
                           <td className="px-2 py-2">{c.unit}</td>
+                          <td className="px-2 py-2 text-right">
+                            <Input
+                              type="number" step="0.0001" min={0}
+                              value={c.originalQuantity ?? 0}
+                              disabled={isLocked}
+                              onChange={e => updateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
+                              className="h-7 w-20 text-xs text-right"
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <Input
+                              type="number" step="0.0001" min={0}
+                              value={c.suppressedQuantity ?? 0}
+                              disabled={isLocked}
+                              onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
+                              className="h-7 w-20 text-xs text-right border-rose-200"
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <Input
+                              type="number" step="0.0001" min={0}
+                              value={c.addedQuantity ?? c.quantity}
+                              disabled={isLocked}
+                              onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
+                              className="h-7 w-20 text-xs text-right border-emerald-200"
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-right font-medium">{fmtNum(totalAfterAdditive(c))}</td>
+                          <td className="px-2 py-2">
+                            <Select
+                              value={kind}
+                              disabled={isLocked}
+                              onValueChange={v => updateComposition(c.id, { changeKind: v as AdditiveChangeKind })}
+                            >
+                              <SelectTrigger className="h-7 text-[11px] w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="acrescido">Acrescido</SelectItem>
+                                <SelectItem value="suprimido">Suprimido</SelectItem>
+                                <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
                           <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
                           <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
-                          <td className="px-2 py-2 text-right font-medium">{fmtBRL(r.totalSyntheticWithBDI)}</td>
+                          <td className={`px-2 py-2 text-right font-medium ${r.impactoComBDI < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                            {fmtBRL(r.impactoComBDI)}
+                          </td>
                         </tr>
                         {isOpen && showAnalytic && c.inputs.length > 0 && (
                           <tr className="bg-muted/20 border-b">
                             <td />
-                            <td colSpan={9} className="px-3 py-2">
+                            <td colSpan={13} className="px-3 py-2">
                               <table className="w-full text-[11px]">
                                 <thead>
                                   <tr className="text-muted-foreground">
                                     <th className="text-left px-1.5 py-1 font-medium">Código</th>
                                     <th className="text-left px-1.5 py-1 font-medium">Banco</th>
-                                    <th className="text-left px-1.5 py-1 font-medium">Tipo</th>
                                     <th className="text-left px-1.5 py-1 font-medium">Descrição</th>
                                     <th className="text-left px-1.5 py-1 font-medium">Un</th>
                                     <th className="text-right px-1.5 py-1 font-medium">Coef.</th>
-                                    <th className="text-right px-1.5 py-1 font-medium">V. Unit</th>
-                                    <th className="text-right px-1.5 py-1 font-medium">Total</th>
+                                    <th className="text-right px-1.5 py-1 font-medium">V. Unit s/ BDI</th>
+                                    <th className="text-right px-1.5 py-1 font-medium">Total s/ BDI</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {c.inputs
-                                    .filter(i => typeFilter === 'all' || i.type === typeFilter)
-                                    .map(i => (
+                                  {c.inputs.map(i => (
                                     <tr key={i.id} className="border-t border-border/50">
                                       <td className="px-1.5 py-1 font-mono">{i.code}</td>
                                       <td className="px-1.5 py-1">{i.bank}</td>
-                                      <td className="px-1.5 py-1">
-                                        <Select
-                                          value={i.type}
-                                          onValueChange={v => handleChangeInputType(c.id, i.id, v as AdditiveInputType)}
-                                        >
-                                          <SelectTrigger className={`h-6 text-[10px] px-2 ${TYPE_BADGE[i.type]}`}>
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="material">Material</SelectItem>
-                                            <SelectItem value="mao_obra">Mão de obra</SelectItem>
-                                            <SelectItem value="equipamento">Equipamento</SelectItem>
-                                            <SelectItem value="outro">Outro</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </td>
                                       <td className="px-1.5 py-1">{i.description}</td>
                                       <td className="px-1.5 py-1">{i.unit}</td>
                                       <td className="px-1.5 py-1 text-right">{i.coefficient.toLocaleString('pt-BR')}</td>
@@ -446,11 +613,11 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                     </tr>
                                   ))}
                                   <tr className="border-t font-medium">
-                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
+                                    <td colSpan={6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
                                     <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotalNoBDI(c))}</td>
                                   </tr>
                                   <tr className="font-medium text-primary">
-                                    <td colSpan={7} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
+                                    <td colSpan={6} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
                                     <td className="px-1.5 py-1 text-right">{fmtBRL(computeCompositionWithBDI(c, bdi).totalAnalyticWithBDI)}</td>
                                   </tr>
                                 </tbody>
@@ -463,7 +630,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                   })}
                   {filteredComps.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="text-center text-muted-foreground py-8">
+                      <td colSpan={14} className="text-center text-muted-foreground py-8">
                         Nenhuma composição encontrada com os filtros atuais.
                       </td>
                     </tr>
@@ -490,6 +657,34 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setImportDialogOpen(false); setPendingFile(null); }}>Cancelar</Button>
             <Button onClick={handleConfirmImport}>Importar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de aprovação/reprovação */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aprovar ou reprovar aditivo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Responsável / Fiscal (opcional)</label>
+              <Input value={approvedBy} onChange={e => setApprovedBy(e.target.value)} placeholder="Nome do responsável" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Observações</label>
+              <Textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} />
+            </div>
+          </div>
+          <DialogFooter className="flex-wrap gap-2">
+            <Button variant="ghost" onClick={() => setReviewDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" className="border-rose-300 text-rose-700" onClick={handleReject}>
+              <XCircle className="w-4 h-4 mr-1" /> Reprovar
+            </Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleApprove}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> Aprovar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

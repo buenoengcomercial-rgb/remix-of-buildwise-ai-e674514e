@@ -2,8 +2,9 @@ import type {
   Additive,
   AdditiveComposition,
   AdditiveInput,
-  AdditiveInputType,
   AdditiveImportIssue,
+  AdditiveChangeKind,
+  Project,
 } from '@/types/project';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -32,29 +33,6 @@ function asString(v: unknown): string {
 export function truncar2(v: number): number {
   if (!Number.isFinite(v)) return 0;
   return Math.trunc(v * 100) / 100;
-}
-
-const MAO_OBRA_KEYWORDS = [
-  'eletricista', 'servente', 'pedreiro', 'ajudante', 'encanador',
-  'pintor', 'carpinteiro', 'armador', 'operador', 'engenheiro',
-  'tecnico', 'técnico', 'mestre de obras', 'encarregado', 'soldador',
-  'encargos complementares',
-];
-const MAO_OBRA_UNITS = ['h', 'hr', 'hora', 'horas', 'horista'];
-const EQUIPAMENTO_KEYWORDS = [
-  'equipamento', 'maquina', 'máquina', 'betoneira', 'caminhao', 'caminhão',
-  'guindaste', 'andaime', 'compactador', 'compressor', 'retroescavadeira',
-  'escavadeira', 'guincho', 'vibrador', 'gerador',
-];
-const MATERIAL_UNITS = ['un', 'und', 'unid', 'pc', 'pç', 'peca', 'peça', 'cj', 'kg', 'g', 'l', 'ml', 'm', 'm2', 'm²', 'm3', 'm³', 'mt', 'cm'];
-
-function classifyInput(description: string, unit: string): AdditiveInputType {
-  const d = description.toLowerCase();
-  const u = unit.toLowerCase().trim();
-  if (MAO_OBRA_UNITS.includes(u) || MAO_OBRA_KEYWORDS.some(k => d.includes(k))) return 'mao_obra';
-  if (EQUIPAMENTO_KEYWORDS.some(k => d.includes(k))) return 'equipamento';
-  if (MATERIAL_UNITS.includes(u)) return 'material';
-  return 'outro';
 }
 
 const norm = (s: string) =>
@@ -97,8 +75,6 @@ function detectHeaderIndex(rows: unknown[][]): number {
 
 /** Lê BDI percentual da célula J8 (linha 8, coluna J = índice 9) da Sintética. */
 function extractBdiFromJ8(rows: unknown[][]): number | undefined {
-  // Tenta J8 (rows[7][9]). Se não houver número, tenta varrer primeiras 12 linhas
-  // procurando texto "bdi" e pegando o percentual ao lado.
   const direct = toNumber(rows[7]?.[9]);
   if (direct > 0 && direct < 200) return direct;
   for (let i = 0; i < Math.min(rows.length, 12); i++) {
@@ -141,27 +117,20 @@ interface AnalyticRow {
 }
 
 interface AnalyticBlock {
-  /** Código normalizado do bloco analítico. */
   normCode: string;
-  /** Código original. */
   code: string;
   inputs: AnalyticRow[];
-  /** Total H da linha pai analítica, quando existir. */
   parentTotalNoBDI?: number;
-  /** Linha da planilha onde o bloco começa. */
   startRow: number;
 }
 
 /**
- * Parser SINTÉTICA — layout fixo A..J:
- * A=Item, B=Código, C=Banco, D=Descrição, E=Quantidade, F=Unidade,
- * G=Vunit s/BDI, H=Total s/BDI, I=Vunit c/BDI, J=Total c/BDI
+ * Parser SINTÉTICA — layout fixo A..J.
  */
 function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues: AdditiveImportIssue[]; bdi?: number } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
   const items: SyntheticRow[] = [];
-  const seenCodes = new Set<string>();
   const bdi = extractBdiFromJ8(rows);
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
@@ -175,20 +144,12 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
     const unitPriceNoBDI = toNumber(r[6]);
     const total = toNumber(r[7]);
     const unitPriceWithBDI = toNumber(r[8]);
-    const totalWithBDI = toNumber(r[9]);
 
-    // pula linhas totalmente vazias
     if (!item && !code && !bank && !description && !quantity && !total && !unitPriceNoBDI) continue;
-    // pular textos de total/subtotal sem código
     const lowDesc = norm(description);
     if (!code && (lowDesc.includes('total') || lowDesc.includes('subtotal'))) continue;
-    // capítulos/subcapítulos: têm item, mas NÃO têm banco. Ignora.
-    if (!bank) continue;
-    // sem código de fato → ignora
+    if (!bank) continue; // capítulos
     if (!code) continue;
-
-    // Códigos repetidos na Sintética são permitidos (cada ocorrência é uma composição independente).
-    seenCodes.add(code);
 
     if (quantity <= 0) {
       issues.push({ level: 'warning', message: `Quantidade inválida ou zero (${code})`, code, line: i + 1 });
@@ -204,20 +165,30 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
       total: total || +(unitPriceNoBDI * quantity).toFixed(2),
       rowIndex: i + 1,
     });
-    void totalWithBDI;
   }
 
   return { items, issues, bdi };
 }
 
 /**
- * Parser ANALÍTICA — layout fixo A..H:
- * A=Item ou tipo (Auxiliar/Insumo), B=Código, C=Banco, D=Descrição,
- * E=Coeficiente/Quantidade, F=Unidade, G=Vunit s/BDI, H=Total s/BDI
- *
- * Linhas pai: A é numérico (item) e B/C/D preenchidos.
- * Linhas insumo: A = "Auxiliar" ou "Insumo".
- * Ignora a linha "Valor com BDI =" (não tratar como insumo).
+ * Verifica se a célula da coluna A indica um item de insumo da analítica.
+ * Aceita: "Insumo", "Auxiliar", "Comp. Auxiliar", "Comp Auxiliar", "Composição Auxiliar".
+ */
+function isAnalyticInsumoLine(aLow: string): boolean {
+  if (!aLow) return false;
+  if (aLow === 'insumo' || aLow.startsWith('insumo')) return true;
+  if (aLow === 'auxiliar' || aLow.startsWith('auxiliar')) return true;
+  // Comp. Auxiliar / Comp Auxiliar / Composicao Auxiliar / Composição Auxiliar
+  if (/(^|\s)(comp\.?|composicao|composição)\s+aux/.test(aLow)) return true;
+  return false;
+}
+
+/**
+ * Parser ANALÍTICA.
+ * Linha pai: A é numérico (item ex. "2.1.1") + B (código) + C (banco) preenchidos.
+ * O bloco do pai termina apenas quando aparece a próxima linha pai.
+ * Linhas com A = "Insumo"/"Auxiliar"/"Comp. Auxiliar"/etc são insumos.
+ * Linha "Valor com BDI =" é ignorada como insumo.
  */
 function parseAnalyticSheet(
   rows: unknown[][],
@@ -244,8 +215,12 @@ function parseAnalyticSheet(
     const dLow = norm(description);
 
     // Linha "Valor com BDI =" → ignora completamente como insumo
-    if (dLow.includes('valor com bdi') || aLow.includes('valor com bdi')
-        || (asString(r[6]) && norm(asString(r[6])).includes('valor com bdi'))) {
+    if (
+      dLow.includes('valor com bdi') ||
+      aLow.includes('valor com bdi') ||
+      norm(asString(r[6])).includes('valor com bdi') ||
+      norm(asString(r[5])).includes('valor com bdi')
+    ) {
       continue;
     }
 
@@ -254,7 +229,6 @@ function parseAnalyticSheet(
       !!codeRaw && !!bank && /^\d+(\.\d+)*$/.test(aRaw.replace(',', '.'));
 
     if (isParentLine) {
-      // Cada ocorrência de pai abre um NOVO bloco — mesmo que o código já tenha aparecido antes.
       current = {
         normCode: normalizeCode(codeRaw),
         code: codeRaw,
@@ -266,10 +240,7 @@ function parseAnalyticSheet(
       continue;
     }
 
-    // Insumo: A deve ser "Auxiliar" ou "Insumo"
-    const isInsumo = aLow === 'auxiliar' || aLow === 'insumo' || aLow.startsWith('insumo') || aLow.startsWith('auxiliar');
-
-    if (!isInsumo) continue;
+    if (!isAnalyticInsumoLine(aLow)) continue;
     if (!current) continue;
     if (!codeRaw && !description) continue;
 
@@ -297,15 +268,15 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
 
   if (!synthName) {
     allIssues.push({ level: 'error', message: 'Aba Sintética não encontrada' });
-    return { id: uid(), name: additiveName, importedAt: new Date().toISOString(), compositions: [], issues: allIssues };
+    return {
+      id: uid(), name: additiveName, importedAt: new Date().toISOString(),
+      compositions: [], issues: allIssues, status: 'rascunho',
+    };
   }
 
   const synthRows = sheetToRows(wb.Sheets[synthName], XLSX);
   const { items: synthItems, issues: synthIssues, bdi } = parseSyntheticSheet(synthRows);
   allIssues.push(...synthIssues);
-
-  const parentByNorm = new Map<string, string>();
-  for (const s of synthItems) parentByNorm.set(normalizeCode(s.code), s.code);
 
   let analyticBlocks: AnalyticBlock[] = [];
   if (!analyName) {
@@ -317,8 +288,7 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     allIssues.push(...result.issues);
   }
 
-  // Vinculação por OCORRÊNCIA: fila de blocos por código normalizado.
-  // Cada bloco analítico só pode ser consumido UMA vez.
+  // Vinculação por OCORRÊNCIA via fila por código normalizado.
   const queueByCode = new Map<string, AnalyticBlock[]>();
   for (const b of analyticBlocks) {
     const key = b.normCode;
@@ -339,14 +309,12 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       code: r.code,
       bank: r.bank,
       description: r.description,
-      type: classifyInput(r.description, r.unit),
       unit: r.unit,
       coefficient: r.coefficient,
       unitPrice: r.unitPrice,
       total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
     }));
 
-    // Valor unitário c/ BDI calculado a partir do BDI lido da planilha.
     const unitPriceWithBDI = bdiPercent > 0
       ? truncar2(s.unitPriceNoBDI * fator)
       : (s.unitPriceWithBDI || truncar2(s.unitPriceNoBDI * fator));
@@ -368,10 +336,14 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       unitPriceWithBDI,
       total,
       inputs,
+      // Por padrão, novas composições do aditivo são acrescidas
+      changeKind: 'acrescido',
+      originalQuantity: 0,
+      addedQuantity: s.quantity,
+      suppressedQuantity: 0,
     };
   });
 
-  // Blocos analíticos restantes (não consumidos por nenhuma composição sintética)
   let leftover = 0;
   for (const q of queueByCode.values()) leftover += q.length;
   if (leftover > 0) {
@@ -385,7 +357,6 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     { level: 'info', message: `BDI lido da planilha (J8): ${bdiPercent ? bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
   );
 
-
   return {
     id: uid(),
     name: additiveName,
@@ -393,6 +364,7 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     compositions,
     issues: allIssues,
     bdiPercent,
+    status: 'rascunho',
   };
 }
 
@@ -402,17 +374,45 @@ export function sumAnalyticTotalNoBDI(comp: AdditiveComposition): number {
 }
 
 /**
+ * Quantidade efetiva da composição considerando supressão e acréscimo.
+ * Se changeKind for 'suprimido', a quantidade efetiva é negativa para fins de impacto financeiro.
+ */
+export function effectiveQuantity(c: AdditiveComposition): number {
+  if (c.changeKind === 'suprimido') {
+    return -(c.suppressedQuantity ?? c.quantity ?? 0);
+  }
+  if (c.changeKind === 'sem_alteracao') return 0;
+  return c.addedQuantity ?? c.quantity ?? 0;
+}
+
+/** Quantidade total após o aditivo (originalQuantity + addedQuantity − suppressedQuantity). */
+export function totalAfterAdditive(c: AdditiveComposition): number {
+  const orig = c.originalQuantity ?? 0;
+  const add = c.addedQuantity ?? 0;
+  const sup = c.suppressedQuantity ?? 0;
+  return orig + add - sup;
+}
+
+/**
  * Recalcula valores da composição com base no BDI atual (editável).
- * Retorna os valores derivados para exibição (não muta o objeto).
+ * Usa a quantidade efetiva (acréscimo/supressão) para o impacto financeiro.
  */
 export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent: number) {
   const fator = 1 + (bdiPercent || 0) / 100;
   const unitPriceWithBDI = truncar2(comp.unitPriceNoBDI * fator);
-  const totalSyntheticWithBDI = truncar2(unitPriceWithBDI * comp.quantity);
+  const qty = comp.quantity || 0;
+  const totalSyntheticWithBDI = truncar2(unitPriceWithBDI * qty);
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
-  const totalAnalyticWithBDI = truncar2(sumAnalyticNoBDI * fator * comp.quantity);
+  const totalAnalyticWithBDI = truncar2(sumAnalyticNoBDI * fator * qty);
   const diff = +(totalAnalyticWithBDI - totalSyntheticWithBDI).toFixed(2);
-  return { unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff };
+  // Impacto financeiro considerando acréscimo/supressão
+  const effQty = effectiveQuantity(comp);
+  const impactoSemBDI = truncar2(comp.unitPriceNoBDI * effQty);
+  const impactoComBDI = truncar2(unitPriceWithBDI * effQty);
+  return {
+    unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
+    impactoSemBDI, impactoComBDI,
+  };
 }
 
 export function additiveTotals(add: Additive) {
@@ -423,33 +423,124 @@ export function additiveTotals(add: Additive) {
     const { totalSyntheticWithBDI } = computeCompositionWithBDI(c, bdi);
     return a + totalSyntheticWithBDI;
   }, 0);
-  const total = totalComBDI;
+  // Impacto líquido (acrescido positivo, suprimido negativo)
+  const impactoSemBDI = add.compositions.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoSemBDI, 0);
+  const impactoComBDI = add.compositions.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoComBDI, 0);
   const inputCount = add.compositions.reduce((a, c) => a + c.inputs.length, 0);
   const semAnalitico = add.compositions.filter(c => c.inputs.length === 0).length;
-  return { compCount, totalSemBDI, totalComBDI, total, inputCount, semAnalitico };
+  const acrescidos = add.compositions.filter(c => (c.changeKind ?? 'acrescido') === 'acrescido').length;
+  const suprimidos = add.compositions.filter(c => c.changeKind === 'suprimido').length;
+  return {
+    compCount, totalSemBDI, totalComBDI, total: totalComBDI,
+    inputCount, semAnalitico, acrescidos, suprimidos,
+    impactoSemBDI, impactoComBDI,
+  };
 }
+
+// ============= Integração com o Projeto =============
+
+export interface ApprovedAdditiveItem {
+  additiveId: string;
+  additiveName: string;
+  compositionId: string;
+  item: string;
+  code: string;
+  bank: string;
+  description: string;
+  unit: string;
+  changeKind: AdditiveChangeKind;
+  originalQuantity: number;
+  suppressedQuantity: number;
+  addedQuantity: number;
+  totalAfter: number;
+  unitPriceNoBDI: number;
+  unitPriceWithBDI: number;
+  status: 'aprovado';
+  approvedAt?: string;
+  approvedBy?: string;
+}
+
+/** Retorna itens dos aditivos APROVADOS, prontos para integrar com Medição/Tarefas/Diário. */
+export function getApprovedAdditiveItems(project: Project): ApprovedAdditiveItem[] {
+  const out: ApprovedAdditiveItem[] = [];
+  const adds = project.additives ?? [];
+  for (const a of adds) {
+    if (a.status !== 'aprovado') continue;
+    const bdi = a.bdiPercent ?? 0;
+    const fator = 1 + bdi / 100;
+    for (const c of a.compositions) {
+      const upWithBDI = truncar2(c.unitPriceNoBDI * fator);
+      out.push({
+        additiveId: a.id,
+        additiveName: a.name,
+        compositionId: c.id,
+        item: c.item,
+        code: c.code,
+        bank: c.bank,
+        description: c.description,
+        unit: c.unit,
+        changeKind: c.changeKind ?? 'acrescido',
+        originalQuantity: c.originalQuantity ?? 0,
+        suppressedQuantity: c.suppressedQuantity ?? 0,
+        addedQuantity: c.addedQuantity ?? c.quantity ?? 0,
+        totalAfter: totalAfterAdditive(c),
+        unitPriceNoBDI: c.unitPriceNoBDI,
+        unitPriceWithBDI: upWithBDI,
+        status: 'aprovado',
+        approvedAt: a.approvedAt,
+        approvedBy: a.approvedBy,
+      });
+    }
+  }
+  return out;
+}
+
+// ============= Exportações =============
 
 export async function exportAdditiveToExcel(add: Additive) {
   const XLSX = await import('xlsx');
   const bdi = add.bdiPercent ?? 0;
-  const synthHeader = ['Item', 'Código', 'Banco', 'Descrição', 'Quantidade', 'Unidade', 'V.Unit s/BDI', 'Total s/BDI', 'V.Unit c/BDI', 'Total c/BDI', 'Soma Analítica s/BDI', 'Total Analítico c/BDI', 'Diferença'];
+  const synthHeader = [
+    'Item', 'Código', 'Banco', 'Discriminação', 'Und',
+    'Quant. Contrat.', 'Itens Suprimidos', 'Itens Aditivados', 'Total após Troca',
+    'V.Unit s/BDI', 'V.Unit c/BDI',
+    'Impacto s/BDI', 'Impacto c/BDI',
+    'Soma Analítica s/BDI', 'Total Analítico c/BDI', 'Diferença',
+  ];
   const synthRows = add.compositions.map(c => {
     const r = computeCompositionWithBDI(c, bdi);
-    return [c.item, c.code, c.bank, c.description, c.quantity, c.unit,
-      c.unitPriceNoBDI, +(c.unitPriceNoBDI * c.quantity).toFixed(2),
-      r.unitPriceWithBDI, r.totalSyntheticWithBDI,
-      r.sumAnalyticNoBDI, r.totalAnalyticWithBDI, r.diff];
+    return [
+      c.item, c.code, c.bank, c.description, c.unit,
+      c.originalQuantity ?? 0,
+      c.suppressedQuantity ?? 0,
+      c.addedQuantity ?? c.quantity,
+      totalAfterAdditive(c),
+      c.unitPriceNoBDI, r.unitPriceWithBDI,
+      r.impactoSemBDI, r.impactoComBDI,
+      r.sumAnalyticNoBDI, r.totalAnalyticWithBDI, r.diff,
+    ];
   });
-  const wsSynth = XLSX.utils.aoa_to_sheet([[`BDI: ${bdi.toFixed(2)}%`], [], synthHeader, ...synthRows]);
+  const wsSynth = XLSX.utils.aoa_to_sheet([
+    [`Aditivo: ${add.name}`],
+    [`BDI: ${bdi.toFixed(2)}%   |   Status: ${add.status ?? 'rascunho'}`],
+    [],
+    synthHeader,
+    ...synthRows,
+  ]);
 
-  const typeLabel: Record<AdditiveInputType, string> = {
-    material: 'Material', mao_obra: 'Mão de obra', equipamento: 'Equipamento', outro: 'Outro',
-  };
-  const analyHeader = ['Item composição', 'Código composição', 'Descrição composição', 'Código insumo', 'Banco', 'Tipo', 'Descrição insumo', 'Unidade', 'Coeficiente', 'V.Unit s/BDI', 'Total s/BDI'];
+  const analyHeader = [
+    'Item composição', 'Código composição', 'Descrição composição',
+    'Código insumo', 'Banco', 'Descrição insumo',
+    'Unidade', 'Coeficiente', 'V.Unit s/BDI', 'Total s/BDI',
+  ];
   const analyRows: (string | number)[][] = [];
   for (const c of add.compositions) {
     for (const i of c.inputs) {
-      analyRows.push([c.item, c.code, c.description, i.code, i.bank, typeLabel[i.type], i.description, i.unit, i.coefficient, i.unitPrice, i.total]);
+      analyRows.push([
+        c.item, c.code, c.description,
+        i.code, i.bank, i.description,
+        i.unit, i.coefficient, i.unitPrice, i.total,
+      ]);
     }
   }
   const wsAnaly = XLSX.utils.aoa_to_sheet([analyHeader, ...analyRows]);
@@ -491,39 +582,48 @@ export async function exportAdditiveToPdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(`Obra: ${projectName}`, pageWidth / 2, cursorY + 11, { align: 'center' });
-  doc.text(`Emitido em: ${new Date().toLocaleDateString('pt-BR')}   |   BDI: ${bdi.toFixed(2)}%`, pageWidth / 2, cursorY + 15, { align: 'center' });
+  doc.text(
+    `Emitido em: ${new Date().toLocaleDateString('pt-BR')}   |   BDI: ${bdi.toFixed(2)}%   |   Status: ${(add.status ?? 'rascunho').toUpperCase()}`,
+    pageWidth / 2, cursorY + 15, { align: 'center' },
+  );
   cursorY += 20;
 
   const totals = additiveTotals(add);
   doc.setFontSize(8);
   const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const summary = `Composições: ${totals.compCount}   |   Insumos: ${totals.inputCount}   |   Total s/ BDI: ${fmtBRL(totals.totalSemBDI)}   |   Total c/ BDI: ${fmtBRL(totals.totalComBDI)}`;
+  const summary = `Composições: ${totals.compCount} (acrescidas: ${totals.acrescidos} | suprimidas: ${totals.suprimidos})   |   Insumos: ${totals.inputCount}   |   Impacto s/BDI: ${fmtBRL(totals.impactoSemBDI)}   |   Impacto c/BDI: ${fmtBRL(totals.impactoComBDI)}`;
   doc.text(summary, margin, cursorY);
   cursorY += 4;
 
-  const head = [['Item', 'Código', 'Banco', 'Descrição', 'Qtd', 'Un', 'V.Unit s/BDI', 'V.Unit c/BDI', 'Total c/BDI']];
-  const typeLabel: Record<AdditiveInputType, string> = {
-    material: 'Material', mao_obra: 'Mão de obra', equipamento: 'Equipamento', outro: 'Outro',
-  };
+  const head = [[
+    'Item', 'Código', 'Banco', 'Discriminação', 'Und',
+    'Q.Contrat.', 'Suprim.', 'Aditiv.', 'Total após',
+    'V.Unit s/BDI', 'V.Unit c/BDI', 'Impacto c/BDI',
+  ]];
 
   for (const c of add.compositions) {
     const r = computeCompositionWithBDI(c, bdi);
     const body: any[] = [[
-      c.item, c.code, c.bank, c.description,
-      c.quantity.toLocaleString('pt-BR'), c.unit,
-      fmtBRL(c.unitPriceNoBDI), fmtBRL(r.unitPriceWithBDI), fmtBRL(r.totalSyntheticWithBDI),
+      c.item, c.code, c.bank, c.description, c.unit,
+      (c.originalQuantity ?? 0).toLocaleString('pt-BR'),
+      (c.suppressedQuantity ?? 0).toLocaleString('pt-BR'),
+      (c.addedQuantity ?? c.quantity).toLocaleString('pt-BR'),
+      totalAfterAdditive(c).toLocaleString('pt-BR'),
+      fmtBRL(c.unitPriceNoBDI), fmtBRL(r.unitPriceWithBDI), fmtBRL(r.impactoComBDI),
     ]];
 
     autoTable(doc, {
       startY: cursorY, head, body,
       margin: { left: margin, right: margin },
-      styles: { fontSize: 7.5, cellPadding: 1.4, overflow: 'linebreak' },
+      styles: { fontSize: 7.2, cellPadding: 1.3, overflow: 'linebreak' },
       headStyles: { fillColor: [40, 60, 90], textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 14 }, 1: { cellWidth: 18 }, 2: { cellWidth: 14 },
-        3: { cellWidth: 'auto' }, 4: { cellWidth: 14, halign: 'right' },
-        5: { cellWidth: 12 }, 6: { cellWidth: 22, halign: 'right' },
-        7: { cellWidth: 22, halign: 'right' }, 8: { cellWidth: 24, halign: 'right' },
+        0: { cellWidth: 12 }, 1: { cellWidth: 16 }, 2: { cellWidth: 12 },
+        3: { cellWidth: 'auto' }, 4: { cellWidth: 10 },
+        5: { cellWidth: 16, halign: 'right' }, 6: { cellWidth: 14, halign: 'right' },
+        7: { cellWidth: 14, halign: 'right' }, 8: { cellWidth: 16, halign: 'right' },
+        9: { cellWidth: 20, halign: 'right' }, 10: { cellWidth: 20, halign: 'right' },
+        11: { cellWidth: 22, halign: 'right' },
       },
     });
     cursorY = (doc as any).lastAutoTable.finalY + 1;
@@ -531,17 +631,17 @@ export async function exportAdditiveToPdf(
     if (showAnalytic && c.inputs.length > 0) {
       autoTable(doc, {
         startY: cursorY,
-        head: [['', 'Cód.', 'Banco', 'Tipo', 'Descrição insumo', 'Un', 'Coef.', 'V.Unit s/BDI', 'Total s/BDI']],
+        head: [['', 'Cód.', 'Banco', 'Descrição insumo', 'Un', 'Coef.', 'V.Unit s/BDI', 'Total s/BDI']],
         body: c.inputs.map(i => [
-          '', i.code, i.bank, typeLabel[i.type], i.description, i.unit,
+          '', i.code, i.bank, i.description, i.unit,
           i.coefficient.toLocaleString('pt-BR'), fmtBRL(i.unitPrice), fmtBRL(i.total),
         ]),
         margin: { left: margin + 6, right: margin },
         styles: { fontSize: 6.8, cellPadding: 1.1, overflow: 'linebreak', textColor: 60 },
         headStyles: { fillColor: [220, 225, 235], textColor: 30 },
         columnStyles: {
-          0: { cellWidth: 4 }, 4: { cellWidth: 'auto' },
-          6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' },
+          0: { cellWidth: 4 }, 3: { cellWidth: 'auto' },
+          5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' },
         },
       });
       cursorY = (doc as any).lastAutoTable.finalY + 3;
