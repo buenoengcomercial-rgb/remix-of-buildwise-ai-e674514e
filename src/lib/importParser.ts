@@ -314,7 +314,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
           const issue: ImportIssue = {
             level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
             message: `Horas trabalhadas zeradas para ${labor.role}.`,
-            suggestion: 'Preencher coluna I com horas trabalhadas.',
+            suggestion: 'Preencher coluna H com horas trabalhadas.',
           };
           currentComposition.issues = currentComposition.issues || [];
           currentComposition.issues.push(issue);
@@ -324,7 +324,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
           const issue: ImportIssue = {
             level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
             message: `Dias trabalhados zerados para ${labor.role}.`,
-            suggestion: 'Preencher coluna J com dias trabalhados.',
+            suggestion: 'Preencher coluna I com dias trabalhados.',
           };
           currentComposition.issues = currentComposition.issues || [];
           currentComposition.issues.push(issue);
