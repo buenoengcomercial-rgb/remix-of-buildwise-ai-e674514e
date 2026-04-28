@@ -519,14 +519,22 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     }
 
 
-    // Index de tarefas por itemCode e por item (numeração) para casar logs/medições com BudgetItems
-    const tasksByCode = new Map<string, { task: Task; phase: Phase; itemNumber: string; chain: string }>();
-    const tasksByItem = new Map<string, { task: Task; phase: Phase; itemNumber: string; chain: string }>();
-    orderedTasks.forEach(o => {
-      const code = (o.task.itemCode || '').trim();
-      if (code) tasksByCode.set(code, o);
-      if (o.itemNumber) tasksByItem.set(o.itemNumber, o);
-    });
+    // Normalização de códigos para casamento robusto entre EAP e Sintética.
+    const normalizeCode = (s: string | undefined | null): string => {
+      if (!s) return '';
+      let v = String(s).trim().toUpperCase();
+      // Remove acentos
+      v = v.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      // Colapsa espaços
+      v = v.replace(/\s+/g, ' ');
+      return v;
+    };
+    const normalizeNumeric = (s: string | undefined | null): string => {
+      const v = normalizeCode(s);
+      // Remove zeros à esquerda em segmentos puramente numéricos
+      return v.split('.').map(seg => /^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg).join('.');
+    };
+    const normalizeDesc = (s: string | undefined | null): string => normalizeCode(s).replace(/[^A-Z0-9 ]/g, '');
 
     const computeQtyFromTask = (task: Task | undefined): { prior: number; period: number; hasNoLogsAtAll: boolean; hasNoLogsInPeriod: boolean } => {
       if (!task) return { prior: 0, period: 0, hasNoLogsAtAll: true, hasNoLogsInPeriod: true };
@@ -548,100 +556,100 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       return { prior, period, hasNoLogsAtAll, hasNoLogsInPeriod: !hasLogsInPeriod };
     };
 
-    // Modo Live com Sintética importada: a Medição usa project.budgetItems como fonte financeira
+    // ── Construção das filas de BudgetItems (Sintética) por chave, para consumo único ──
+    // Cada item da Sintética só pode ser associado a UMA tarefa da EAP.
+    const budgetById = new Map<string, typeof syntheticBudgetItems[number]>();
+    const budgetQueueByCode = new Map<string, typeof syntheticBudgetItems>();
+    const budgetQueueByItem = new Map<string, typeof syntheticBudgetItems>();
+    const budgetQueueByDesc = new Map<string, typeof syntheticBudgetItems>();
+    const consumed = new Set<string>();
+
     if (hasSyntheticBudget) {
-      return syntheticBudgetItems.map(b => {
-        const matched = (b.taskId && orderedTasks.find(o => o.task.id === b.taskId))
-          || (b.code && tasksByCode.get(b.code.trim()))
-          || tasksByItem.get(b.item)
-          || undefined;
-        const task = matched?.task;
-        const phase = matched?.phase;
-        const chain = matched?.chain || '';
-        const phaseId = phase?.id || '';
-
-        const logsInfo = computeQtyFromTask(task);
-        const priorFromMeas = task ? (priorAccumByTask.get(task.id) || 0) : 0;
-        const qtyPriorAccum = Math.max(logsInfo.prior, priorFromMeas);
-        const qtyPeriod = logsInfo.period;
-        const qtyContracted = b.quantity || 0;
-
-        // Preserva c/BDI da Sintética via BDI implícito (não força recálculo para zero)
-        const noBDI = trunc2(b.unitPriceNoBDI);
-        const withBDI = trunc2(b.unitPriceWithBDI);
-        const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
-
-        const calc = calculateMeasurementLine({
-          quantityContracted: qtyContracted,
-          quantityPeriod: qtyPeriod,
-          quantityPriorAccum: qtyPriorAccum,
-          unitPriceNoBDI: noBDI,
-          bdiPercent: implicitBdi,
-        });
-
-        // Garante totais contratados exatamente como na Sintética
-        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
-        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
-
-        return {
-          item: b.item,
-          phaseId,
-          phaseChain: chain,
-          taskId: task?.id || `budget-${b.id}`,
-          description: b.description,
-          unit: b.unit,
-          itemCode: b.code,
-          priceBank: b.bank,
-          qtyContracted,
-          qtyPriorAccum,
-          qtyPeriod,
-          qtyProposed: qtyPeriod,
-          qtyApproved: undefined,
-          qtyCurrentAccum: calc.quantityCurrentAccum,
-          qtyBalance: calc.quantityBalance,
-          percentExecuted: qtyContracted > 0 ? calc.percentExecuted : (task?.percentComplete || 0),
-          unitPriceNoBDI: noBDI,
-          unitPriceWithBDI: withBDI,
-          unitPriceIsEstimated: false,
-          valueContractedNoBDI,
-          valuePeriodNoBDI: calc.totalPeriodNoBDI,
-          valueAccumNoBDI: calc.totalAccumulatedNoBDI,
-          valueBalanceNoBDI: Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI)),
-          valueContracted,
-          valuePeriod: calc.totalPeriod,
-          valueAccum: calc.totalAccumulated,
-          valueBalance: Math.max(0, trunc2(valueContracted - calc.totalAccumulated)),
-          hasNoLogsInPeriod: logsInfo.hasNoLogsInPeriod,
-          hasNoLogsAtAll: logsInfo.hasNoLogsAtAll,
-        };
+      syntheticBudgetItems.forEach(b => {
+        budgetById.set(b.id, b);
+        const cKey = normalizeCode(b.code);
+        if (cKey) {
+          const arr = budgetQueueByCode.get(cKey) || [];
+          arr.push(b);
+          budgetQueueByCode.set(cKey, arr);
+        }
+        const iKey = normalizeNumeric(b.item);
+        if (iKey) {
+          const arr = budgetQueueByItem.get(iKey) || [];
+          arr.push(b);
+          budgetQueueByItem.set(iKey, arr);
+        }
+        const dKey = normalizeDesc(b.description);
+        if (dKey) {
+          const arr = budgetQueueByDesc.get(dKey) || [];
+          arr.push(b);
+          budgetQueueByDesc.set(dKey, arr);
+        }
       });
     }
 
-    // Modo Live (fallback antigo, sem Sintética importada): calcula a partir da EAP + apontamentos
-    return orderedTasks.map(({ task, phase, itemNumber, chain }) => {
-      const qtyContracted = task.quantity ?? task.baseline?.quantity ?? 0;
-      const unit = task.unit || '';
+    const popFromQueue = (q: typeof syntheticBudgetItems | undefined): typeof syntheticBudgetItems[number] | undefined => {
+      if (!q) return undefined;
+      while (q.length > 0) {
+        const candidate = q.shift()!;
+        if (!consumed.has(candidate.id)) {
+          consumed.add(candidate.id);
+          return candidate;
+        }
+      }
+      return undefined;
+    };
+
+    const matchBudgetForTask = (task: Task): typeof syntheticBudgetItems[number] | undefined => {
+      if (!hasSyntheticBudget) return undefined;
+      // 1) taskId direto
+      const direct = syntheticBudgetItems.find(b => b.taskId === task.id && !consumed.has(b.id));
+      if (direct) { consumed.add(direct.id); return direct; }
+      // 2) código normalizado
+      const codeKey = normalizeCode(task.itemCode);
+      if (codeKey) {
+        const m = popFromQueue(budgetQueueByCode.get(codeKey));
+        if (m) return m;
+      }
+      // 3) descrição normalizada (fallback)
+      const descKey = normalizeDesc(task.name);
+      if (descKey) {
+        const m = popFromQueue(budgetQueueByDesc.get(descKey));
+        if (m) return m;
+      }
+      return undefined;
+    };
+
+    // ── Iteração principal: SEMPRE pela EAP (ordem/numeração/hierarquia da EAP) ──
+    const eapRows: Row[] = orderedTasks.map(({ task, phase, itemNumber, chain }) => {
+      const matchedBudget = matchBudgetForTask(task);
+
+      const qtyContracted = matchedBudget
+        ? (matchedBudget.quantity || 0)
+        : (task.quantity ?? task.baseline?.quantity ?? 0);
+      const unit = matchedBudget?.unit || task.unit || '';
 
       const logsInfo = computeQtyFromTask(task);
       const priorFromMeas = priorAccumByTask.get(task.id) || 0;
       const qtyPriorAccum = Math.max(logsInfo.prior, priorFromMeas);
       let qtyPeriod = logsInfo.period;
       if (logsInfo.hasNoLogsAtAll) {
-        // Sem logs: estima acumulado prévio pelo % concluído (mantém comportamento antigo)
-        const pct = (task.percentComplete || 0) / 100;
-        const estPrior = qtyContracted * pct;
-        if (estPrior > qtyPriorAccum) {
-          // usa estimativa quando não há logs nem medições anteriores
-        }
         qtyPeriod = 0;
       }
 
-      // Determinar preço s/ BDI base
-      let unitPriceNoBDIBase = task.unitPriceNoBDI ?? 0;
+      // Determinar preço s/ BDI base — Sintética (se vinculada) tem prioridade
+      let unitPriceNoBDIBase = 0;
       let unitPriceIsEstimated = false;
+      let lineBdi = effBdi;
 
-      if (unitPriceNoBDIBase > 0) {
-        // já temos s/ BDI
+      if (matchedBudget) {
+        const noBDI = trunc2(matchedBudget.unitPriceNoBDI);
+        const withBDI = trunc2(matchedBudget.unitPriceWithBDI);
+        unitPriceNoBDIBase = noBDI;
+        // Preserva BDI implícito da Sintética (mantém c/BDI exato)
+        lineBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
+      } else if ((task.unitPriceNoBDI ?? 0) > 0) {
+        unitPriceNoBDIBase = task.unitPriceNoBDI!;
       } else if ((task.unitPrice ?? 0) > 0) {
         const withBDI = trunc2(task.unitPrice!);
         unitPriceNoBDIBase = trunc2(withBDI / effBdiFactor);
@@ -657,13 +665,28 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         quantityPeriod: qtyPeriod,
         quantityPriorAccum: qtyPriorAccum,
         unitPriceNoBDI: unitPriceNoBDIBase,
-        bdiPercent: effBdi,
+        bdiPercent: lineBdi,
       });
+
+      // Quando vinculado à Sintética, preserva totais contratados exatos da planilha
+      const valueContracted = matchedBudget
+        ? trunc2(matchedBudget.totalWithBDI || calc.totalContracted)
+        : calc.totalContracted;
+      const valueContractedNoBDI = matchedBudget
+        ? trunc2(matchedBudget.totalNoBDI || calc.totalContractedNoBDI)
+        : calc.totalContractedNoBDI;
+      const valueBalance = matchedBudget
+        ? Math.max(0, trunc2(valueContracted - calc.totalAccumulated))
+        : calc.totalBalance;
+      const valueBalanceNoBDI = matchedBudget
+        ? Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI))
+        : calc.totalBalanceNoBDI;
 
       return {
         item: itemNumber, phaseId: phase.id, phaseChain: chain, taskId: task.id,
         description: task.name, unit,
-        itemCode: task.itemCode || '', priceBank: task.priceBank || '',
+        itemCode: matchedBudget?.code || task.itemCode || '',
+        priceBank: matchedBudget?.bank || task.priceBank || '',
         qtyContracted, qtyPriorAccum, qtyPeriod,
         qtyProposed: qtyPeriod,
         qtyApproved: undefined,
@@ -673,18 +696,71 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         unitPriceNoBDI: calc.unitPriceNoBDI,
         unitPriceWithBDI: calc.unitPriceWithBDI,
         unitPriceIsEstimated,
-        valueContractedNoBDI: calc.totalContractedNoBDI,
+        valueContractedNoBDI,
         valuePeriodNoBDI: calc.totalPeriodNoBDI,
         valueAccumNoBDI: calc.totalAccumulatedNoBDI,
-        valueBalanceNoBDI: calc.totalBalanceNoBDI,
-        valueContracted: calc.totalContracted,
+        valueBalanceNoBDI,
+        valueContracted,
         valuePeriod: calc.totalPeriod,
         valueAccum: calc.totalAccumulated,
-        valueBalance: calc.totalBalance,
+        valueBalance,
         hasNoLogsInPeriod: logsInfo.hasNoLogsInPeriod,
         hasNoLogsAtAll: logsInfo.hasNoLogsAtAll,
       };
     });
+
+    // ── Itens da Sintética sem vínculo na EAP — agrupados em seção separada ──
+    const orphanRows: Row[] = [];
+    if (hasSyntheticBudget) {
+      syntheticBudgetItems.forEach(b => {
+        if (consumed.has(b.id)) return;
+        const noBDI = trunc2(b.unitPriceNoBDI);
+        const withBDI = trunc2(b.unitPriceWithBDI);
+        const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
+        const calc = calculateMeasurementLine({
+          quantityContracted: b.quantity || 0,
+          quantityPeriod: 0,
+          quantityPriorAccum: 0,
+          unitPriceNoBDI: noBDI,
+          bdiPercent: implicitBdi,
+        });
+        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
+        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
+        orphanRows.push({
+          item: b.item,
+          phaseId: '__synthetic_orphans__',
+          phaseChain: 'Itens da Sintética sem vínculo na EAP',
+          taskId: `budget-${b.id}`,
+          description: b.description,
+          unit: b.unit,
+          itemCode: b.code,
+          priceBank: b.bank,
+          qtyContracted: b.quantity || 0,
+          qtyPriorAccum: 0,
+          qtyPeriod: 0,
+          qtyProposed: 0,
+          qtyApproved: undefined,
+          qtyCurrentAccum: 0,
+          qtyBalance: b.quantity || 0,
+          percentExecuted: 0,
+          unitPriceNoBDI: noBDI,
+          unitPriceWithBDI: withBDI,
+          unitPriceIsEstimated: false,
+          valueContractedNoBDI,
+          valuePeriodNoBDI: 0,
+          valueAccumNoBDI: 0,
+          valueBalanceNoBDI: valueContractedNoBDI,
+          valueContracted,
+          valuePeriod: 0,
+          valueAccum: 0,
+          valueBalance: valueContracted,
+          hasNoLogsInPeriod: true,
+          hasNoLogsAtAll: true,
+        });
+      });
+    }
+
+    return [...eapRows, ...orphanRows];
   }, [isSnapshotMode, activeMeasurement, orderedTasks, effStart, effEnd, effBdi, effBdiFactor, priorAccumByTask, hasSyntheticBudget, syntheticBudgetItems]);
 
   const filteredRows = useMemo(() => {
@@ -810,7 +886,35 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const groups = tree
       .map(n => buildNode(n, 0))
       .filter((g): g is GroupNode => g !== null);
-    return groups.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+    const sorted = groups.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+    // Seção extra: itens da Sintética sem vínculo na EAP (apenas para revisão)
+    const orphanRows = rowsByPhase.get('__synthetic_orphans__') || [];
+    if (orphanRows.length > 0) {
+      const orphanTotals = emptyTotals();
+      orphanRows.forEach(r => {
+        orphanTotals.contracted += r.valueContracted;
+        orphanTotals.period += r.valuePeriod;
+        orphanTotals.accum += r.valueAccum;
+        orphanTotals.balance += r.valueBalance;
+        orphanTotals.contractedNoBDI += r.valueContractedNoBDI;
+        orphanTotals.periodNoBDI += r.valuePeriodNoBDI;
+        orphanTotals.accumNoBDI += r.valueAccumNoBDI;
+        orphanTotals.balanceNoBDI += r.valueBalanceNoBDI;
+        orphanTotals.qtyContracted += r.qtyContracted;
+        orphanTotals.qtyAccum += r.qtyCurrentAccum;
+      });
+      sorted.push({
+        phaseId: '__synthetic_orphans__',
+        number: '∅',
+        name: 'Itens da Sintética sem vínculo na EAP',
+        depth: 0,
+        rows: orphanRows,
+        children: [],
+        totals: orphanTotals,
+      });
+    }
+    return sorted;
   }, [filteredRows, project, numbering]);
 
   const totals = useMemo(() => {
