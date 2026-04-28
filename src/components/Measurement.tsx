@@ -715,8 +715,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     if (hasSyntheticBudget) {
       syntheticBudgetItems.forEach(b => {
         if (consumed.has(b.id)) return;
-        const noBDI = trunc2(b.unitPriceNoBDI);
-        const withBDI = trunc2(b.unitPriceWithBDI);
+        const noBDI = money2(b.unitPriceNoBDI);
+        const withBDI = money2(b.unitPriceWithBDI);
         const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
         const calc = calculateMeasurementLine({
           quantityContracted: b.quantity || 0,
@@ -725,8 +725,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
           unitPriceNoBDI: noBDI,
           bdiPercent: implicitBdi,
         });
-        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
-        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
+        const valueContracted = money2(b.totalWithBDI || calc.totalContracted);
+        const valueContractedNoBDI = money2(b.totalNoBDI || calc.totalContractedNoBDI);
         orphanRows.push({
           item: b.item,
           phaseId: '__synthetic_orphans__',
