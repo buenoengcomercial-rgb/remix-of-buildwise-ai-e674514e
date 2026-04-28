@@ -1027,9 +1027,12 @@ export function parseSyntheticBudget(data: ArrayBuffer): ParsedSynthetic {
     if (!bank) continue; // capítulos da sintética não têm banco
     if (!code) continue;
 
-    const finalUpWithBDI = upWithBDI > 0 ? upWithBDI : _trunc2(upNoBDI * fator);
-    const finalTotalNoBDI = totalNoBDI > 0 ? totalNoBDI : _trunc2(upNoBDI * quantity);
-    const finalTotalWithBDI = totalWithBDI > 0 ? totalWithBDI : _trunc2(finalUpWithBDI * quantity);
+    // Valores que JÁ vêm prontos do Excel: normalizar com money2 (arredondamento seguro).
+    // Valores CALCULADOS pelo sistema (quando a coluna está vazia): usar trunc2.
+    const finalUpNoBDI = _money2(upNoBDI);
+    const finalUpWithBDI = upWithBDI > 0 ? _money2(upWithBDI) : _trunc2(finalUpNoBDI * fator);
+    const finalTotalNoBDI = totalNoBDI > 0 ? _money2(totalNoBDI) : _trunc2(finalUpNoBDI * quantity);
+    const finalTotalWithBDI = totalWithBDI > 0 ? _money2(totalWithBDI) : _trunc2(finalUpWithBDI * quantity);
 
     if (quantity <= 0) warnings.push(`Linha ${i + 1} (${code}): quantidade zero/inválida.`);
     if (upNoBDI <= 0) warnings.push(`Linha ${i + 1} (${code}): valor unitário s/ BDI zero/inválido.`);
@@ -1037,7 +1040,7 @@ export function parseSyntheticBudget(data: ArrayBuffer): ParsedSynthetic {
     items.push({
       id: `bgt-${Date.now().toString(36)}-${i}-${Math.random().toString(36).slice(2, 6)}`,
       item, code, bank, description, unit, quantity,
-      unitPriceNoBDI: upNoBDI,
+      unitPriceNoBDI: finalUpNoBDI,
       unitPriceWithBDI: finalUpWithBDI,
       totalNoBDI: finalTotalNoBDI,
       totalWithBDI: finalTotalWithBDI,
