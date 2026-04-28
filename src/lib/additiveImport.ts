@@ -371,12 +371,20 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     };
   });
 
+  // Blocos analíticos restantes (não consumidos por nenhuma composição sintética)
+  let leftover = 0;
+  for (const q of queueByCode.values()) leftover += q.length;
+  if (leftover > 0) {
+    allIssues.push({ level: 'warning', message: `${leftover} bloco(s) analítico(s) sem composição sintética correspondente foram ignorados.` });
+  }
+
   const totalInputs = compositions.reduce((a, c) => a + c.inputs.length, 0);
   allIssues.unshift(
     { level: 'info', message: `Total de composições importadas: ${compositions.length}` },
     { level: 'info', message: `Total de insumos importados: ${totalInputs}` },
     { level: 'info', message: `BDI lido da planilha (J8): ${bdiPercent ? bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
   );
+
 
   return {
     id: uid(),
