@@ -133,8 +133,16 @@ interface GroupNode {
 }
 
 // ───────────────────────── Helpers ─────────────────────────
-const fmtBRL = (n: number) =>
-  n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+const fmtBRL = (n: number) => {
+  // Trunca em 2 casas (sem arredondar) antes de formatar
+  const truncated = Math.trunc((Number(n) || 0) * 100) / 100;
+  return truncated.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
 const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const fmtPct = (n: number) => `${n.toFixed(2)}%`;
 const fmtDateBR = (iso: string) => {
