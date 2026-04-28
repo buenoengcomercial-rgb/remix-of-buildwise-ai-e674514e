@@ -140,10 +140,16 @@ interface AnalyticRow {
   rowIndex: number;
 }
 
-interface AnalyticParentData {
+interface AnalyticBlock {
+  /** Código normalizado do bloco analítico. */
+  normCode: string;
+  /** Código original. */
+  code: string;
   inputs: AnalyticRow[];
   /** Total H da linha pai analítica, quando existir. */
   parentTotalNoBDI?: number;
+  /** Linha da planilha onde o bloco começa. */
+  startRow: number;
 }
 
 /**
@@ -181,9 +187,7 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
     // sem código de fato → ignora
     if (!code) continue;
 
-    if (seenCodes.has(code)) {
-      issues.push({ level: 'error', message: `Código duplicado na Sintética: ${code}`, code, line: i + 1 });
-    }
+    // Códigos repetidos na Sintética são permitidos (cada ocorrência é uma composição independente).
     seenCodes.add(code);
 
     if (quantity <= 0) {
@@ -217,12 +221,11 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
  */
 function parseAnalyticSheet(
   rows: unknown[][],
-  parentByNorm: Map<string, string>,
-): { byParent: Map<string, AnalyticParentData>; issues: AdditiveImportIssue[] } {
+): { blocks: AnalyticBlock[]; issues: AdditiveImportIssue[] } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
-  const byParent = new Map<string, AnalyticParentData>();
-  let currentParent: string | null = null;
+  const blocks: AnalyticBlock[] = [];
+  let current: AnalyticBlock | null = null;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const r = rows[i] || [];
@@ -251,40 +254,36 @@ function parseAnalyticSheet(
       !!codeRaw && !!bank && /^\d+(\.\d+)*$/.test(aRaw.replace(',', '.'));
 
     if (isParentLine) {
-      const norm1 = normalizeCode(codeRaw);
-      const originalParent = parentByNorm.get(norm1);
-      if (originalParent) {
-        currentParent = originalParent;
-        if (!byParent.has(currentParent)) byParent.set(currentParent, { inputs: [] });
-        const data = byParent.get(currentParent)!;
-        if (total > 0) data.parentTotalNoBDI = total;
-        continue;
-      } else {
-        // Pai analítico sem correspondência na Sintética
-        currentParent = null;
-        continue;
-      }
+      // Cada ocorrência de pai abre um NOVO bloco — mesmo que o código já tenha aparecido antes.
+      current = {
+        normCode: normalizeCode(codeRaw),
+        code: codeRaw,
+        inputs: [],
+        parentTotalNoBDI: total > 0 ? total : undefined,
+        startRow: i + 1,
+      };
+      blocks.push(current);
+      continue;
     }
 
-    // Insumo: A deve ser "Auxiliar" ou "Insumo" (ou compat: vazio com código)
+    // Insumo: A deve ser "Auxiliar" ou "Insumo"
     const isInsumo = aLow === 'auxiliar' || aLow === 'insumo' || aLow.startsWith('insumo') || aLow.startsWith('auxiliar');
 
     if (!isInsumo) continue;
-    if (!currentParent) continue;
+    if (!current) continue;
     if (!codeRaw && !description) continue;
 
     if (unitPrice <= 0) {
       issues.push({ level: 'warning', message: `Insumo sem preço (${codeRaw || description})`, line: i + 1 });
     }
 
-    const data = byParent.get(currentParent)!;
-    data.inputs.push({
+    current.inputs.push({
       code: codeRaw, bank, description, unit, coefficient, unitPrice, total,
       rowIndex: i + 1,
     });
   }
 
-  return { byParent, issues };
+  return { blocks, issues };
 }
 
 export async function importAdditiveFromExcel(file: File, additiveName: string): Promise<Additive> {
@@ -308,22 +307,33 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
   const parentByNorm = new Map<string, string>();
   for (const s of synthItems) parentByNorm.set(normalizeCode(s.code), s.code);
 
-  let byParent = new Map<string, AnalyticParentData>();
+  let analyticBlocks: AnalyticBlock[] = [];
   if (!analyName) {
     allIssues.push({ level: 'warning', message: 'Aba Analítica não encontrada — composições ficarão sem insumos.' });
   } else {
     const analyRows = sheetToRows(wb.Sheets[analyName], XLSX);
-    const result = parseAnalyticSheet(analyRows, parentByNorm);
-    byParent = result.byParent;
+    const result = parseAnalyticSheet(analyRows);
+    analyticBlocks = result.blocks;
     allIssues.push(...result.issues);
+  }
+
+  // Vinculação por OCORRÊNCIA: fila de blocos por código normalizado.
+  // Cada bloco analítico só pode ser consumido UMA vez.
+  const queueByCode = new Map<string, AnalyticBlock[]>();
+  for (const b of analyticBlocks) {
+    const key = b.normCode;
+    if (!queueByCode.has(key)) queueByCode.set(key, []);
+    queueByCode.get(key)!.push(b);
   }
 
   const bdiPercent = bdi ?? 0;
   const fator = 1 + bdiPercent / 100;
 
   const compositions: AdditiveComposition[] = synthItems.map(s => {
-    const data = byParent.get(s.code);
-    const rawInputs = data?.inputs ?? [];
+    const key = normalizeCode(s.code);
+    const queue = queueByCode.get(key);
+    const block = queue && queue.length > 0 ? queue.shift()! : undefined;
+    const rawInputs = block?.inputs ?? [];
     const inputs: AdditiveInput[] = rawInputs.map(r => ({
       id: uid(),
       code: r.code,
@@ -361,12 +371,20 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     };
   });
 
+  // Blocos analíticos restantes (não consumidos por nenhuma composição sintética)
+  let leftover = 0;
+  for (const q of queueByCode.values()) leftover += q.length;
+  if (leftover > 0) {
+    allIssues.push({ level: 'warning', message: `${leftover} bloco(s) analítico(s) sem composição sintética correspondente foram ignorados.` });
+  }
+
   const totalInputs = compositions.reduce((a, c) => a + c.inputs.length, 0);
   allIssues.unshift(
     { level: 'info', message: `Total de composições importadas: ${compositions.length}` },
     { level: 'info', message: `Total de insumos importados: ${totalInputs}` },
     { level: 'info', message: `BDI lido da planilha (J8): ${bdiPercent ? bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
   );
+
 
   return {
     id: uid(),
