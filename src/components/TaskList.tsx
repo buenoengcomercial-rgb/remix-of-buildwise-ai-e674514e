@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Settings2 } from 'lucide-react';
 import GerenciarEquipes from '@/components/GerenciarEquipes';
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder } from 'lucide-react';
+import { ChevronDown, ChevronRight, Zap, Users, AlertTriangle, Plus, Trash2, Edit3, Check, X, Upload, FolderPlus, GripVertical, ClipboardList, FolderTree, ArrowUpFromLine, Folder, FileSpreadsheet } from 'lucide-react';
 import ImportTasksDialog from '@/components/ImportTasksDialog';
 import ImportSyntheticDialog from '@/components/ImportSyntheticDialog';
 import DailyLogsPanel from '@/components/DailyLogsPanel';
