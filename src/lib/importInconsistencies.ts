@@ -67,8 +67,7 @@ export function buildInfoEntries(summary: ImportSummary): ImportIssue[] {
     { level: 'info', message: `Capítulos detectados: ${summary.chapters}` },
     { level: 'info', message: `Subcapítulos detectados: ${summary.subchapters}` },
     { level: 'info', message: `Composições detectadas: ${summary.compositions}` },
-    { level: 'info', message: `Composições com preço s/ BDI: ${summary.withPrice}` },
-    { level: 'info', message: `Composições sem preço s/ BDI: ${summary.withoutPrice}` },
+    { level: 'info', message: `Mão de obra detectada: ${summary.labors}` },
   ];
 }
 
