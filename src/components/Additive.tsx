@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner';
 import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
-  additiveTotals, sumAnalyticTotal,
+  additiveTotals, sumAnalyticTotal, analyticComparisonTotal,
 } from '@/lib/additiveImport';
 
 interface Props {
@@ -335,10 +335,10 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 <tbody>
                   {filteredComps.map(c => {
                     const isOpen = expanded.has(c.id);
-                    const sumA = sumAnalyticTotal(c);
-                    const diff = +(sumA - c.total).toFixed(2);
-                    const hasDiff = c.total > 0 && Math.abs(diff) > 0.05;
-                    const noAnalytic = c.inputs.length === 0;
+                    const analyticCmp = analyticComparisonTotal(c); // c/ BDI da Analítica
+                    const diff = analyticCmp != null ? +(analyticCmp - c.total).toFixed(2) : 0;
+                    const hasDiff = analyticCmp != null && c.total > 0 && Math.abs(diff) > 0.05;
+                    const noAnalytic = c.inputs.length === 0 && analyticCmp == null;
                     return (
                       <>
                         <tr key={c.id} className="border-b hover:bg-muted/30 align-top">
@@ -346,8 +346,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             <button
                               onClick={() => toggleExpand(c.id)}
                               className="p-1 rounded hover:bg-muted"
-                              disabled={noAnalytic}
-                              title={noAnalytic ? 'Sem analítico' : 'Expandir'}
+                              disabled={c.inputs.length === 0}
+                              title={c.inputs.length === 0 ? 'Sem analítico' : 'Expandir'}
                             >
                               {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                             </button>
@@ -361,7 +361,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
                               {hasDiff && (
                                 <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
-                                  Diferença analítica: {fmtBRL(diff)}
+                                  Diferença analítica c/ BDI: {fmtBRL(diff)}
                                 </Badge>
                               )}
                             </div>
@@ -420,9 +420,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                     </tr>
                                   ))}
                                   <tr className="border-t font-medium">
-                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica:</td>
-                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumA)}</td>
+                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica (s/ BDI):</td>
+                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotal(c))}</td>
                                   </tr>
+                                  {c.analyticUnitPriceWithBDI != null && (
+                                    <tr className="font-medium text-primary">
+                                      <td colSpan={7} className="px-1.5 py-1 text-right">Valor com BDI = (× qtd):</td>
+                                      <td className="px-1.5 py-1 text-right">{fmtBRL(c.analyticTotalWithBDI ?? 0)}</td>
+                                    </tr>
+                                  )}
                                 </tbody>
                               </table>
                             </td>

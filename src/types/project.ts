@@ -358,6 +358,10 @@ export interface AdditiveComposition {
   unitPriceWithBDI: number;
   total: number;
   inputs: AdditiveInput[];
+  /** Valor unitário c/ BDI lido da linha "Valor com BDI =" da Analítica (por unidade da composição). */
+  analyticUnitPriceWithBDI?: number;
+  /** Total c/ BDI calculado a partir da Analítica (= analyticUnitPriceWithBDI * quantity). */
+  analyticTotalWithBDI?: number;
 }
 
 export interface AdditiveImportIssue {
