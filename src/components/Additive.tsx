@@ -242,12 +242,28 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   };
 
   const handleApprove = () => {
-    setStatus('aprovado', {
+    if (!active) return;
+    const approvedAdditive: AdditiveModel = {
+      ...active,
+      status: 'aprovado',
       approvedAt: new Date().toISOString(),
       approvedBy: approvedBy || undefined,
       reviewNotes: reviewNotes || undefined,
+    };
+    onProjectChange(prev => {
+      const nextAdditives = (prev.additives ?? []).map(a =>
+        a.id === active.id ? approvedAdditive : a,
+      );
+      // Recalcula budgetItems source 'aditivo' a partir de TODOS aditivos aprovados
+      const projWithApproved: Project = { ...prev, additives: nextAdditives };
+      const approvedBudget = getApprovedAdditiveBudgetItems(projWithApproved);
+      const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+      return {
+        ...projWithApproved,
+        budgetItems: [...keep, ...approvedBudget],
+      };
     });
-    toast.success('Aditivo aprovado e integrado ao projeto');
+    toast.success('Aditivo aprovado e integrado à Medição');
     setReviewDialogOpen(false);
     setApprovedBy('');
     setReviewNotes('');
