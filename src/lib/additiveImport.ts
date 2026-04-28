@@ -257,73 +257,36 @@ function parseAnalyticSheet(
   return { blocks, issues };
 }
 
-export async function importAdditiveFromExcel(file: File, additiveName: string): Promise<Additive> {
-  const XLSX = await import('xlsx');
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
+/** Resultado da importação de aditivo, com indicação do que foi lido. */
+export interface AdditiveImportResult {
+  /** Aditivo novo OU atualização a ser aplicada num existente. */
+  additive: Additive;
+  /** Modo de importação detectado. */
+  mode: 'synthetic_only' | 'analytic_only' | 'both';
+  /** Quando mode === 'analytic_only', os blocos analíticos crus para merge posterior. */
+  pendingAnalyticBlocks?: AnalyticBlock[];
+  /** Resumo das abas encontradas. */
+  hasSynthetic: boolean;
+  hasAnalytic: boolean;
+  /** Mensagem amigável para o usuário. */
+  message: string;
+}
 
-  const allIssues: AdditiveImportIssue[] = [];
-  const synthName = findSheetName(wb.SheetNames, 'Sintetica') || findSheetName(wb.SheetNames, 'sintética');
-  const analyName = findSheetName(wb.SheetNames, 'Analitica') || findSheetName(wb.SheetNames, 'analítica');
-
-  if (!synthName) {
-    allIssues.push({ level: 'error', message: 'Aba Sintética não encontrada' });
-    return {
-      id: uid(), name: additiveName, importedAt: new Date().toISOString(),
-      compositions: [], issues: allIssues, status: 'rascunho',
-    };
-  }
-
-  const synthRows = sheetToRows(wb.Sheets[synthName], XLSX);
-  const { items: synthItems, issues: synthIssues, bdi } = parseSyntheticSheet(synthRows);
-  allIssues.push(...synthIssues);
-
-  let analyticBlocks: AnalyticBlock[] = [];
-  if (!analyName) {
-    allIssues.push({ level: 'warning', message: 'Aba Analítica não encontrada — composições ficarão sem insumos.' });
-  } else {
-    const analyRows = sheetToRows(wb.Sheets[analyName], XLSX);
-    const result = parseAnalyticSheet(analyRows);
-    analyticBlocks = result.blocks;
-    allIssues.push(...result.issues);
-  }
-
-  // Vinculação por OCORRÊNCIA via fila por código normalizado.
-  const queueByCode = new Map<string, AnalyticBlock[]>();
-  for (const b of analyticBlocks) {
-    const key = b.normCode;
-    if (!queueByCode.has(key)) queueByCode.set(key, []);
-    queueByCode.get(key)!.push(b);
-  }
-
+/** Apenas a Sintética → cria/atualiza um aditivo em rascunho com composições. */
+export function parseAdditiveSyntheticWorkbook(
+  rows: unknown[][],
+  additiveName: string,
+): { additive: Additive; bdiPercent: number; issues: AdditiveImportIssue[] } {
+  const { items: synthItems, issues: synthIssues, bdi } = parseSyntheticSheet(rows);
+  const issues: AdditiveImportIssue[] = [...synthIssues];
   const bdiPercent = bdi ?? 0;
   const fator = 1 + bdiPercent / 100;
 
   const compositions: AdditiveComposition[] = synthItems.map(s => {
-    const key = normalizeCode(s.code);
-    const queue = queueByCode.get(key);
-    const block = queue && queue.length > 0 ? queue.shift()! : undefined;
-    const rawInputs = block?.inputs ?? [];
-    const inputs: AdditiveInput[] = rawInputs.map(r => ({
-      id: uid(),
-      code: r.code,
-      bank: r.bank,
-      description: r.description,
-      unit: r.unit,
-      coefficient: r.coefficient,
-      unitPrice: r.unitPrice,
-      total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
-    }));
-
     const unitPriceWithBDI = bdiPercent > 0
       ? truncar2(s.unitPriceNoBDI * fator)
       : (s.unitPriceWithBDI || truncar2(s.unitPriceNoBDI * fator));
     const total = truncar2(unitPriceWithBDI * s.quantity);
-
-    if (inputs.length === 0) {
-      allIssues.push({ level: 'warning', message: `Composição sintética sem analítico vinculado (${s.code})`, code: s.code });
-    }
-
     return {
       id: uid(),
       item: s.item,
@@ -335,8 +298,7 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       unitPriceNoBDI: s.unitPriceNoBDI,
       unitPriceWithBDI,
       total,
-      inputs,
-      // Por padrão, novas composições do aditivo são acrescidas
+      inputs: [],
       changeKind: 'acrescido',
       originalQuantity: 0,
       addedQuantity: s.quantity,
@@ -344,27 +306,203 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     };
   });
 
-  let leftover = 0;
-  for (const q of queueByCode.values()) leftover += q.length;
-  if (leftover > 0) {
-    allIssues.push({ level: 'warning', message: `${leftover} bloco(s) analítico(s) sem composição sintética correspondente foram ignorados.` });
-  }
-
-  const totalInputs = compositions.reduce((a, c) => a + c.inputs.length, 0);
-  allIssues.unshift(
-    { level: 'info', message: `Total de composições importadas: ${compositions.length}` },
-    { level: 'info', message: `Total de insumos importados: ${totalInputs}` },
-    { level: 'info', message: `BDI lido da planilha (J8): ${bdiPercent ? bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
-  );
-
-  return {
+  const additive: Additive = {
     id: uid(),
     name: additiveName,
     importedAt: new Date().toISOString(),
     compositions,
-    issues: allIssues,
+    issues,
     bdiPercent,
     status: 'rascunho',
+  };
+  return { additive, bdiPercent, issues };
+}
+
+/** Apenas a Analítica → retorna blocos crus para merge. */
+export function parseAdditiveAnalyticWorkbook(
+  rows: unknown[][],
+): { blocks: AnalyticBlock[]; issues: AdditiveImportIssue[] } {
+  return parseAnalyticSheet(rows);
+}
+
+/**
+ * Vincula blocos analíticos a um aditivo já existente (que tem composições da Sintética).
+ * Retorna um NOVO Additive imutável com inputs preenchidos.
+ */
+export function mergeAnalyticIntoAdditive(
+  additive: Additive,
+  blocks: AnalyticBlock[],
+): { additive: Additive; linked: number; leftover: number; issues: AdditiveImportIssue[] } {
+  const issues: AdditiveImportIssue[] = [];
+  const queueByCode = new Map<string, AnalyticBlock[]>();
+  for (const b of blocks) {
+    const key = b.normCode;
+    if (!queueByCode.has(key)) queueByCode.set(key, []);
+    queueByCode.get(key)!.push(b);
+  }
+  let linked = 0;
+  const compositions = additive.compositions.map(c => {
+    if (c.inputs && c.inputs.length > 0) return c; // já vinculado, preserva
+    const key = normalizeCode(c.code);
+    const queue = queueByCode.get(key);
+    const block = queue && queue.length > 0 ? queue.shift()! : undefined;
+    if (!block) return c;
+    linked++;
+    const inputs: AdditiveInput[] = block.inputs.map(r => ({
+      id: uid(),
+      code: r.code,
+      bank: r.bank,
+      description: r.description,
+      unit: r.unit,
+      coefficient: r.coefficient,
+      unitPrice: r.unitPrice,
+      total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
+    }));
+    return { ...c, inputs };
+  });
+  let leftover = 0;
+  for (const q of queueByCode.values()) leftover += q.length;
+  if (leftover > 0) {
+    issues.push({ level: 'warning', message: `${leftover} bloco(s) analítico(s) sem composição sintética correspondente foram ignorados.` });
+  }
+  return {
+    additive: { ...additive, compositions, issues: [...(additive.issues ?? []), ...issues] },
+    linked,
+    leftover,
+    issues,
+  };
+}
+
+/**
+ * Importação principal — aceita 3 cenários:
+ *  • arquivo único Sintética + Analítica
+ *  • somente Sintética
+ *  • somente Analítica (precisa de aditivo existente para merge)
+ */
+export async function importAdditiveFromExcel(
+  file: File,
+  additiveName: string,
+  existingAdditive?: Additive | null,
+): Promise<AdditiveImportResult> {
+  const XLSX = await import('xlsx');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+
+  const synthName = findSheetName(wb.SheetNames, 'Sintetica') || findSheetName(wb.SheetNames, 'sintética');
+  const analyName = findSheetName(wb.SheetNames, 'Analitica') || findSheetName(wb.SheetNames, 'analítica');
+  const hasSynthetic = !!synthName;
+  const hasAnalytic = !!analyName;
+
+  // Caso 1 — somente Analítica
+  if (!hasSynthetic && hasAnalytic) {
+    const analyRows = sheetToRows(wb.Sheets[analyName!], XLSX);
+    const { blocks, issues } = parseAdditiveAnalyticWorkbook(analyRows);
+
+    if (existingAdditive) {
+      const merged = mergeAnalyticIntoAdditive(existingAdditive, blocks);
+      const infoIssues: AdditiveImportIssue[] = [
+        { level: 'info', message: `Analítica vinculada ao aditivo "${existingAdditive.name}"` },
+        { level: 'info', message: `Composições vinculadas: ${merged.linked}` },
+        { level: 'info', message: `Insumos analíticos lidos: ${blocks.reduce((a, b) => a + b.inputs.length, 0)}` },
+      ];
+      return {
+        additive: { ...merged.additive, issues: [...infoIssues, ...issues, ...(merged.additive.issues ?? [])] },
+        mode: 'analytic_only',
+        hasSynthetic: false,
+        hasAnalytic: true,
+        message: `Analítica vinculada: ${merged.linked} composições atualizadas.`,
+      };
+    }
+
+    // Sem aditivo existente — devolve "pendente"
+    const pendingAdditive: Additive = {
+      id: uid(),
+      name: additiveName,
+      importedAt: new Date().toISOString(),
+      compositions: [],
+      issues: [
+        { level: 'warning', message: 'Importe a Sintética primeiro para vincular os insumos analíticos.' },
+        { level: 'info', message: `Blocos analíticos lidos (aguardando vínculo): ${blocks.length}` },
+        ...issues,
+      ],
+      status: 'rascunho',
+    };
+    return {
+      additive: pendingAdditive,
+      mode: 'analytic_only',
+      pendingAnalyticBlocks: blocks,
+      hasSynthetic: false,
+      hasAnalytic: true,
+      message: 'Analítica importada, aguardando Sintética para vincular.',
+    };
+  }
+
+  // Caso 2 — somente Sintética
+  if (hasSynthetic && !hasAnalytic) {
+    const synthRows = sheetToRows(wb.Sheets[synthName!], XLSX);
+    const { additive, issues } = parseAdditiveSyntheticWorkbook(synthRows, additiveName);
+    additive.issues = [
+      { level: 'info', message: `Total de composições importadas: ${additive.compositions.length}` },
+      { level: 'info', message: `BDI lido da planilha (J8): ${additive.bdiPercent ? additive.bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
+      { level: 'warning', message: 'Aba Analítica não encontrada — composições ficarão sem insumos até importar a Analítica.' },
+      ...issues,
+    ];
+    return {
+      additive,
+      mode: 'synthetic_only',
+      hasSynthetic: true,
+      hasAnalytic: false,
+      message: 'Sintética importada. Analítica ainda não vinculada.',
+    };
+  }
+
+  // Caso 3 — ambos
+  if (hasSynthetic && hasAnalytic) {
+    const synthRows = sheetToRows(wb.Sheets[synthName!], XLSX);
+    const analyRows = sheetToRows(wb.Sheets[analyName!], XLSX);
+    const { additive, issues: synthIssues } = parseAdditiveSyntheticWorkbook(synthRows, additiveName);
+    const { blocks, issues: analyIssues } = parseAdditiveAnalyticWorkbook(analyRows);
+    const merged = mergeAnalyticIntoAdditive(additive, blocks);
+
+    const semAnalitico = merged.additive.compositions.filter(c => c.inputs.length === 0);
+    const extraIssues: AdditiveImportIssue[] = semAnalitico.map(c => ({
+      level: 'warning' as const,
+      message: `Composição sintética sem analítico vinculado (${c.code})`,
+      code: c.code,
+    }));
+
+    const totalInputs = merged.additive.compositions.reduce((a, c) => a + c.inputs.length, 0);
+    const infoIssues: AdditiveImportIssue[] = [
+      { level: 'info', message: `Total de composições importadas: ${merged.additive.compositions.length}` },
+      { level: 'info', message: `Total de insumos importados: ${totalInputs}` },
+      { level: 'info', message: `BDI lido da planilha (J8): ${merged.additive.bdiPercent ? merged.additive.bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
+    ];
+    return {
+      additive: {
+        ...merged.additive,
+        issues: [...infoIssues, ...synthIssues, ...analyIssues, ...extraIssues, ...(merged.additive.issues ?? [])],
+      },
+      mode: 'both',
+      hasSynthetic: true,
+      hasAnalytic: true,
+      message: `Aditivo importado com Sintética (${merged.additive.compositions.length}) e Analítica (${totalInputs} insumos).`,
+    };
+  }
+
+  // Nenhuma das abas reconhecidas
+  return {
+    additive: {
+      id: uid(),
+      name: additiveName,
+      importedAt: new Date().toISOString(),
+      compositions: [],
+      issues: [{ level: 'error', message: 'Nenhuma aba reconhecida (esperado SINTETICA e/ou ANALITICA).' }],
+      status: 'rascunho',
+    },
+    mode: 'synthetic_only',
+    hasSynthetic: false,
+    hasAnalytic: false,
+    message: 'Nenhuma aba SINTETICA ou ANALITICA encontrada na planilha.',
   };
 }
 
