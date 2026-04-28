@@ -26,7 +26,8 @@ import { toast } from 'sonner';
 import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
-  totalAfterAdditive,
+  totalAfterAdditive, getApprovedAdditiveBudgetItems,
+  buildAdditiveFromSyntheticBudgetItems,
 } from '@/lib/additiveImport';
 
 interface Props {
