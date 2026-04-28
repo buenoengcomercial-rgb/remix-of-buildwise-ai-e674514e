@@ -217,7 +217,8 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         name: (colC || colB || '').trim(),
         unit: colD || 'un',
         quantity: colE || 1,
-        unitPriceNoBDI: hasPrice ? unitPriceNoBDI : undefined,
+        // Tarefas (EAP) NÃO importa valores financeiros — preço fica para a aba Medição (Sintética)
+        unitPriceNoBDI: undefined,
         labor: [],
         needsReview: false,
         sourceLine: lineNo,
