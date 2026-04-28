@@ -114,7 +114,78 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const totals = active ? additiveTotals(active) : null;
 
-  const toggleExpand = (id: string) => {
+  // ── Árvore de grupos da EAP, refletindo a estrutura da Medição ──
+  type CompGroup = {
+    phaseId: string;
+    number: string;
+    name: string;
+    depth: number;
+    rows: AdditiveComposition[];
+    children: CompGroup[];
+    subtotalComBDI: number;
+    subtotalSemBDI: number;
+  };
+  const { groupTree, orphanRows, hasEapLink } = useMemo(() => {
+    const empty = { groupTree: [] as CompGroup[], orphanRows: [] as AdditiveComposition[], hasEapLink: false };
+    if (!active) return empty;
+    const bdi = active.bdiPercent ?? 0;
+    const compsByPhase = new Map<string, AdditiveComposition[]>();
+    const orphans: AdditiveComposition[] = [];
+    let anyLinked = false;
+    filteredComps.forEach(c => {
+      if (c.phaseId) {
+        anyLinked = true;
+        const arr = compsByPhase.get(c.phaseId) || [];
+        arr.push(c);
+        compsByPhase.set(c.phaseId, arr);
+      } else {
+        orphans.push(c);
+      }
+    });
+    if (!anyLinked) return { ...empty, orphanRows: filteredComps };
+
+    const numbering = getChapterNumbering(project);
+    const tree = getChapterTree(project);
+
+    const buildNode = (chapterNode: ChapterNode, depth: number): CompGroup | null => {
+      const directRows = compsByPhase.get(chapterNode.phase.id) || [];
+      const childGroups = chapterNode.children
+        .map(c => buildNode(c, depth + 1))
+        .filter((g): g is CompGroup => g !== null);
+      if (directRows.length === 0 && childGroups.length === 0) return null;
+
+      let subtotalComBDI = 0;
+      let subtotalSemBDI = 0;
+      directRows.forEach(c => {
+        const r = computeCompositionWithBDI(c, bdi);
+        subtotalComBDI += r.impactoComBDI;
+        subtotalSemBDI += r.impactoSemBDI;
+      });
+      childGroups.forEach(c => {
+        subtotalComBDI += c.subtotalComBDI;
+        subtotalSemBDI += c.subtotalSemBDI;
+      });
+      return {
+        phaseId: chapterNode.phase.id,
+        number: numbering.get(chapterNode.phase.id) || '',
+        name: chapterNode.phase.name,
+        depth,
+        rows: directRows,
+        children: childGroups,
+        subtotalComBDI,
+        subtotalSemBDI,
+      };
+    };
+
+    const groups = tree
+      .map(n => buildNode(n, 0))
+      .filter((g): g is CompGroup => g !== null)
+      .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+    return { groupTree: groups, orphanRows: orphans, hasEapLink: anyLinked };
+  }, [active, filteredComps, project]);
+
+
     setExpanded(prev => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id); else n.add(id);
