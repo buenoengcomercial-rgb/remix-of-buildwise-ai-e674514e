@@ -402,8 +402,19 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, measurementNumber, startDate, endDate, chapterFilter, search]);
 
-  const bdiPercent = Number.isFinite(parseFloat(bdiInput)) ? Math.max(0, parseFloat(bdiInput)) : 0;
+  const parsedBdi = Number.isFinite(parseFloat(bdiInput)) ? Math.max(0, parseFloat(bdiInput)) : 0;
+  // Sintética importada tem prioridade sobre o BDI do contrato.
+  const bdiPercent = (project.syntheticBdiPercent !== undefined && Number.isFinite(project.syntheticBdiPercent))
+    ? Math.max(0, project.syntheticBdiPercent)
+    : parsedBdi;
   const bdiFactor = 1 + bdiPercent / 100;
+
+  // Itens financeiros importados da Sintética (fonte da Medição quando presentes).
+  const syntheticBudgetItems = useMemo(
+    () => (project.budgetItems || []).filter(b => b.source === 'sintetica'),
+    [project.budgetItems],
+  );
+  const hasSyntheticBudget = syntheticBudgetItems.length > 0;
 
   const persistContractInfo = (next: Partial<ContractInfo>) => {
     const latestProject = projectRef.current;
