@@ -328,6 +328,38 @@ export interface Project {
   dailyReports?: DailyReport[];
   /** Aditivos contratuais importados (Sintética + Analítica). Isolado das demais áreas. */
   additives?: Additive[];
+  /** Itens financeiros importados da planilha SINTÉTICA (fonte da Medição). */
+  budgetItems?: BudgetItem[];
+  /** BDI (%) lido da Sintética (J8). Quando presente, sobrepõe contractInfo.bdiPercent. */
+  syntheticBdiPercent?: number;
+  /** Carimbo de quando a Sintética foi importada. */
+  syntheticImportedAt?: string;
+}
+
+/** Origem do item financeiro (Sintética importada ou Aditivo aprovado). */
+export type BudgetItemSource = 'sintetica' | 'aditivo';
+
+/** Item financeiro do orçamento — usado pela aba Medição. */
+export interface BudgetItem {
+  id: string;
+  /** Item da planilha (ex.: "1.1.1"). */
+  item: string;
+  /** Código (ex.: SINAPI). */
+  code: string;
+  /** Banco (ex.: SINAPI, SBC, próprio). */
+  bank: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitPriceNoBDI: number;
+  unitPriceWithBDI: number;
+  totalNoBDI: number;
+  totalWithBDI: number;
+  source: BudgetItemSource;
+  /** Vínculo opcional com tarefa (quando casado por código). */
+  taskId?: string;
+  /** Quando vier de aditivo aprovado, referência ao additive. */
+  additiveId?: string;
 }
 
 // =================== ADITIVO ===================
