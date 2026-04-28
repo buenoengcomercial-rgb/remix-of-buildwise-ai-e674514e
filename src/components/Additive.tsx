@@ -360,10 +360,11 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 <tbody>
                   {filteredComps.map(c => {
                     const isOpen = expanded.has(c.id);
-                    const analyticCmp = analyticComparisonTotal(c); // c/ BDI da Analítica
-                    const diff = analyticCmp != null ? +(analyticCmp - c.total).toFixed(2) : 0;
-                    const hasDiff = analyticCmp != null && c.total > 0 && Math.abs(diff) > 0.05;
-                    const noAnalytic = c.inputs.length === 0 && analyticCmp == null;
+                    const r = computeCompositionWithBDI(c, bdi);
+                    const hasInputs = c.inputs.length > 0;
+                    const diff = hasInputs ? r.diff : 0;
+                    const hasDiff = hasInputs && Math.abs(diff) > 0.05;
+                    const noAnalytic = !hasInputs;
                     return (
                       <>
                         <tr key={c.id} className="border-b hover:bg-muted/30 align-top">
@@ -394,8 +395,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                           <td className="px-2 py-2 text-right">{c.quantity.toLocaleString('pt-BR')}</td>
                           <td className="px-2 py-2">{c.unit}</td>
                           <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
-                          <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceWithBDI)}</td>
-                          <td className="px-2 py-2 text-right font-medium">{fmtBRL(c.total)}</td>
+                          <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{fmtBRL(r.totalSyntheticWithBDI)}</td>
                         </tr>
                         {isOpen && showAnalytic && c.inputs.length > 0 && (
                           <tr className="bg-muted/20 border-b">
