@@ -195,8 +195,21 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             Importação de planilhas de aditivo contratual (Sintética + Analítica).
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
+          {active && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded border bg-card">
+              <span className="text-xs text-muted-foreground">BDI (%):</span>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={bdi}
+                onChange={e => handleChangeBdi(e.target.value)}
+                className="h-7 w-20 text-xs"
+              />
+            </div>
+          )}
           <input
             ref={fileRef} type="file" accept=".xlsx,.xls"
             className="hidden"
