@@ -350,6 +350,16 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <Button variant="default" size="sm" onClick={() => fileRef.current?.click()}>
             <Upload className="w-4 h-4 mr-1" /> Importar Excel
           </Button>
+          {(project.budgetItems ?? []).some(b => b.source === 'sintetica') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleUseSyntheticFromMeasurement}
+              title="Cria um aditivo em rascunho a partir da Sintética já importada na Medição/EAP"
+            >
+              <Upload className="w-4 h-4 mr-1" /> Usar Sintética da Medição
+            </Button>
+          )}
           <Button variant="outline" size="sm" disabled={!active} onClick={handleExportExcel}>
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>
