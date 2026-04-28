@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, Fragment } from 'react';
 import {
   Project, Additive as AdditiveModel, AdditiveComposition,
-  AdditiveChangeKind, AdditiveStatus, Phase,
+  AdditiveChangeKind, AdditiveStatus,
 } from '@/types/project';
 import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
 import { Button } from '@/components/ui/button';
