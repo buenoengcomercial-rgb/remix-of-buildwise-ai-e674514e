@@ -10,7 +10,7 @@ import {
   MeasurementChangeLog,
 } from '@/types/project';
 import { getChapterTree, getChapterNumbering, ChapterNode } from '@/lib/chapters';
-import { trunc2, calculateUnitPriceWithBDI, calculateMeasurementLine } from '@/lib/measurementCalculations';
+import { trunc2, money2, calculateUnitPriceWithBDI, calculateMeasurementLine } from '@/lib/measurementCalculations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -643,8 +643,9 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       let lineBdi = effBdi;
 
       if (matchedBudget) {
-        const noBDI = trunc2(matchedBudget.unitPriceNoBDI);
-        const withBDI = trunc2(matchedBudget.unitPriceWithBDI);
+        // Valores vindos PRONTOS da Sintética: normalizar com money2 (preserva o que veio do Excel)
+        const noBDI = money2(matchedBudget.unitPriceNoBDI);
+        const withBDI = money2(matchedBudget.unitPriceWithBDI);
         unitPriceNoBDIBase = noBDI;
         // Preserva BDI implícito da Sintética (mantém c/BDI exato)
         lineBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
@@ -668,18 +669,18 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         bdiPercent: lineBdi,
       });
 
-      // Quando vinculado à Sintética, preserva totais contratados exatos da planilha
+      // Quando vinculado à Sintética, preserva totais contratados EXATOS da planilha (money2, sem trunc)
       const valueContracted = matchedBudget
-        ? trunc2(matchedBudget.totalWithBDI || calc.totalContracted)
+        ? money2(matchedBudget.totalWithBDI || calc.totalContracted)
         : calc.totalContracted;
       const valueContractedNoBDI = matchedBudget
-        ? trunc2(matchedBudget.totalNoBDI || calc.totalContractedNoBDI)
+        ? money2(matchedBudget.totalNoBDI || calc.totalContractedNoBDI)
         : calc.totalContractedNoBDI;
       const valueBalance = matchedBudget
-        ? Math.max(0, trunc2(valueContracted - calc.totalAccumulated))
+        ? Math.max(0, money2(valueContracted - calc.totalAccumulated))
         : calc.totalBalance;
       const valueBalanceNoBDI = matchedBudget
-        ? Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI))
+        ? Math.max(0, money2(valueContractedNoBDI - calc.totalAccumulatedNoBDI))
         : calc.totalBalanceNoBDI;
 
       return {
@@ -714,8 +715,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     if (hasSyntheticBudget) {
       syntheticBudgetItems.forEach(b => {
         if (consumed.has(b.id)) return;
-        const noBDI = trunc2(b.unitPriceNoBDI);
-        const withBDI = trunc2(b.unitPriceWithBDI);
+        const noBDI = money2(b.unitPriceNoBDI);
+        const withBDI = money2(b.unitPriceWithBDI);
         const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
         const calc = calculateMeasurementLine({
           quantityContracted: b.quantity || 0,
@@ -724,8 +725,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
           unitPriceNoBDI: noBDI,
           bdiPercent: implicitBdi,
         });
-        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
-        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
+        const valueContracted = money2(b.totalWithBDI || calc.totalContracted);
+        const valueContractedNoBDI = money2(b.totalNoBDI || calc.totalContractedNoBDI);
         orphanRows.push({
           item: b.item,
           phaseId: '__synthetic_orphans__',
@@ -926,6 +927,11 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       t.accumNoBDI += r.valueAccumNoBDI; t.balanceNoBDI += r.valueBalanceNoBDI;
       t.qtyContracted += r.qtyContracted; t.qtyAccum += r.qtyCurrentAccum;
     });
+    // Normaliza acumuladores em 2 casas (arredondamento seguro) p/ bater com Excel
+    t.contracted = money2(t.contracted); t.period = money2(t.period);
+    t.accum = money2(t.accum); t.balance = money2(t.balance);
+    t.contractedNoBDI = money2(t.contractedNoBDI); t.periodNoBDI = money2(t.periodNoBDI);
+    t.accumNoBDI = money2(t.accumNoBDI); t.balanceNoBDI = money2(t.balanceNoBDI);
     const pctPeriod = t.contracted > 0 ? (t.period / t.contracted) * 100 : 0;
     const pctAccum = t.contracted > 0 ? (t.accum / t.contracted) * 100 : 0;
     const pctBalance = t.contracted > 0 ? (t.balance / t.contracted) * 100 : 0;

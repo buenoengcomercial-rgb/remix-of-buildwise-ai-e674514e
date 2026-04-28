@@ -15,6 +15,18 @@ export function trunc2(value: number | null | undefined): number {
 }
 
 /**
+ * Normaliza um número monetário com arredondamento seguro em 2 casas.
+ * Use para preservar valores que JÁ vêm prontos da planilha (Sintética),
+ * sem distorcer o que o Excel já calculou.
+ */
+export function money2(value: number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/**
  * Calcula o preço unitário c/ BDI a partir do preço s/ BDI e do percentual de BDI.
  * Resultado já truncado em 2 casas.
  */
