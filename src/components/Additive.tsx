@@ -270,8 +270,28 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   };
 
   const handleBackToDraft = () => {
-    setStatus('rascunho');
-    toast.success('Aditivo voltou para rascunho');
+    if (!active) return;
+    onProjectChange(prev => {
+      const nextAdditives = (prev.additives ?? []).map(a =>
+        a.id === active.id ? { ...a, status: 'rascunho' as AdditiveStatus } : a,
+      );
+      const projWithChange: Project = { ...prev, additives: nextAdditives };
+      const approvedBudget = getApprovedAdditiveBudgetItems(projWithChange);
+      const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+      return { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
+    });
+    toast.success('Aditivo voltou para rascunho — itens removidos da Medição');
+  };
+
+  const handleUseSyntheticFromMeasurement = () => {
+    const built = buildAdditiveFromSyntheticBudgetItems(project, 'Aditivo (a partir da Sintética da Medição)');
+    if (!built) {
+      toast.error('Nenhuma Sintética encontrada na Medição. Importe a Sintética primeiro na aba Tarefas/EAP.');
+      return;
+    }
+    onProjectChange(prev => ({ ...prev, additives: [...(prev.additives ?? []), built] }));
+    setActiveId(built.id);
+    toast.success(`Sintética da Medição reaproveitada (${built.compositions.length} composições).`);
   };
 
   const bdi = active?.bdiPercent ?? 0;
