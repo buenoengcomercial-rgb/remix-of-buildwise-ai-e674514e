@@ -676,6 +676,9 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             <p className="text-xs text-muted-foreground">
               Esse nome aparecerá no topo da tela e no PDF exportado.
             </p>
+            <p className="text-[11px] text-muted-foreground border-t pt-2">
+              <strong>Formatos aceitos:</strong> arquivo único com SINTETICA + ANALITICA, somente SINTETICA, ou somente ANALITICA (vincula ao rascunho ativo).
+            </p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setImportDialogOpen(false); setPendingFile(null); }}>Cancelar</Button>
