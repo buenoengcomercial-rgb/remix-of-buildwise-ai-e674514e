@@ -185,7 +185,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     return { groupTree: groups, orphanRows: orphans, hasEapLink: anyLinked };
   }, [active, filteredComps, project]);
 
-
+  const toggleExpand = (id: string) => {
     setExpanded(prev => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id); else n.add(id);
