@@ -172,6 +172,18 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     toast.success('Aditivo excluído');
   };
 
+  const handleChangeBdi = (value: string) => {
+    if (!active) return;
+    const num = Number(value.replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) return;
+    onProjectChange(prev => ({
+      ...prev,
+      additives: (prev.additives ?? []).map(a => a.id === active.id ? { ...a, bdiPercent: num } : a),
+    }));
+  };
+
+  const bdi = active?.bdiPercent ?? 0;
+
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-[1600px] mx-auto">
       <header className="flex flex-wrap items-start justify-between gap-3">
