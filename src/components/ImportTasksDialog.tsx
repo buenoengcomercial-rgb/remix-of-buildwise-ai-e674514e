@@ -378,15 +378,13 @@ export default function ImportTasksDialog({ open, onClose, project, onProjectCha
                 </div>
 
                 {/* Counters */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 text-[11px]">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-3 text-[11px]">
                   <Counter label="Capítulos" value={summary.chapters} />
                   <Counter label="Subcapítulos" value={summary.subchapters} />
                   <Counter label="Composições" value={summary.compositions} />
-                  <Counter label="Selecionadas" value={summary.selectedCompositions} tone="primary" />
                   <Counter label="Mão de obra" value={summary.labors} />
-                  <Counter label="Com preço" value={summary.withPrice} tone="success" />
-                  <Counter label="Sem preço" value={summary.withoutPrice} tone="warning" />
-                  <Counter label="Total avisos" value={summary.warnings} tone="warning" />
+                  <Counter label="Selecionadas" value={summary.selectedCompositions} tone="primary" />
+                  <Counter label="Para revisar" value={summary.warnings} tone="warning" />
                 </div>
 
                 {/* Status banners */}
