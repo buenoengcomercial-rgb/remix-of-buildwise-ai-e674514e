@@ -886,7 +886,35 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const groups = tree
       .map(n => buildNode(n, 0))
       .filter((g): g is GroupNode => g !== null);
-    return groups.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+    const sorted = groups.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+
+    // Seção extra: itens da Sintética sem vínculo na EAP (apenas para revisão)
+    const orphanRows = rowsByPhase.get('__synthetic_orphans__') || [];
+    if (orphanRows.length > 0) {
+      const orphanTotals = emptyTotals();
+      orphanRows.forEach(r => {
+        orphanTotals.contracted += r.valueContracted;
+        orphanTotals.period += r.valuePeriod;
+        orphanTotals.accum += r.valueAccum;
+        orphanTotals.balance += r.valueBalance;
+        orphanTotals.contractedNoBDI += r.valueContractedNoBDI;
+        orphanTotals.periodNoBDI += r.valuePeriodNoBDI;
+        orphanTotals.accumNoBDI += r.valueAccumNoBDI;
+        orphanTotals.balanceNoBDI += r.valueBalanceNoBDI;
+        orphanTotals.qtyContracted += r.qtyContracted;
+        orphanTotals.qtyAccum += r.qtyCurrentAccum;
+      });
+      sorted.push({
+        phaseId: '__synthetic_orphans__',
+        number: '∅',
+        name: 'Itens da Sintética sem vínculo na EAP',
+        depth: 0,
+        rows: orphanRows,
+        children: [],
+        totals: orphanTotals,
+      });
+    }
+    return sorted;
   }, [filteredRows, project, numbering]);
 
   const totals = useMemo(() => {
