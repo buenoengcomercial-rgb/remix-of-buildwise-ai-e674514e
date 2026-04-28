@@ -918,3 +918,131 @@ function cleanGroupName(s: string): string {
   return s.replace(/[:\-–]+$/, '').replace(/^\d+[\s.)\-]*/, '').trim()
     .split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
+
+// ─────────────────────────────────────────────────────────────────
+// SINTÉTICA → BudgetItem[] (alimenta a Medição)
+// Layout fixo: A=Item B=Código C=Banco D=Descrição E=Quantidade
+//              F=Unidade G=Vunit s/BDI H=Total s/BDI I=Vunit c/BDI J=Total c/BDI
+// BDI lido de J8 quando presente.
+// ─────────────────────────────────────────────────────────────────
+import type { BudgetItem } from '@/types/project';
+
+export interface ParsedSynthetic {
+  items: BudgetItem[];
+  bdiPercent?: number;
+  warnings: string[];
+}
+
+function _trunc2(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  return Math.trunc(v * 100) / 100;
+}
+
+function _toNumSyn(v: unknown): number {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  let s = String(v).trim().replace(/[^\d.,\-]/g, '');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) s = s.replace(',', '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _str(v: unknown): string {
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+
+function _normLow(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+/**
+ * Importa a planilha SINTÉTICA do orçamento.
+ * Aceita ArrayBuffer (xlsx) e procura aba cujo nome contenha "sintet".
+ */
+export function parseSyntheticBudget(data: ArrayBuffer): ParsedSynthetic {
+  const wb = XLSX.read(data, { type: 'array' });
+  // Procura aba cujo nome contenha "sintet"; senão usa a primeira.
+  const sheetName =
+    wb.SheetNames.find(n => _normLow(n).includes('sintet')) ?? wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+
+  const warnings: string[] = [];
+
+  // BDI de J8 (linha 8 / coluna J = índice 9)
+  let bdiPercent: number | undefined;
+  const j8 = _toNumSyn(rows[7]?.[9]);
+  if (j8 > 0 && j8 < 200) {
+    bdiPercent = j8;
+  } else {
+    // Fallback: procura "BDI" nas primeiras linhas
+    for (let i = 0; i < Math.min(rows.length, 12); i++) {
+      const r = rows[i] || [];
+      for (let c = 0; c < r.length; c++) {
+        if (_normLow(_str(r[c])).includes('bdi')) {
+          for (let cc = c + 1; cc < r.length; cc++) {
+            const n = _toNumSyn(r[cc]);
+            if (n > 0 && n < 200) { bdiPercent = n; break; }
+          }
+        }
+        if (bdiPercent) break;
+      }
+      if (bdiPercent) break;
+    }
+  }
+
+  // Detecta linha de cabeçalho (procura "item", "codigo", "descricao")
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const joined = (rows[i] || []).map(c => _normLow(_str(c))).join(' | ');
+    let hits = 0;
+    if (joined.includes('item')) hits++;
+    if (joined.includes('codigo') || joined.includes('código')) hits++;
+    if (joined.includes('descricao') || joined.includes('descrição')) hits++;
+    if (joined.includes('unidade') || joined.includes('und')) hits++;
+    if (hits >= 3) { headerIdx = i; break; }
+  }
+
+  const items: BudgetItem[] = [];
+  const fator = 1 + (bdiPercent ?? 0) / 100;
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const item = _str(r[0]);
+    const code = _str(r[1]);
+    const bank = _str(r[2]);
+    const description = _str(r[3]);
+    const quantity = _toNumSyn(r[4]);
+    const unit = _str(r[5]);
+    const upNoBDI = _toNumSyn(r[6]);
+    const totalNoBDI = _toNumSyn(r[7]);
+    const upWithBDI = _toNumSyn(r[8]);
+    const totalWithBDI = _toNumSyn(r[9]);
+
+    if (!item && !code && !description && !quantity && !upNoBDI && !totalNoBDI) continue;
+    const dLow = _normLow(description);
+    if (!code && (dLow.includes('total') || dLow.includes('subtotal'))) continue;
+    if (!bank) continue; // capítulos da sintética não têm banco
+    if (!code) continue;
+
+    const finalUpWithBDI = upWithBDI > 0 ? upWithBDI : _trunc2(upNoBDI * fator);
+    const finalTotalNoBDI = totalNoBDI > 0 ? totalNoBDI : _trunc2(upNoBDI * quantity);
+    const finalTotalWithBDI = totalWithBDI > 0 ? totalWithBDI : _trunc2(finalUpWithBDI * quantity);
+
+    if (quantity <= 0) warnings.push(`Linha ${i + 1} (${code}): quantidade zero/inválida.`);
+    if (upNoBDI <= 0) warnings.push(`Linha ${i + 1} (${code}): valor unitário s/ BDI zero/inválido.`);
+
+    items.push({
+      id: `bgt-${Date.now().toString(36)}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+      item, code, bank, description, unit, quantity,
+      unitPriceNoBDI: upNoBDI,
+      unitPriceWithBDI: finalUpWithBDI,
+      totalNoBDI: finalTotalNoBDI,
+      totalWithBDI: finalTotalWithBDI,
+      source: 'sintetica',
+    });
+  }
+
+  return { items, bdiPercent, warnings };
+}
