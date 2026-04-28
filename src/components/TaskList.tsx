@@ -624,13 +624,42 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                 toast.loading('Importando aditivo...', { id: 'imp-add-tl' });
                 const { importAdditiveFromExcel } = await import('@/lib/additiveImport');
                 const base = f.name.replace(/\.(xlsx|xls)$/i, '');
-                const result = await importAdditiveFromExcel(f, base || 'Aditivo');
-                const additive = result.additive;
-                onProjectChange({ ...project, additives: [...(project.additives ?? []), additive] });
-                toast.success(
-                  `${result.message} (${additive.compositions.length} composições). Abra a aba Aditivo para revisar.`,
-                  { id: 'imp-add-tl' },
-                );
+                // Localiza um aditivo em rascunho com composições para mesclar a Analítica.
+                const draftAdditive =
+                  (project.additives ?? []).find(
+                    a => (a.status ?? 'rascunho') === 'rascunho' && a.compositions.length > 0,
+                  ) ?? null;
+                const result = await importAdditiveFromExcel(f, base || 'Aditivo', draftAdditive);
+
+                if (result.mode === 'analytic_only' && draftAdditive) {
+                  // Mescla no aditivo existente — preserva id e name
+                  const merged = result.additive;
+                  onProjectChange({
+                    ...project,
+                    additives: (project.additives ?? []).map(a =>
+                      a.id === draftAdditive.id
+                        ? { ...merged, id: draftAdditive.id, name: draftAdditive.name }
+                        : a,
+                    ),
+                  });
+                  toast.success(
+                    `${result.message} Vinculada ao aditivo "${draftAdditive.name}".`,
+                    { id: 'imp-add-tl' },
+                  );
+                } else if (result.mode === 'analytic_only' && !draftAdditive) {
+                  toast.warning(
+                    'Importe a Sintética do Aditivo primeiro para vincular a Analítica.',
+                    { id: 'imp-add-tl' },
+                  );
+                } else {
+                  // synthetic_only ou both — cria novo aditivo
+                  const additive = result.additive;
+                  onProjectChange({ ...project, additives: [...(project.additives ?? []), additive] });
+                  toast.success(
+                    `${result.message} (${additive.compositions.length} composições). Abra a aba Aditivo para revisar.`,
+                    { id: 'imp-add-tl' },
+                  );
+                }
               } catch (err) {
                 console.error(err);
                 toast.error('Falha ao importar aditivo.', { id: 'imp-add-tl' });
