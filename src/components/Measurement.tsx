@@ -417,9 +417,9 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     : parsedBdi;
   const bdiFactor = 1 + bdiPercent / 100;
 
-  // Itens financeiros importados da Sintética (fonte da Medição quando presentes).
+  // Itens financeiros importados da Sintética + itens de aditivos APROVADOS (fonte da Medição).
   const syntheticBudgetItems = useMemo(
-    () => (project.budgetItems || []).filter(b => b.source === 'sintetica'),
+    () => (project.budgetItems || []).filter(b => b.source === 'sintetica' || b.source === 'aditivo'),
     [project.budgetItems],
   );
   const hasSyntheticBudget = syntheticBudgetItems.length > 0;
