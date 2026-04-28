@@ -110,8 +110,16 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const quantity = cellNum(row[cols.quantity]);
     const productivity = cellNum(row[cols.productivity]);
     const unitPriceNoBDI = 0; // Produtividade não importa preço
-    const hours = cellNum(row[cols.hours]);
-    const days = cellNum(row[cols.days]);
+    const rawHours = row[cols.hours];
+    const rawDays = row[cols.days];
+    const hoursPresent = rawHours !== undefined && rawHours !== null && String(rawHours).trim() !== '';
+    const daysPresent = rawDays !== undefined && rawDays !== null && String(rawDays).trim() !== '';
+    let hours = cellNum(rawHours);
+    let days = cellNum(rawDays);
+    // Se Dias estiver vazio mas Horas existir → calcula dias = horas / 8
+    if (!daysPresent && hours > 0) days = hours / 8;
+    // Se Horas estiver vazio mas Dias existir → calcula horas = dias * 8
+    if (!hoursPresent && days > 0) hours = days * 8;
 
     const hasD = description !== '' || unit !== '';
     const hasE = quantity > 0;
