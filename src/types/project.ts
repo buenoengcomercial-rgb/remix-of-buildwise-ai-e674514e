@@ -395,6 +395,9 @@ export interface AdditiveComposition {
   unitPriceNoBDI: number;
   unitPriceWithBDI: number;
   total: number;
+  /** Totais preservados quando a composição vem de uma fonte já calculada (Sintética da Medição). */
+  totalNoBDI?: number;
+  totalWithBDI?: number;
   inputs: AdditiveInput[];
   /** Valor unitário c/ BDI lido da linha "Valor com BDI =" da Analítica (por unidade da composição). */
   analyticUnitPriceWithBDI?: number;
