@@ -622,29 +622,34 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
     // ── Iteração principal: SEMPRE pela EAP (ordem/numeração/hierarquia da EAP) ──
     const eapRows: Row[] = orderedTasks.map(({ task, phase, itemNumber, chain }) => {
-      const qtyContracted = task.quantity ?? task.baseline?.quantity ?? 0;
-      const unit = task.unit || '';
+      const matchedBudget = matchBudgetForTask(task);
+
+      const qtyContracted = matchedBudget
+        ? (matchedBudget.quantity || 0)
+        : (task.quantity ?? task.baseline?.quantity ?? 0);
+      const unit = matchedBudget?.unit || task.unit || '';
 
       const logsInfo = computeQtyFromTask(task);
       const priorFromMeas = priorAccumByTask.get(task.id) || 0;
       const qtyPriorAccum = Math.max(logsInfo.prior, priorFromMeas);
       let qtyPeriod = logsInfo.period;
       if (logsInfo.hasNoLogsAtAll) {
-        // Sem logs: estima acumulado prévio pelo % concluído (mantém comportamento antigo)
-        const pct = (task.percentComplete || 0) / 100;
-        const estPrior = qtyContracted * pct;
-        if (estPrior > qtyPriorAccum) {
-          // usa estimativa quando não há logs nem medições anteriores
-        }
         qtyPeriod = 0;
       }
 
-      // Determinar preço s/ BDI base
-      let unitPriceNoBDIBase = task.unitPriceNoBDI ?? 0;
+      // Determinar preço s/ BDI base — Sintética (se vinculada) tem prioridade
+      let unitPriceNoBDIBase = 0;
       let unitPriceIsEstimated = false;
+      let lineBdi = effBdi;
 
-      if (unitPriceNoBDIBase > 0) {
-        // já temos s/ BDI
+      if (matchedBudget) {
+        const noBDI = trunc2(matchedBudget.unitPriceNoBDI);
+        const withBDI = trunc2(matchedBudget.unitPriceWithBDI);
+        unitPriceNoBDIBase = noBDI;
+        // Preserva BDI implícito da Sintética (mantém c/BDI exato)
+        lineBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
+      } else if ((task.unitPriceNoBDI ?? 0) > 0) {
+        unitPriceNoBDIBase = task.unitPriceNoBDI!;
       } else if ((task.unitPrice ?? 0) > 0) {
         const withBDI = trunc2(task.unitPrice!);
         unitPriceNoBDIBase = trunc2(withBDI / effBdiFactor);
@@ -660,13 +665,28 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         quantityPeriod: qtyPeriod,
         quantityPriorAccum: qtyPriorAccum,
         unitPriceNoBDI: unitPriceNoBDIBase,
-        bdiPercent: effBdi,
+        bdiPercent: lineBdi,
       });
+
+      // Quando vinculado à Sintética, preserva totais contratados exatos da planilha
+      const valueContracted = matchedBudget
+        ? trunc2(matchedBudget.totalWithBDI || calc.totalContracted)
+        : calc.totalContracted;
+      const valueContractedNoBDI = matchedBudget
+        ? trunc2(matchedBudget.totalNoBDI || calc.totalContractedNoBDI)
+        : calc.totalContractedNoBDI;
+      const valueBalance = matchedBudget
+        ? Math.max(0, trunc2(valueContracted - calc.totalAccumulated))
+        : calc.totalBalance;
+      const valueBalanceNoBDI = matchedBudget
+        ? Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI))
+        : calc.totalBalanceNoBDI;
 
       return {
         item: itemNumber, phaseId: phase.id, phaseChain: chain, taskId: task.id,
         description: task.name, unit,
-        itemCode: task.itemCode || '', priceBank: task.priceBank || '',
+        itemCode: matchedBudget?.code || task.itemCode || '',
+        priceBank: matchedBudget?.bank || task.priceBank || '',
         qtyContracted, qtyPriorAccum, qtyPeriod,
         qtyProposed: qtyPeriod,
         qtyApproved: undefined,
@@ -676,18 +696,71 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         unitPriceNoBDI: calc.unitPriceNoBDI,
         unitPriceWithBDI: calc.unitPriceWithBDI,
         unitPriceIsEstimated,
-        valueContractedNoBDI: calc.totalContractedNoBDI,
+        valueContractedNoBDI,
         valuePeriodNoBDI: calc.totalPeriodNoBDI,
         valueAccumNoBDI: calc.totalAccumulatedNoBDI,
-        valueBalanceNoBDI: calc.totalBalanceNoBDI,
-        valueContracted: calc.totalContracted,
+        valueBalanceNoBDI,
+        valueContracted,
         valuePeriod: calc.totalPeriod,
         valueAccum: calc.totalAccumulated,
-        valueBalance: calc.totalBalance,
+        valueBalance,
         hasNoLogsInPeriod: logsInfo.hasNoLogsInPeriod,
         hasNoLogsAtAll: logsInfo.hasNoLogsAtAll,
       };
     });
+
+    // ── Itens da Sintética sem vínculo na EAP — agrupados em seção separada ──
+    const orphanRows: Row[] = [];
+    if (hasSyntheticBudget) {
+      syntheticBudgetItems.forEach(b => {
+        if (consumed.has(b.id)) return;
+        const noBDI = trunc2(b.unitPriceNoBDI);
+        const withBDI = trunc2(b.unitPriceWithBDI);
+        const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
+        const calc = calculateMeasurementLine({
+          quantityContracted: b.quantity || 0,
+          quantityPeriod: 0,
+          quantityPriorAccum: 0,
+          unitPriceNoBDI: noBDI,
+          bdiPercent: implicitBdi,
+        });
+        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
+        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
+        orphanRows.push({
+          item: b.item,
+          phaseId: '__synthetic_orphans__',
+          phaseChain: 'Itens da Sintética sem vínculo na EAP',
+          taskId: `budget-${b.id}`,
+          description: b.description,
+          unit: b.unit,
+          itemCode: b.code,
+          priceBank: b.bank,
+          qtyContracted: b.quantity || 0,
+          qtyPriorAccum: 0,
+          qtyPeriod: 0,
+          qtyProposed: 0,
+          qtyApproved: undefined,
+          qtyCurrentAccum: 0,
+          qtyBalance: b.quantity || 0,
+          percentExecuted: 0,
+          unitPriceNoBDI: noBDI,
+          unitPriceWithBDI: withBDI,
+          unitPriceIsEstimated: false,
+          valueContractedNoBDI,
+          valuePeriodNoBDI: 0,
+          valueAccumNoBDI: 0,
+          valueBalanceNoBDI: valueContractedNoBDI,
+          valueContracted,
+          valuePeriod: 0,
+          valueAccum: 0,
+          valueBalance: valueContracted,
+          hasNoLogsInPeriod: true,
+          hasNoLogsAtAll: true,
+        });
+      });
+    }
+
+    return [...eapRows, ...orphanRows];
   }, [isSnapshotMode, activeMeasurement, orderedTasks, effStart, effEnd, effBdi, effBdiFactor, priorAccumByTask, hasSyntheticBudget, syntheticBudgetItems]);
 
   const filteredRows = useMemo(() => {
