@@ -85,6 +85,29 @@ interface AnalyticRow {
   rowIndex: number;
 }
 
+interface AnalyticParentData {
+  inputs: AnalyticRow[];
+  /** Valor unitário c/ BDI capturado da linha "Valor com BDI =" (por unidade). */
+  unitPriceWithBDI?: number;
+}
+
+/**
+ * Normaliza código para casamento Sintética x Analítica.
+ * Remove espaços, deixa MAIÚSCULO e remove zeros à esquerda da parte numérica
+ * imediatamente após letras (ADM04 -> ADM4, C0002 -> C2, MED02 -> MED2).
+ * Quando o código é puramente numérico, mantém zeros à esquerda intactos.
+ */
+function normalizeCode(raw: string): string {
+  if (!raw) return '';
+  let s = String(raw).trim().toUpperCase().replace(/\s+/g, '');
+  // Remove caracteres invisíveis comuns
+  s = s.replace(/[\u00A0\u200B-\u200D\uFEFF]/g, '');
+  // Padrão: <letras><dígitos>[resto]
+  const m = s.match(/^([A-Z]+)(0+)(\d+)(.*)$/);
+  if (m) return `${m[1]}${m[3]}${m[4]}`;
+  return s;
+}
+
 /** Encontra a aba pelo nome (case/acento insensível). */
 function findSheetName(names: string[], target: string): string | undefined {
   const norm = (s: string) =>
@@ -110,9 +133,24 @@ function detectHeaderIndex(rows: unknown[][]): number {
   return 0;
 }
 
+/**
+ * Detecta o índice da coluna "Descrição" no cabeçalho da Sintética.
+ * Layouts comuns: D (índice 3) ou E (índice 4) — o último ocorre quando há
+ * uma coluna mesclada/vazia entre Banco e Descrição.
+ */
+function detectDescriptionColIndex(rows: unknown[][], headerIdx: number): number {
+  const hdr = rows[headerIdx] || [];
+  for (let c = 0; c < hdr.length; c++) {
+    const v = asString(hdr[c]).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (v === 'descricao' || v.startsWith('descric')) return c;
+  }
+  return 4; // fallback: coluna E
+}
+
 function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues: AdditiveImportIssue[] } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
+  const descCol = detectDescriptionColIndex(rows, headerIdx);
   const items: SyntheticRow[] = [];
   const seenCodes = new Set<string>();
 
@@ -121,24 +159,43 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
     const item = asString(r[0]);            // A
     const code = asString(r[1]);            // B
     const bank = asString(r[2]);            // C
-    const description = asString(r[3]);     // D
-    const quantity = toNumber(r[4]);        // E
-    const unit = asString(r[5]);            // F
-    const unitPriceNoBDI = toNumber(r[6]);  // G
-    // r[7] = H (ignorada)
-    const unitPriceWithBDI = toNumber(r[8]);// I
-    const total = toNumber(r[9]);           // J
+
+    // Quando a descrição vier em E (descCol=4), a coluna D pode estar vazia
+    // por causa de mesclagem. Lemos sempre a partir de descCol para frente.
+    let description = asString(r[descCol]);
+    // Se a célula esperada estiver vazia mas D tem texto e E não, usamos D.
+    if (!description && descCol === 4) description = asString(r[3]);
+
+    // Após a Descrição: Quantidade, Unidade, V.Unit s/BDI, [subtotal s/BDI], V.Unit c/BDI, Total c/BDI
+    const qCol = descCol + 1;
+    const uCol = descCol + 2;
+    const vNoBdiCol = descCol + 3;
+    // Layout real: descCol=4 -> qty=5(F), un=6(G), vNoBDI=7(H), subtotalNoBDI=8(I), vComBDI=9(J), total=10(K)
+    // Layout simples: descCol=3 -> qty=4(E), un=5(F), vNoBDI=6(G), vComBDI=7(H), total=8(I)
+    const hasSubtotalCol = descCol === 4; // heurística: quando há coluna mesclada D, há subtotal em I
+    const vWithBdiCol = vNoBdiCol + (hasSubtotalCol ? 2 : 1);
+    const totalCol = vWithBdiCol + 1;
+
+    const quantity = toNumber(r[qCol]);
+    const unit = asString(r[uCol]);
+    const unitPriceNoBDI = toNumber(r[vNoBdiCol]);
+    const unitPriceWithBDI = toNumber(r[vWithBdiCol]);
+    const total = toNumber(r[totalCol]);
 
     // pular linhas totalmente vazias
     if (!item && !code && !description && !quantity && !total) continue;
-    // pular linhas que parecem cabeçalho/total
+    // pular linhas que parecem cabeçalho/total/capítulo (sem código + sem qty)
     const lowDesc = description.toLowerCase();
     if (!code && (lowDesc.includes('total') || lowDesc.includes('subtotal'))) continue;
-
     if (!code) {
-      issues.push({ level: 'error', message: 'Composição sintética sem código', line: i + 1 });
+      // possível capítulo (só descrição). Não é composição — ignora silenciosamente.
       continue;
     }
+    // Linha de capítulo numerada (sem qty e sem total) — ignora.
+    if (quantity <= 0 && total <= 0 && unitPriceNoBDI <= 0 && unitPriceWithBDI <= 0) {
+      continue;
+    }
+
     if (seenCodes.has(code)) {
       issues.push({ level: 'error', message: `Código duplicado na Sintética: ${code}`, code, line: i + 1 });
     }
@@ -164,22 +221,49 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
   return { items, issues };
 }
 
+/** Procura, em qualquer coluna da linha, texto contendo "valor com bdi". */
+function findValorComBdiInRow(r: unknown[]): { colIdx: number } | null {
+  for (let c = 0; c < r.length; c++) {
+    const v = asString(r[c]).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (v.includes('valor com bdi')) return { colIdx: c };
+  }
+  return null;
+}
+
+/** Pega o primeiro número à direita de uma coluna na linha. */
+function firstNumberAfter(r: unknown[], startCol: number): number {
+  for (let c = startCol + 1; c < r.length; c++) {
+    const n = toNumber(r[c]);
+    if (n > 0) return n;
+  }
+  return 0;
+}
+
 function parseAnalyticSheet(
   rows: unknown[][],
-  parentCodes: Set<string>,
-): { byParent: Map<string, AnalyticRow[]>; issues: AdditiveImportIssue[] } {
+  /** Map<codigoNormalizado, codigoOriginalDaSintetica> */
+  parentByNorm: Map<string, string>,
+): { byParent: Map<string, AnalyticParentData>; issues: AdditiveImportIssue[] } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
-  const byParent = new Map<string, AnalyticRow[]>();
-  let currentParent: string | null = null;
+  const byParent = new Map<string, AnalyticParentData>();
+  let currentParent: string | null = null; // código original da Sintética
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const r = rows[i] || [];
-    // Tentamos detectar colunas: assumimos layout flexível.
-    // Convenção: A=Item (opcional), B=Código, C=Banco, D=Descrição, E=Unidade,
-    // F=Coeficiente, G=Valor unitário, H=Total
-    // Se layout for diferente, ainda assim código vem na coluna B na maioria dos casos.
-    const code = asString(r[1]);
+
+    // 1) Linha "Valor com BDI =" — captura o valor para o pai atual.
+    const vcb = findValorComBdiInRow(r);
+    if (vcb && currentParent) {
+      const val = firstNumberAfter(r, vcb.colIdx);
+      if (val > 0) {
+        const data = byParent.get(currentParent);
+        if (data) data.unitPriceWithBDI = val;
+      }
+      continue;
+    }
+
+    const codeRaw = asString(r[1]);
     const bank = asString(r[2]);
     const description = asString(r[3]);
     const unit = asString(r[4]);
@@ -187,34 +271,38 @@ function parseAnalyticSheet(
     const unitPrice = toNumber(r[6]);
     const total = toNumber(r[7]);
 
-    if (!code && !description) continue;
+    if (!codeRaw && !description) continue;
     const lowDesc = description.toLowerCase();
-    if (!code && (lowDesc.includes('total') || lowDesc.includes('subtotal'))) continue;
+    if (!codeRaw && (lowDesc.includes('total') || lowDesc.includes('subtotal'))) continue;
 
-    // Se este código bate com uma composição da Sintética → vira pai.
-    if (code && parentCodes.has(code)) {
-      currentParent = code;
-      if (!byParent.has(currentParent)) byParent.set(currentParent, []);
-      continue;
+    // Este código bate (após normalização) com uma composição da Sintética → vira pai.
+    if (codeRaw) {
+      const norm = normalizeCode(codeRaw);
+      const originalParent = parentByNorm.get(norm);
+      if (originalParent) {
+        currentParent = originalParent;
+        if (!byParent.has(currentParent)) byParent.set(currentParent, { inputs: [] });
+        continue;
+      }
     }
 
-    if (!currentParent) {
-      // insumo antes de qualquer pai → ignora silenciosamente
-      continue;
-    }
+    if (!currentParent) continue; // insumo antes de qualquer pai → ignora
 
-    if (!code) {
+    if (!codeRaw) {
       issues.push({ level: 'warning', message: `Insumo sem código (composição ${currentParent})`, line: i + 1 });
     }
     if (!unit) {
-      issues.push({ level: 'warning', message: `Insumo sem unidade (${code || 'sem código'})`, line: i + 1 });
+      issues.push({ level: 'warning', message: `Insumo sem unidade (${codeRaw || 'sem código'})`, line: i + 1 });
     }
     if (unitPrice <= 0) {
-      issues.push({ level: 'warning', message: `Insumo sem preço (${code || 'sem código'})`, line: i + 1 });
+      issues.push({ level: 'warning', message: `Insumo sem preço (${codeRaw || 'sem código'})`, line: i + 1 });
     }
 
-    const list = byParent.get(currentParent)!;
-    list.push({ code, bank, description, unit, coefficient, unitPrice, total, rowIndex: i + 1 });
+    const data = byParent.get(currentParent)!;
+    data.inputs.push({
+      code: codeRaw, bank, description, unit, coefficient, unitPrice, total,
+      rowIndex: i + 1,
+    });
   }
 
   return { byParent, issues };
