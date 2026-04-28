@@ -377,6 +377,8 @@ export interface Additive {
   importedAt: string;
   compositions: AdditiveComposition[];
   issues?: AdditiveImportIssue[];
+  /** BDI (%) editável. Quando importado, vem da célula J8 da Sintética. */
+  bdiPercent?: number;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';

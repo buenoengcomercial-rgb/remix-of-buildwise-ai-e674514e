@@ -13,7 +13,6 @@ function toNumber(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
   let s = String(v).trim();
   if (!s) return 0;
-  // Normaliza pt-BR: "1.234,56" -> "1234.56"
   s = s.replace(/[^\d.,\-]/g, '');
   if (s.includes(',') && s.includes('.')) {
     s = s.replace(/\./g, '').replace(',', '.');
@@ -29,6 +28,12 @@ function asString(v: unknown): string {
   return String(v).trim();
 }
 
+/** Trunca para 2 casas decimais (sem arredondar para cima). */
+export function truncar2(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  return Math.trunc(v * 100) / 100;
+}
+
 const MAO_OBRA_KEYWORDS = [
   'eletricista', 'servente', 'pedreiro', 'ajudante', 'encanador',
   'pintor', 'carpinteiro', 'armador', 'operador', 'engenheiro',
@@ -36,29 +41,79 @@ const MAO_OBRA_KEYWORDS = [
   'encargos complementares',
 ];
 const MAO_OBRA_UNITS = ['h', 'hr', 'hora', 'horas', 'horista'];
-
 const EQUIPAMENTO_KEYWORDS = [
   'equipamento', 'maquina', 'máquina', 'betoneira', 'caminhao', 'caminhão',
   'guindaste', 'andaime', 'compactador', 'compressor', 'retroescavadeira',
   'escavadeira', 'guincho', 'vibrador', 'gerador',
 ];
-
 const MATERIAL_UNITS = ['un', 'und', 'unid', 'pc', 'pç', 'peca', 'peça', 'cj', 'kg', 'g', 'l', 'ml', 'm', 'm2', 'm²', 'm3', 'm³', 'mt', 'cm'];
 
 function classifyInput(description: string, unit: string): AdditiveInputType {
   const d = description.toLowerCase();
   const u = unit.toLowerCase().trim();
-
-  if (MAO_OBRA_UNITS.includes(u) || MAO_OBRA_KEYWORDS.some(k => d.includes(k))) {
-    return 'mao_obra';
-  }
-  if (EQUIPAMENTO_KEYWORDS.some(k => d.includes(k))) {
-    return 'equipamento';
-  }
-  if (MATERIAL_UNITS.includes(u)) {
-    return 'material';
-  }
+  if (MAO_OBRA_UNITS.includes(u) || MAO_OBRA_KEYWORDS.some(k => d.includes(k))) return 'mao_obra';
+  if (EQUIPAMENTO_KEYWORDS.some(k => d.includes(k))) return 'equipamento';
+  if (MATERIAL_UNITS.includes(u)) return 'material';
   return 'outro';
+}
+
+const norm = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+/**
+ * Normaliza código para casamento Sintética x Analítica.
+ * Remove zeros à esquerda da parte numérica imediatamente após letras
+ * (ADM04 -> ADM4, C0002 -> C2). Mantém códigos puramente numéricos com zeros.
+ */
+function normalizeCode(raw: string): string {
+  if (!raw) return '';
+  let s = String(raw).trim().toUpperCase().replace(/\s+/g, '');
+  s = s.replace(/[\u00A0\u200B-\u200D\uFEFF]/g, '');
+  const m = s.match(/^([A-Z]+)(0+)(\d+)(.*)$/);
+  if (m) return `${m[1]}${m[3]}${m[4]}`;
+  return s;
+}
+
+function findSheetName(names: string[], target: string): string | undefined {
+  const t = norm(target);
+  return names.find(n => norm(n) === t) || names.find(n => norm(n).includes(t));
+}
+
+function sheetToRows(ws: any, XLSX: any): unknown[][] {
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as unknown[][];
+}
+
+/** Procura linha de cabeçalho contendo termos típicos. */
+function detectHeaderIndex(rows: unknown[][]): number {
+  const HINTS = ['item', 'codigo', 'código', 'descricao', 'descrição', 'banco', 'unidade'];
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const joined = (rows[i] || []).map(c => norm(asString(c))).join(' | ');
+    let hits = 0;
+    for (const h of HINTS) if (joined.includes(norm(h))) hits++;
+    if (hits >= 3) return i;
+  }
+  return 0;
+}
+
+/** Lê BDI percentual da célula J8 (linha 8, coluna J = índice 9) da Sintética. */
+function extractBdiFromJ8(rows: unknown[][]): number | undefined {
+  // Tenta J8 (rows[7][9]). Se não houver número, tenta varrer primeiras 12 linhas
+  // procurando texto "bdi" e pegando o percentual ao lado.
+  const direct = toNumber(rows[7]?.[9]);
+  if (direct > 0 && direct < 200) return direct;
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const r = rows[i] || [];
+    for (let c = 0; c < r.length; c++) {
+      const v = norm(asString(r[c]));
+      if (v.includes('bdi')) {
+        for (let cc = c + 1; cc < r.length; cc++) {
+          const n = toNumber(r[cc]);
+          if (n > 0 && n < 200) return n;
+        }
+      }
+    }
+  }
+  return undefined;
 }
 
 interface SyntheticRow {
@@ -87,114 +142,44 @@ interface AnalyticRow {
 
 interface AnalyticParentData {
   inputs: AnalyticRow[];
-  /** Valor unitário c/ BDI capturado da linha "Valor com BDI =" (por unidade). */
-  unitPriceWithBDI?: number;
+  /** Total H da linha pai analítica, quando existir. */
+  parentTotalNoBDI?: number;
 }
 
 /**
- * Normaliza código para casamento Sintética x Analítica.
- * Remove espaços, deixa MAIÚSCULO e remove zeros à esquerda da parte numérica
- * imediatamente após letras (ADM04 -> ADM4, C0002 -> C2, MED02 -> MED2).
- * Quando o código é puramente numérico, mantém zeros à esquerda intactos.
+ * Parser SINTÉTICA — layout fixo A..J:
+ * A=Item, B=Código, C=Banco, D=Descrição, E=Quantidade, F=Unidade,
+ * G=Vunit s/BDI, H=Total s/BDI, I=Vunit c/BDI, J=Total c/BDI
  */
-function normalizeCode(raw: string): string {
-  if (!raw) return '';
-  let s = String(raw).trim().toUpperCase().replace(/\s+/g, '');
-  // Remove caracteres invisíveis comuns
-  s = s.replace(/[\u00A0\u200B-\u200D\uFEFF]/g, '');
-  // Padrão: <letras><dígitos>[resto]
-  const m = s.match(/^([A-Z]+)(0+)(\d+)(.*)$/);
-  if (m) return `${m[1]}${m[3]}${m[4]}`;
-  return s;
-}
-
-/** Encontra a aba pelo nome (case/acento insensível). */
-function findSheetName(names: string[], target: string): string | undefined {
-  const norm = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const t = norm(target);
-  return names.find(n => norm(n) === t) || names.find(n => norm(n).includes(t));
-}
-
-/** Lê uma planilha como matriz, ignorando linhas totalmente vazias no topo. */
-function sheetToRows(ws: any, XLSX: any): unknown[][] {
-  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as unknown[][];
-}
-
-/** Detecta a linha do cabeçalho procurando termos típicos. */
-function detectHeaderIndex(rows: unknown[][]): number {
-  const HEADER_HINTS = ['item', 'codigo', 'código', 'descricao', 'descrição', 'banco', 'unidade'];
-  for (let i = 0; i < Math.min(rows.length, 25); i++) {
-    const joined = rows[i].map(c => asString(c).toLowerCase()).join(' | ');
-    let hits = 0;
-    for (const h of HEADER_HINTS) if (joined.includes(h)) hits++;
-    if (hits >= 2) return i;
-  }
-  return 0;
-}
-
-/**
- * Detecta o índice da coluna "Descrição" no cabeçalho da Sintética.
- * Layouts comuns: D (índice 3) ou E (índice 4) — o último ocorre quando há
- * uma coluna mesclada/vazia entre Banco e Descrição.
- */
-function detectDescriptionColIndex(rows: unknown[][], headerIdx: number): number {
-  const hdr = rows[headerIdx] || [];
-  for (let c = 0; c < hdr.length; c++) {
-    const v = asString(hdr[c]).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (v === 'descricao' || v.startsWith('descric')) return c;
-  }
-  return 4; // fallback: coluna E
-}
-
-function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues: AdditiveImportIssue[] } {
+function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues: AdditiveImportIssue[]; bdi?: number } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
-  const descCol = detectDescriptionColIndex(rows, headerIdx);
   const items: SyntheticRow[] = [];
   const seenCodes = new Set<string>();
+  const bdi = extractBdiFromJ8(rows);
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const r = rows[i] || [];
-    const item = asString(r[0]);            // A
-    const code = asString(r[1]);            // B
-    const bank = asString(r[2]);            // C
+    const item = asString(r[0]);
+    const code = asString(r[1]);
+    const bank = asString(r[2]);
+    const description = asString(r[3]);
+    const quantity = toNumber(r[4]);
+    const unit = asString(r[5]);
+    const unitPriceNoBDI = toNumber(r[6]);
+    const total = toNumber(r[7]);
+    const unitPriceWithBDI = toNumber(r[8]);
+    const totalWithBDI = toNumber(r[9]);
 
-    // Quando a descrição vier em E (descCol=4), a coluna D pode estar vazia
-    // por causa de mesclagem. Lemos sempre a partir de descCol para frente.
-    let description = asString(r[descCol]);
-    // Se a célula esperada estiver vazia mas D tem texto e E não, usamos D.
-    if (!description && descCol === 4) description = asString(r[3]);
-
-    // Após a Descrição: Quantidade, Unidade, V.Unit s/BDI, [subtotal s/BDI], V.Unit c/BDI, Total c/BDI
-    const qCol = descCol + 1;
-    const uCol = descCol + 2;
-    const vNoBdiCol = descCol + 3;
-    // Layout real: descCol=4 -> qty=5(F), un=6(G), vNoBDI=7(H), subtotalNoBDI=8(I), vComBDI=9(J), total=10(K)
-    // Layout simples: descCol=3 -> qty=4(E), un=5(F), vNoBDI=6(G), vComBDI=7(H), total=8(I)
-    const hasSubtotalCol = descCol === 4; // heurística: quando há coluna mesclada D, há subtotal em I
-    const vWithBdiCol = vNoBdiCol + (hasSubtotalCol ? 2 : 1);
-    const totalCol = vWithBdiCol + 1;
-
-    const quantity = toNumber(r[qCol]);
-    const unit = asString(r[uCol]);
-    const unitPriceNoBDI = toNumber(r[vNoBdiCol]);
-    const unitPriceWithBDI = toNumber(r[vWithBdiCol]);
-    const total = toNumber(r[totalCol]);
-
-    // pular linhas totalmente vazias
-    if (!item && !code && !description && !quantity && !total) continue;
-    // pular linhas que parecem cabeçalho/total/capítulo (sem código + sem qty)
-    const lowDesc = description.toLowerCase();
+    // pula linhas totalmente vazias
+    if (!item && !code && !bank && !description && !quantity && !total && !unitPriceNoBDI) continue;
+    // pular textos de total/subtotal sem código
+    const lowDesc = norm(description);
     if (!code && (lowDesc.includes('total') || lowDesc.includes('subtotal'))) continue;
-    if (!code) {
-      // possível capítulo (só descrição). Não é composição — ignora silenciosamente.
-      continue;
-    }
-    // Linha de capítulo numerada (sem qty e sem total) — ignora.
-    if (quantity <= 0 && total <= 0 && unitPriceNoBDI <= 0 && unitPriceWithBDI <= 0) {
-      continue;
-    }
+    // capítulos/subcapítulos: têm item, mas NÃO têm banco. Ignora.
+    if (!bank) continue;
+    // sem código de fato → ignora
+    if (!code) continue;
 
     if (seenCodes.has(code)) {
       issues.push({ level: 'error', message: `Código duplicado na Sintética: ${code}`, code, line: i + 1 });
@@ -204,98 +189,92 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
     if (quantity <= 0) {
       issues.push({ level: 'warning', message: `Quantidade inválida ou zero (${code})`, code, line: i + 1 });
     }
-    if (unitPriceNoBDI <= 0 && unitPriceWithBDI <= 0) {
-      issues.push({ level: 'warning', message: `Valor unitário inválido ou zero (${code})`, code, line: i + 1 });
-    }
-    if (total <= 0) {
-      issues.push({ level: 'warning', message: `Total inválido ou zero (${code})`, code, line: i + 1 });
+    if (unitPriceNoBDI <= 0) {
+      issues.push({ level: 'warning', message: `Valor unit. s/ BDI inválido (${code})`, code, line: i + 1 });
     }
 
     items.push({
       item, code, bank, description, quantity, unit,
-      unitPriceNoBDI, unitPriceWithBDI, total,
+      unitPriceNoBDI,
+      unitPriceWithBDI: unitPriceWithBDI || 0,
+      total: total || +(unitPriceNoBDI * quantity).toFixed(2),
       rowIndex: i + 1,
     });
+    void totalWithBDI;
   }
 
-  return { items, issues };
+  return { items, issues, bdi };
 }
 
-/** Procura, em qualquer coluna da linha, texto contendo "valor com bdi". */
-function findValorComBdiInRow(r: unknown[]): { colIdx: number } | null {
-  for (let c = 0; c < r.length; c++) {
-    const v = asString(r[c]).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (v.includes('valor com bdi')) return { colIdx: c };
-  }
-  return null;
-}
-
-/** Pega o primeiro número à direita de uma coluna na linha. */
-function firstNumberAfter(r: unknown[], startCol: number): number {
-  for (let c = startCol + 1; c < r.length; c++) {
-    const n = toNumber(r[c]);
-    if (n > 0) return n;
-  }
-  return 0;
-}
-
+/**
+ * Parser ANALÍTICA — layout fixo A..H:
+ * A=Item ou tipo (Auxiliar/Insumo), B=Código, C=Banco, D=Descrição,
+ * E=Coeficiente/Quantidade, F=Unidade, G=Vunit s/BDI, H=Total s/BDI
+ *
+ * Linhas pai: A é numérico (item) e B/C/D preenchidos.
+ * Linhas insumo: A = "Auxiliar" ou "Insumo".
+ * Ignora a linha "Valor com BDI =" (não tratar como insumo).
+ */
 function parseAnalyticSheet(
   rows: unknown[][],
-  /** Map<codigoNormalizado, codigoOriginalDaSintetica> */
   parentByNorm: Map<string, string>,
 ): { byParent: Map<string, AnalyticParentData>; issues: AdditiveImportIssue[] } {
   const issues: AdditiveImportIssue[] = [];
   const headerIdx = detectHeaderIndex(rows);
   const byParent = new Map<string, AnalyticParentData>();
-  let currentParent: string | null = null; // código original da Sintética
+  let currentParent: string | null = null;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const r = rows[i] || [];
-
-    // 1) Linha "Valor com BDI =" — captura o valor para o pai atual.
-    const vcb = findValorComBdiInRow(r);
-    if (vcb && currentParent) {
-      const val = firstNumberAfter(r, vcb.colIdx);
-      if (val > 0) {
-        const data = byParent.get(currentParent);
-        if (data) data.unitPriceWithBDI = val;
-      }
-      continue;
-    }
-
+    const aRaw = asString(r[0]);
     const codeRaw = asString(r[1]);
     const bank = asString(r[2]);
     const description = asString(r[3]);
-    const unit = asString(r[4]);
-    const coefficient = toNumber(r[5]);
+    const coefficient = toNumber(r[4]);
+    const unit = asString(r[5]);
     const unitPrice = toNumber(r[6]);
     const total = toNumber(r[7]);
 
-    if (!codeRaw && !description) continue;
-    const lowDesc = description.toLowerCase();
-    if (!codeRaw && (lowDesc.includes('total') || lowDesc.includes('subtotal'))) continue;
+    if (!aRaw && !codeRaw && !description && !coefficient && !unitPrice) continue;
 
-    // Este código bate (após normalização) com uma composição da Sintética → vira pai.
-    if (codeRaw) {
-      const norm = normalizeCode(codeRaw);
-      const originalParent = parentByNorm.get(norm);
+    const aLow = norm(aRaw);
+    const dLow = norm(description);
+
+    // Linha "Valor com BDI =" → ignora completamente como insumo
+    if (dLow.includes('valor com bdi') || aLow.includes('valor com bdi')
+        || (asString(r[6]) && norm(asString(r[6])).includes('valor com bdi'))) {
+      continue;
+    }
+
+    // Detecta linha pai: A é número (item tipo "1", "2.1.4") e B/C preenchidos.
+    const isParentLine =
+      !!codeRaw && !!bank && /^\d+(\.\d+)*$/.test(aRaw.replace(',', '.'));
+
+    if (isParentLine) {
+      const norm1 = normalizeCode(codeRaw);
+      const originalParent = parentByNorm.get(norm1);
       if (originalParent) {
         currentParent = originalParent;
         if (!byParent.has(currentParent)) byParent.set(currentParent, { inputs: [] });
+        const data = byParent.get(currentParent)!;
+        if (total > 0) data.parentTotalNoBDI = total;
+        continue;
+      } else {
+        // Pai analítico sem correspondência na Sintética
+        currentParent = null;
         continue;
       }
     }
 
-    if (!currentParent) continue; // insumo antes de qualquer pai → ignora
+    // Insumo: A deve ser "Auxiliar" ou "Insumo" (ou compat: vazio com código)
+    const isInsumo = aLow === 'auxiliar' || aLow === 'insumo' || aLow.startsWith('insumo') || aLow.startsWith('auxiliar');
 
-    if (!codeRaw) {
-      issues.push({ level: 'warning', message: `Insumo sem código (composição ${currentParent})`, line: i + 1 });
-    }
-    if (!unit) {
-      issues.push({ level: 'warning', message: `Insumo sem unidade (${codeRaw || 'sem código'})`, line: i + 1 });
-    }
+    if (!isInsumo) continue;
+    if (!currentParent) continue;
+    if (!codeRaw && !description) continue;
+
     if (unitPrice <= 0) {
-      issues.push({ level: 'warning', message: `Insumo sem preço (${codeRaw || 'sem código'})`, line: i + 1 });
+      issues.push({ level: 'warning', message: `Insumo sem preço (${codeRaw || description})`, line: i + 1 });
     }
 
     const data = byParent.get(currentParent)!;
@@ -319,22 +298,17 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
 
   if (!synthName) {
     allIssues.push({ level: 'error', message: 'Aba Sintética não encontrada' });
-    return {
-      id: uid(), name: additiveName, importedAt: new Date().toISOString(),
-      compositions: [], issues: allIssues,
-    };
+    return { id: uid(), name: additiveName, importedAt: new Date().toISOString(), compositions: [], issues: allIssues };
   }
 
   const synthRows = sheetToRows(wb.Sheets[synthName], XLSX);
-  const { items: synthItems, issues: synthIssues } = parseSyntheticSheet(synthRows);
+  const { items: synthItems, issues: synthIssues, bdi } = parseSyntheticSheet(synthRows);
   allIssues.push(...synthIssues);
 
-  // Mapeia código normalizado -> código original da Sintética (para casar ADM04 vs ADM4)
   const parentByNorm = new Map<string, string>();
   for (const s of synthItems) parentByNorm.set(normalizeCode(s.code), s.code);
 
   let byParent = new Map<string, AnalyticParentData>();
-
   if (!analyName) {
     allIssues.push({ level: 'warning', message: 'Aba Analítica não encontrada — composições ficarão sem insumos.' });
   } else {
@@ -343,6 +317,9 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     byParent = result.byParent;
     allIssues.push(...result.issues);
   }
+
+  const bdiPercent = bdi ?? 0;
+  const fator = 1 + bdiPercent / 100;
 
   const compositions: AdditiveComposition[] = synthItems.map(s => {
     const data = byParent.get(s.code);
@@ -356,28 +333,17 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       unit: r.unit,
       coefficient: r.coefficient,
       unitPrice: r.unitPrice,
-      // Insumos da Analítica NÃO têm BDI. Mantém o total da planilha quando vier;
-      // senão, calcula coeficiente * preço unitário (sem multiplicar por quantidade
-      // da composição — o total do insumo é por unidade da composição).
       total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
     }));
 
-    const analyticUnitPriceWithBDI = data?.unitPriceWithBDI;
-    const analyticTotalWithBDI = analyticUnitPriceWithBDI != null
-      ? +(analyticUnitPriceWithBDI * (s.quantity || 0)).toFixed(2)
-      : undefined;
+    // Valor unitário c/ BDI calculado a partir do BDI lido da planilha.
+    const unitPriceWithBDI = bdiPercent > 0
+      ? truncar2(s.unitPriceNoBDI * fator)
+      : (s.unitPriceWithBDI || truncar2(s.unitPriceNoBDI * fator));
+    const total = truncar2(unitPriceWithBDI * s.quantity);
 
-    if (inputs.length === 0 && analyticUnitPriceWithBDI == null) {
+    if (inputs.length === 0) {
       allIssues.push({ level: 'warning', message: `Composição sintética sem analítico vinculado (${s.code})`, code: s.code });
-    } else if (analyticTotalWithBDI != null && s.total > 0) {
-      // Comparação correta: usar valor c/ BDI da Analítica * quantidade da Sintética.
-      if (Math.abs(analyticTotalWithBDI - s.total) > 0.05) {
-        allIssues.push({
-          level: 'warning',
-          message: `Diferença entre total sintético (R$ ${s.total.toFixed(2)}) e analítico c/ BDI (R$ ${analyticTotalWithBDI.toFixed(2)}) — ${s.code}`,
-          code: s.code,
-        });
-      }
     }
 
     return {
@@ -389,27 +355,17 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       quantity: s.quantity,
       unit: s.unit,
       unitPriceNoBDI: s.unitPriceNoBDI,
-      unitPriceWithBDI: s.unitPriceWithBDI,
-      total: s.total,
+      unitPriceWithBDI,
+      total,
       inputs,
-      analyticUnitPriceWithBDI,
-      analyticTotalWithBDI,
     };
   });
 
-  // Resumo informativo
   const totalInputs = compositions.reduce((a, c) => a + c.inputs.length, 0);
-  const matCount = compositions.reduce((a, c) => a + c.inputs.filter(i => i.type === 'material').length, 0);
-  const moCount = compositions.reduce((a, c) => a + c.inputs.filter(i => i.type === 'mao_obra').length, 0);
-  const eqCount = compositions.reduce((a, c) => a + c.inputs.filter(i => i.type === 'equipamento').length, 0);
-  const otherCount = compositions.reduce((a, c) => a + c.inputs.filter(i => i.type === 'outro').length, 0);
   allIssues.unshift(
     { level: 'info', message: `Total de composições importadas: ${compositions.length}` },
     { level: 'info', message: `Total de insumos importados: ${totalInputs}` },
-    { level: 'info', message: `Materiais: ${matCount}` },
-    { level: 'info', message: `Mão de obra: ${moCount}` },
-    { level: 'info', message: `Equipamentos: ${eqCount}` },
-    { level: 'info', message: `Outros: ${otherCount}` },
+    { level: 'info', message: `BDI lido da planilha (J8): ${bdiPercent ? bdiPercent.toFixed(2) + '%' : 'não encontrado'}` },
   );
 
   return {
@@ -418,32 +374,38 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
     importedAt: new Date().toISOString(),
     compositions,
     issues: allIssues,
+    bdiPercent,
   };
 }
 
-/**
- * Soma dos insumos da Analítica (sem BDI). Útil para inspeção visual.
- * NÃO use para comparar com o total da Sintética — use `analyticComparisonTotal`.
- */
-export function sumAnalyticTotal(comp: AdditiveComposition): number {
+/** Soma dos totais H dos insumos da Analítica (sem BDI), por unidade da composição. */
+export function sumAnalyticTotalNoBDI(comp: AdditiveComposition): number {
   return comp.inputs.reduce((a, i) => a + (i.total || 0), 0);
 }
 
 /**
- * Total c/ BDI derivado da Analítica para comparação com o total da Sintética.
- * Prioriza a linha "Valor com BDI =" capturada na importação;
- * caso ausente, retorna `null` (não há base válida para comparar com BDI).
+ * Recalcula valores da composição com base no BDI atual (editável).
+ * Retorna os valores derivados para exibição (não muta o objeto).
  */
-export function analyticComparisonTotal(comp: AdditiveComposition): number | null {
-  if (comp.analyticTotalWithBDI != null) return comp.analyticTotalWithBDI;
-  return null;
+export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent: number) {
+  const fator = 1 + (bdiPercent || 0) / 100;
+  const unitPriceWithBDI = truncar2(comp.unitPriceNoBDI * fator);
+  const totalSyntheticWithBDI = truncar2(unitPriceWithBDI * comp.quantity);
+  const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
+  const totalAnalyticWithBDI = truncar2(sumAnalyticNoBDI * fator * comp.quantity);
+  const diff = +(totalAnalyticWithBDI - totalSyntheticWithBDI).toFixed(2);
+  return { unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff };
 }
 
 export function additiveTotals(add: Additive) {
+  const bdi = add.bdiPercent ?? 0;
   const compCount = add.compositions.length;
   const totalSemBDI = add.compositions.reduce((a, c) => a + (c.unitPriceNoBDI * c.quantity), 0);
-  const totalComBDI = add.compositions.reduce((a, c) => a + (c.unitPriceWithBDI * c.quantity), 0);
-  const total = add.compositions.reduce((a, c) => a + c.total, 0);
+  const totalComBDI = add.compositions.reduce((a, c) => {
+    const { totalSyntheticWithBDI } = computeCompositionWithBDI(c, bdi);
+    return a + totalSyntheticWithBDI;
+  }, 0);
+  const total = totalComBDI;
   const inputCount = add.compositions.reduce((a, c) => a + c.inputs.length, 0);
   const semAnalitico = add.compositions.filter(c => c.inputs.length === 0).length;
   return { compCount, totalSemBDI, totalComBDI, total, inputCount, semAnalitico };
@@ -451,20 +413,21 @@ export function additiveTotals(add: Additive) {
 
 export async function exportAdditiveToExcel(add: Additive) {
   const XLSX = await import('xlsx');
-  const synthHeader = ['Item', 'Código', 'Banco', 'Descrição', 'Quantidade', 'Unidade', 'Valor unit. s/ BDI', 'Valor unit. c/ BDI', 'Total', 'V.Unit Analítico c/BDI', 'Total Analítico c/BDI', 'Diferença'];
+  const bdi = add.bdiPercent ?? 0;
+  const synthHeader = ['Item', 'Código', 'Banco', 'Descrição', 'Quantidade', 'Unidade', 'V.Unit s/BDI', 'Total s/BDI', 'V.Unit c/BDI', 'Total c/BDI', 'Soma Analítica s/BDI', 'Total Analítico c/BDI', 'Diferença'];
   const synthRows = add.compositions.map(c => {
-    const aUnit = c.analyticUnitPriceWithBDI ?? '';
-    const aTot = c.analyticTotalWithBDI ?? '';
-    const diff = c.analyticTotalWithBDI != null ? +(c.analyticTotalWithBDI - c.total).toFixed(2) : '';
-    return [c.item, c.code, c.bank, c.description, c.quantity, c.unit, c.unitPriceNoBDI, c.unitPriceWithBDI, c.total, aUnit, aTot, diff];
+    const r = computeCompositionWithBDI(c, bdi);
+    return [c.item, c.code, c.bank, c.description, c.quantity, c.unit,
+      c.unitPriceNoBDI, +(c.unitPriceNoBDI * c.quantity).toFixed(2),
+      r.unitPriceWithBDI, r.totalSyntheticWithBDI,
+      r.sumAnalyticNoBDI, r.totalAnalyticWithBDI, r.diff];
   });
-  const wsSynth = XLSX.utils.aoa_to_sheet([synthHeader, ...synthRows]);
+  const wsSynth = XLSX.utils.aoa_to_sheet([[`BDI: ${bdi.toFixed(2)}%`], [], synthHeader, ...synthRows]);
 
   const typeLabel: Record<AdditiveInputType, string> = {
     material: 'Material', mao_obra: 'Mão de obra', equipamento: 'Equipamento', outro: 'Outro',
   };
-
-  const analyHeader = ['Item composição', 'Código composição', 'Descrição composição', 'Código insumo', 'Banco', 'Tipo', 'Descrição insumo', 'Unidade', 'Coeficiente', 'Valor unit.', 'Total'];
+  const analyHeader = ['Item composição', 'Código composição', 'Descrição composição', 'Código insumo', 'Banco', 'Tipo', 'Descrição insumo', 'Unidade', 'Coeficiente', 'V.Unit s/BDI', 'Total s/BDI'];
   const analyRows: (string | number)[][] = [];
   for (const c of add.compositions) {
     for (const i of c.inputs) {
@@ -493,6 +456,7 @@ export async function exportAdditiveToPdf(
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 10;
+  const bdi = add.bdiPercent ?? 0;
 
   const logo = await branding.loadCompanyLogoForPdf().catch(() => null);
   let cursorY = margin;
@@ -509,45 +473,39 @@ export async function exportAdditiveToPdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(`Obra: ${projectName}`, pageWidth / 2, cursorY + 11, { align: 'center' });
-  doc.text(`Emitido em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, cursorY + 15, { align: 'center' });
+  doc.text(`Emitido em: ${new Date().toLocaleDateString('pt-BR')}   |   BDI: ${bdi.toFixed(2)}%`, pageWidth / 2, cursorY + 15, { align: 'center' });
   cursorY += 20;
 
   const totals = additiveTotals(add);
   doc.setFontSize(8);
   const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const summary = `Composições: ${totals.compCount}   |   Insumos: ${totals.inputCount}   |   Total s/ BDI: ${fmtBRL(totals.totalSemBDI)}   |   Total c/ BDI: ${fmtBRL(totals.totalComBDI)}   |   Total Geral: ${fmtBRL(totals.total)}`;
+  const summary = `Composições: ${totals.compCount}   |   Insumos: ${totals.inputCount}   |   Total s/ BDI: ${fmtBRL(totals.totalSemBDI)}   |   Total c/ BDI: ${fmtBRL(totals.totalComBDI)}`;
   doc.text(summary, margin, cursorY);
   cursorY += 4;
 
-  const head = [['Item', 'Código', 'Banco', 'Descrição', 'Qtd', 'Un', 'V. Unit s/BDI', 'V. Unit c/BDI', 'Total']];
+  const head = [['Item', 'Código', 'Banco', 'Descrição', 'Qtd', 'Un', 'V.Unit s/BDI', 'V.Unit c/BDI', 'Total c/BDI']];
   const typeLabel: Record<AdditiveInputType, string> = {
     material: 'Material', mao_obra: 'Mão de obra', equipamento: 'Equipamento', outro: 'Outro',
   };
 
   for (const c of add.compositions) {
+    const r = computeCompositionWithBDI(c, bdi);
     const body: any[] = [[
       c.item, c.code, c.bank, c.description,
       c.quantity.toLocaleString('pt-BR'), c.unit,
-      fmtBRL(c.unitPriceNoBDI), fmtBRL(c.unitPriceWithBDI), fmtBRL(c.total),
+      fmtBRL(c.unitPriceNoBDI), fmtBRL(r.unitPriceWithBDI), fmtBRL(r.totalSyntheticWithBDI),
     ]];
 
     autoTable(doc, {
-      startY: cursorY,
-      head,
-      body,
+      startY: cursorY, head, body,
       margin: { left: margin, right: margin },
       styles: { fontSize: 7.5, cellPadding: 1.4, overflow: 'linebreak' },
       headStyles: { fillColor: [40, 60, 90], textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 14 },
-        1: { cellWidth: 18 },
-        2: { cellWidth: 14 },
-        3: { cellWidth: 'auto' },
-        4: { cellWidth: 14, halign: 'right' },
-        5: { cellWidth: 12 },
-        6: { cellWidth: 22, halign: 'right' },
-        7: { cellWidth: 22, halign: 'right' },
-        8: { cellWidth: 24, halign: 'right' },
+        0: { cellWidth: 14 }, 1: { cellWidth: 18 }, 2: { cellWidth: 14 },
+        3: { cellWidth: 'auto' }, 4: { cellWidth: 14, halign: 'right' },
+        5: { cellWidth: 12 }, 6: { cellWidth: 22, halign: 'right' },
+        7: { cellWidth: 22, halign: 'right' }, 8: { cellWidth: 24, halign: 'right' },
       },
     });
     cursorY = (doc as any).lastAutoTable.finalY + 1;
@@ -555,7 +513,7 @@ export async function exportAdditiveToPdf(
     if (showAnalytic && c.inputs.length > 0) {
       autoTable(doc, {
         startY: cursorY,
-        head: [['', 'Cód.', 'Banco', 'Tipo', 'Descrição insumo', 'Un', 'Coef.', 'V. Unit', 'Total']],
+        head: [['', 'Cód.', 'Banco', 'Tipo', 'Descrição insumo', 'Un', 'Coef.', 'V.Unit s/BDI', 'Total s/BDI']],
         body: c.inputs.map(i => [
           '', i.code, i.bank, typeLabel[i.type], i.description, i.unit,
           i.coefficient.toLocaleString('pt-BR'), fmtBRL(i.unitPrice), fmtBRL(i.total),
@@ -564,11 +522,8 @@ export async function exportAdditiveToPdf(
         styles: { fontSize: 6.8, cellPadding: 1.1, overflow: 'linebreak', textColor: 60 },
         headStyles: { fillColor: [220, 225, 235], textColor: 30 },
         columnStyles: {
-          0: { cellWidth: 4 },
-          4: { cellWidth: 'auto' },
-          6: { halign: 'right' },
-          7: { halign: 'right' },
-          8: { halign: 'right' },
+          0: { cellWidth: 4 }, 4: { cellWidth: 'auto' },
+          6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' },
         },
       });
       cursorY = (doc as any).lastAutoTable.finalY + 3;
@@ -582,7 +537,6 @@ export async function exportAdditiveToPdf(
     }
   }
 
-  // Rodapé
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let p = 1; p <= pageCount; p++) {
     doc.setPage(p);

@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner';
 import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
-  additiveTotals, sumAnalyticTotal, analyticComparisonTotal,
+  additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
 } from '@/lib/additiveImport';
 
 interface Props {
@@ -172,6 +172,18 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     toast.success('Aditivo excluído');
   };
 
+  const handleChangeBdi = (value: string) => {
+    if (!active) return;
+    const num = Number(value.replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) return;
+    onProjectChange(prev => ({
+      ...prev,
+      additives: (prev.additives ?? []).map(a => a.id === active.id ? { ...a, bdiPercent: num } : a),
+    }));
+  };
+
+  const bdi = active?.bdiPercent ?? 0;
+
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-[1600px] mx-auto">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -183,8 +195,21 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             Importação de planilhas de aditivo contratual (Sintética + Analítica).
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
+          {active && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded border bg-card">
+              <span className="text-xs text-muted-foreground">BDI (%):</span>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={bdi}
+                onChange={e => handleChangeBdi(e.target.value)}
+                className="h-7 w-20 text-xs"
+              />
+            </div>
+          )}
           <input
             ref={fileRef} type="file" accept=".xlsx,.xls"
             className="hidden"
@@ -335,10 +360,11 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 <tbody>
                   {filteredComps.map(c => {
                     const isOpen = expanded.has(c.id);
-                    const analyticCmp = analyticComparisonTotal(c); // c/ BDI da Analítica
-                    const diff = analyticCmp != null ? +(analyticCmp - c.total).toFixed(2) : 0;
-                    const hasDiff = analyticCmp != null && c.total > 0 && Math.abs(diff) > 0.05;
-                    const noAnalytic = c.inputs.length === 0 && analyticCmp == null;
+                    const r = computeCompositionWithBDI(c, bdi);
+                    const hasInputs = c.inputs.length > 0;
+                    const diff = hasInputs ? r.diff : 0;
+                    const hasDiff = hasInputs && Math.abs(diff) > 0.05;
+                    const noAnalytic = !hasInputs;
                     return (
                       <>
                         <tr key={c.id} className="border-b hover:bg-muted/30 align-top">
@@ -369,8 +395,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                           <td className="px-2 py-2 text-right">{c.quantity.toLocaleString('pt-BR')}</td>
                           <td className="px-2 py-2">{c.unit}</td>
                           <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
-                          <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceWithBDI)}</td>
-                          <td className="px-2 py-2 text-right font-medium">{fmtBRL(c.total)}</td>
+                          <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{fmtBRL(r.totalSyntheticWithBDI)}</td>
                         </tr>
                         {isOpen && showAnalytic && c.inputs.length > 0 && (
                           <tr className="bg-muted/20 border-b">
@@ -420,15 +446,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                     </tr>
                                   ))}
                                   <tr className="border-t font-medium">
-                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica (s/ BDI):</td>
-                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotal(c))}</td>
+                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
+                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotalNoBDI(c))}</td>
                                   </tr>
-                                  {c.analyticUnitPriceWithBDI != null && (
-                                    <tr className="font-medium text-primary">
-                                      <td colSpan={7} className="px-1.5 py-1 text-right">Valor com BDI = (× qtd):</td>
-                                      <td className="px-1.5 py-1 text-right">{fmtBRL(c.analyticTotalWithBDI ?? 0)}</td>
-                                    </tr>
-                                  )}
+                                  <tr className="font-medium text-primary">
+                                    <td colSpan={7} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
+                                    <td className="px-1.5 py-1 text-right">{fmtBRL(computeCompositionWithBDI(c, bdi).totalAnalyticWithBDI)}</td>
+                                  </tr>
                                 </tbody>
                               </table>
                             </td>
