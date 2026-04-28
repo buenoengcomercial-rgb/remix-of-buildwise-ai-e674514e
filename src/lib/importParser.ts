@@ -109,7 +109,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
     const unit = cellStr(row[cols.unit]);
     const quantity = cellNum(row[cols.quantity]);
     const productivity = cellNum(row[cols.productivity]);
-    const unitPriceNoBDI = cellNum(row[cols.unitPriceNoBDI]);
+    const unitPriceNoBDI = 0; // Produtividade não importa preço
     const hours = cellNum(row[cols.hours]);
     const days = cellNum(row[cols.days]);
 
@@ -255,14 +255,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         };
         comp.issues!.push(issue); pushIssue(issue);
       }
-      if (!hasPrice) {
-        const issue: ImportIssue = {
-          level: 'warning', line: lineNo, code: colA, type: 'Composição', description: comp.name,
-          message: 'Composição sem preço s/ BDI.',
-          suggestion: 'Preencher coluna H com preço s/ BDI.',
-        };
-        comp.issues!.push(issue); pushIssue(issue);
-      }
+      // Produtividade não importa preço — validação financeira fica na Sintética/Medição
       if (!colA) {
         const issue: ImportIssue = {
           level: 'warning', line: lineNo, type: 'Composição', description: comp.name,
@@ -321,7 +314,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
           const issue: ImportIssue = {
             level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
             message: `Horas trabalhadas zeradas para ${labor.role}.`,
-            suggestion: 'Preencher coluna I com horas trabalhadas.',
+            suggestion: 'Preencher coluna H com horas trabalhadas.',
           };
           currentComposition.issues = currentComposition.issues || [];
           currentComposition.issues.push(issue);
@@ -331,7 +324,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
           const issue: ImportIssue = {
             level: 'warning', line: lineNo, code: colA, type: 'Mão de obra', description: labor.role,
             message: `Dias trabalhados zerados para ${labor.role}.`,
-            suggestion: 'Preencher coluna J com dias trabalhados.',
+            suggestion: 'Preencher coluna I com dias trabalhados.',
           };
           currentComposition.issues = currentComposition.issues || [];
           currentComposition.issues.push(issue);
@@ -791,9 +784,12 @@ interface ColumnMap {
   days: number;
 }
 
+// Layout Produtividade (ArquimedesPRODUTIVIDADE.xlsx):
+// A=Código B=Banco C=Tipo D=Resumo E=Ud F=Quant. G=Prod. H=Horas Trabalhadas I=Dias Trabalhados
+// NÃO há coluna de preço — valores financeiros vêm da Sintética.
 const DEFAULT_COLS: ColumnMap = {
-  code: 0, bank: -1, type: 1, description: 2, unit: 3,
-  quantity: 4, productivity: 5, unitPriceNoBDI: -1, hours: 6, days: 7,
+  code: 0, bank: 1, type: 2, description: 3, unit: 4,
+  quantity: 5, productivity: 6, unitPriceNoBDI: -1, hours: 7, days: 8,
 };
 
 function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: ColumnMap } {
@@ -818,17 +814,18 @@ function detectHeaderAndColumns(rows: any[][]): { startRow: number; cols: Column
         hours: findCol(headerNorm, ['horas trabalhadas', 'horas', 'hrs', 'h trab']),
         days: findCol(headerNorm, ['dias trabalhados', 'dias', 'd trab']),
       };
-      // Apply sensible defaults for missing columns
+      // Defaults — layout produtividade: A..I (sem coluna de preço)
       if (cols.code < 0) cols.code = 0;
-      if (cols.bank < 0 && row.length >= 10) cols.bank = 1;
+      if (cols.bank < 0) cols.bank = 1;
       if (cols.type < 0) cols.type = 2;
       if (cols.description < 0) cols.description = 3;
       if (cols.unit < 0) cols.unit = 4;
       if (cols.quantity < 0) cols.quantity = 5;
       if (cols.productivity < 0) cols.productivity = 6;
-      if (cols.unitPriceNoBDI < 0 && row.length >= 8) cols.unitPriceNoBDI = 7;
-      if (cols.hours < 0) cols.hours = 8;
-      if (cols.days < 0) cols.days = 9;
+      if (cols.hours < 0) cols.hours = 7;
+      if (cols.days < 0) cols.days = 8;
+      // EAP/Produtividade NÃO importa preço — ignorar mesmo se a planilha tiver coluna similar
+      cols.unitPriceNoBDI = -1;
       return { startRow: i + 1, cols };
     }
   }
