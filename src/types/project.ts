@@ -332,6 +332,7 @@ export interface Project {
 
 // =================== ADITIVO ===================
 
+/** Mantido apenas por compatibilidade com aditivos antigos. UI não usa mais. */
 export type AdditiveInputType = 'material' | 'mao_obra' | 'equipamento' | 'outro';
 
 export interface AdditiveInput {
@@ -339,12 +340,16 @@ export interface AdditiveInput {
   code: string;
   bank: string;
   description: string;
-  type: AdditiveInputType;
+  /** @deprecated não usado mais na UI; mantido para retro-compatibilidade. */
+  type?: AdditiveInputType;
   unit: string;
   coefficient: number;
   unitPrice: number;
   total: number;
 }
+
+/** Classificação contratual da composição do aditivo. */
+export type AdditiveChangeKind = 'acrescido' | 'suprimido' | 'sem_alteracao';
 
 export interface AdditiveComposition {
   id: string;
@@ -352,6 +357,7 @@ export interface AdditiveComposition {
   code: string;
   bank: string;
   description: string;
+  /** Quantidade lida da Sintética (proposta no aditivo). */
   quantity: number;
   unit: string;
   unitPriceNoBDI: number;
@@ -362,6 +368,15 @@ export interface AdditiveComposition {
   analyticUnitPriceWithBDI?: number;
   /** Total c/ BDI calculado a partir da Analítica (= analyticUnitPriceWithBDI * quantity). */
   analyticTotalWithBDI?: number;
+  // ----- Estrutura contratual (modelo "1ºADITIVO") -----
+  /** Tipo de alteração: acrescido (padrão), suprimido ou sem alteração. */
+  changeKind?: AdditiveChangeKind;
+  /** Quantidade originalmente contratada (referência). */
+  originalQuantity?: number;
+  /** Quantidade suprimida pelo aditivo. */
+  suppressedQuantity?: number;
+  /** Quantidade acrescida pelo aditivo. */
+  addedQuantity?: number;
 }
 
 export interface AdditiveImportIssue {
@@ -371,6 +386,9 @@ export interface AdditiveImportIssue {
   line?: number;
 }
 
+/** Estados do fluxo de aprovação do aditivo. */
+export type AdditiveStatus = 'rascunho' | 'em_analise' | 'reprovado' | 'aprovado';
+
 export interface Additive {
   id: string;
   name: string;
@@ -379,6 +397,11 @@ export interface Additive {
   issues?: AdditiveImportIssue[];
   /** BDI (%) editável. Quando importado, vem da célula J8 da Sintética. */
   bdiPercent?: number;
+  // ----- Fluxo de aprovação -----
+  status?: AdditiveStatus;
+  approvedAt?: string;
+  approvedBy?: string;
+  reviewNotes?: string;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
