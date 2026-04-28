@@ -36,6 +36,13 @@ export function truncar2(v: number): number {
   return Math.trunc(v * 100) / 100;
 }
 
+function money2(value: number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 const norm = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
@@ -300,6 +307,7 @@ export function parseAdditiveSyntheticWorkbook(
       unitPriceWithBDI,
       total,
       inputs: [],
+      source: 'excel_aditivo',
       changeKind: 'acrescido',
       originalQuantity: 0,
       addedQuantity: s.quantity,
@@ -539,26 +547,28 @@ export function totalAfterAdditive(c: AdditiveComposition): number {
 export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent: number) {
   const fator = 1 + (bdiPercent || 0) / 100;
   // Preserva valores importados quando existirem (Sintética da Medição/Excel).
-  const unitPriceWithBDI = comp.unitPriceWithBDI || truncar2(comp.unitPriceNoBDI * fator);
-  const qty = comp.quantity || 0;
+  const unitPriceNoBDI = money2(comp.unitPriceNoBDI);
+  const unitPriceWithBDI = money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
+  const qty = money2(comp.quantity ?? 0);
   const totalSyntheticWithBDI =
     comp.totalWithBDI != null
-      ? comp.totalWithBDI
-      : (comp.total || truncar2(unitPriceWithBDI * qty));
+      ? money2(comp.totalWithBDI)
+      : money2(comp.total ?? truncar2(unitPriceWithBDI * qty));
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
-  const totalAnalyticWithBDI = truncar2(sumAnalyticNoBDI * fator * qty);
-  const diff = +(totalAnalyticWithBDI - totalSyntheticWithBDI).toFixed(2);
+  const totalAnalyticWithBDI = money2(truncar2(sumAnalyticNoBDI * fator * qty));
+  const diff = money2(totalAnalyticWithBDI - totalSyntheticWithBDI);
   // Impacto financeiro considerando acréscimo/supressão.
-  // Se a quantidade efetiva == quantidade da composição, usa o total preservado.
-  const effQty = effectiveQuantity(comp);
-  const impactoSemBDI =
-    effQty === qty && comp.totalNoBDI != null
-      ? comp.totalNoBDI
-      : truncar2(comp.unitPriceNoBDI * effQty);
-  const impactoComBDI =
-    effQty === qty && comp.totalWithBDI != null
-      ? comp.totalWithBDI
-      : truncar2(unitPriceWithBDI * effQty);
+  const effQty = money2(effectiveQuantity(comp));
+  const isFullImportedAddition =
+    comp.source === 'sintetica_medicao' &&
+    (comp.changeKind ?? 'acrescido') === 'acrescido' &&
+    money2(comp.addedQuantity ?? comp.quantity) === qty;
+  const impactoSemBDI = isFullImportedAddition
+    ? money2(comp.totalNoBDI)
+    : money2(truncar2(unitPriceNoBDI * effQty));
+  const impactoComBDI = isFullImportedAddition
+    ? money2(comp.totalWithBDI)
+    : money2(truncar2(unitPriceWithBDI * effQty));
   return {
     unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
     impactoSemBDI, impactoComBDI,
@@ -569,16 +579,16 @@ export function additiveTotals(add: Additive) {
   const bdi = add.bdiPercent ?? 0;
   const compCount = add.compositions.length;
   const totalSemBDI = add.compositions.reduce(
-    (a, c) => a + (c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity),
+    (a, c) => money2(a + money2(c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity)),
     0,
   );
   const totalComBDI = add.compositions.reduce((a, c) => {
     const { totalSyntheticWithBDI } = computeCompositionWithBDI(c, bdi);
-    return a + totalSyntheticWithBDI;
+    return money2(a + totalSyntheticWithBDI);
   }, 0);
   // Impacto líquido (acrescido positivo, suprimido negativo)
-  const impactoSemBDI = add.compositions.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoSemBDI, 0);
-  const impactoComBDI = add.compositions.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoComBDI, 0);
+  const impactoSemBDI = add.compositions.reduce((a, c) => money2(a + computeCompositionWithBDI(c, bdi).impactoSemBDI), 0);
+  const impactoComBDI = add.compositions.reduce((a, c) => money2(a + computeCompositionWithBDI(c, bdi).impactoComBDI), 0);
   const inputCount = add.compositions.reduce((a, c) => a + c.inputs.length, 0);
   const semAnalitico = add.compositions.filter(c => c.inputs.length === 0).length;
   const acrescidos = add.compositions.filter(c => (c.changeKind ?? 'acrescido') === 'acrescido').length;
@@ -700,13 +710,25 @@ export function buildAdditiveFromSyntheticBudgetItems(
   const items = (project.budgetItems ?? []).filter(b => b.source === 'sintetica');
   if (items.length === 0) return null;
   const bdi = project.syntheticBdiPercent ?? project.contractInfo?.bdiPercent ?? 0;
-  const fator = 1 + bdi / 100;
+  const issues: AdditiveImportIssue[] = [
+    { level: 'info', message: `Sintética reaproveitada da Medição: ${items.length} composições.` },
+    { level: 'warning', message: 'Sem Analítica vinculada — importe a Analítica do aditivo para preencher os insumos.' },
+  ];
   const compositions: AdditiveComposition[] = items.map(b => {
     // Preserva EXATAMENTE os valores já normalizados na Medição — não recalcula com BDI.
-    const upNoBDI = b.unitPriceNoBDI;
-    const upWithBDI = b.unitPriceWithBDI || truncar2(upNoBDI * fator);
-    const tNoBDI = b.totalNoBDI || truncar2(upNoBDI * b.quantity);
-    const tWithBDI = b.totalWithBDI || truncar2(upWithBDI * b.quantity);
+    const upNoBDI = money2(b.unitPriceNoBDI);
+    const upWithBDI = money2(b.unitPriceWithBDI);
+    const hasTotalNoBDI = b.totalNoBDI !== null && b.totalNoBDI !== undefined;
+    const hasTotalWithBDI = b.totalWithBDI !== null && b.totalWithBDI !== undefined;
+    const tNoBDI = hasTotalNoBDI ? money2(b.totalNoBDI) : money2(truncar2(upNoBDI * b.quantity));
+    const tWithBDI = hasTotalWithBDI ? money2(b.totalWithBDI) : money2(truncar2(upWithBDI * b.quantity));
+    if (!hasTotalNoBDI || !hasTotalWithBDI) {
+      issues.push({
+        level: 'warning',
+        message: `Totais ausentes na Sintética da Medição (${b.code || b.description}); fallback calculado proporcionalmente.`,
+        code: b.code,
+      });
+    }
     return {
       id: uid(),
       item: b.item,
@@ -721,6 +743,7 @@ export function buildAdditiveFromSyntheticBudgetItems(
       totalNoBDI: tNoBDI,
       totalWithBDI: tWithBDI,
       inputs: [],
+      source: 'sintetica_medicao',
       changeKind: 'acrescido',
       originalQuantity: 0,
       addedQuantity: b.quantity,
@@ -732,10 +755,7 @@ export function buildAdditiveFromSyntheticBudgetItems(
     name,
     importedAt: new Date().toISOString(),
     compositions,
-    issues: [
-      { level: 'info', message: `Sintética reaproveitada da Medição: ${compositions.length} composições.` },
-      { level: 'warning', message: 'Sem Analítica vinculada — importe a Analítica do aditivo para preencher os insumos.' },
-    ],
+    issues,
     bdiPercent: bdi,
     status: 'rascunho',
   };

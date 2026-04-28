@@ -383,6 +383,9 @@ export interface AdditiveInput {
 /** Classificação contratual da composição do aditivo. */
 export type AdditiveChangeKind = 'acrescido' | 'suprimido' | 'sem_alteracao';
 
+/** Origem dos valores da composição do aditivo. */
+export type AdditiveCompositionSource = 'sintetica_medicao' | 'excel_aditivo' | 'manual';
+
 export interface AdditiveComposition {
   id: string;
   item: string;
@@ -403,6 +406,8 @@ export interface AdditiveComposition {
   analyticUnitPriceWithBDI?: number;
   /** Total c/ BDI calculado a partir da Analítica (= analyticUnitPriceWithBDI * quantity). */
   analyticTotalWithBDI?: number;
+  /** Origem dos valores financeiros, usada para preservar totais já calculados pela Sintética da Medição. */
+  source?: AdditiveCompositionSource;
   // ----- Estrutura contratual (modelo "1ºADITIVO") -----
   /** Tipo de alteração: acrescido (padrão), suprimido ou sem alteração. */
   changeKind?: AdditiveChangeKind;
