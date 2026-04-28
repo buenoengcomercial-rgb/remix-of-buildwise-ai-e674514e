@@ -26,7 +26,8 @@ import { toast } from 'sonner';
 import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
-  totalAfterAdditive,
+  totalAfterAdditive, getApprovedAdditiveBudgetItems,
+  buildAdditiveFromSyntheticBudgetItems,
 } from '@/lib/additiveImport';
 
 interface Props {
@@ -241,20 +242,56 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   };
 
   const handleApprove = () => {
-    setStatus('aprovado', {
+    if (!active) return;
+    const approvedAdditive: AdditiveModel = {
+      ...active,
+      status: 'aprovado',
       approvedAt: new Date().toISOString(),
       approvedBy: approvedBy || undefined,
       reviewNotes: reviewNotes || undefined,
+    };
+    onProjectChange(prev => {
+      const nextAdditives = (prev.additives ?? []).map(a =>
+        a.id === active.id ? approvedAdditive : a,
+      );
+      // Recalcula budgetItems source 'aditivo' a partir de TODOS aditivos aprovados
+      const projWithApproved: Project = { ...prev, additives: nextAdditives };
+      const approvedBudget = getApprovedAdditiveBudgetItems(projWithApproved);
+      const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+      return {
+        ...projWithApproved,
+        budgetItems: [...keep, ...approvedBudget],
+      };
     });
-    toast.success('Aditivo aprovado e integrado ao projeto');
+    toast.success('Aditivo aprovado e integrado à Medição');
     setReviewDialogOpen(false);
     setApprovedBy('');
     setReviewNotes('');
   };
 
   const handleBackToDraft = () => {
-    setStatus('rascunho');
-    toast.success('Aditivo voltou para rascunho');
+    if (!active) return;
+    onProjectChange(prev => {
+      const nextAdditives = (prev.additives ?? []).map(a =>
+        a.id === active.id ? { ...a, status: 'rascunho' as AdditiveStatus } : a,
+      );
+      const projWithChange: Project = { ...prev, additives: nextAdditives };
+      const approvedBudget = getApprovedAdditiveBudgetItems(projWithChange);
+      const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+      return { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
+    });
+    toast.success('Aditivo voltou para rascunho — itens removidos da Medição');
+  };
+
+  const handleUseSyntheticFromMeasurement = () => {
+    const built = buildAdditiveFromSyntheticBudgetItems(project, 'Aditivo (a partir da Sintética da Medição)');
+    if (!built) {
+      toast.error('Nenhuma Sintética encontrada na Medição. Importe a Sintética primeiro na aba Tarefas/EAP.');
+      return;
+    }
+    onProjectChange(prev => ({ ...prev, additives: [...(prev.additives ?? []), built] }));
+    setActiveId(built.id);
+    toast.success(`Sintética da Medição reaproveitada (${built.compositions.length} composições).`);
   };
 
   const bdi = active?.bdiPercent ?? 0;
@@ -313,6 +350,16 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <Button variant="default" size="sm" onClick={() => fileRef.current?.click()}>
             <Upload className="w-4 h-4 mr-1" /> Importar Excel
           </Button>
+          {(project.budgetItems ?? []).some(b => b.source === 'sintetica') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleUseSyntheticFromMeasurement}
+              title="Cria um aditivo em rascunho a partir da Sintética já importada na Medição/EAP"
+            >
+              <Upload className="w-4 h-4 mr-1" /> Usar Sintética da Medição
+            </Button>
+          )}
           <Button variant="outline" size="sm" disabled={!active} onClick={handleExportExcel}>
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>

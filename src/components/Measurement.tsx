@@ -417,9 +417,9 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     : parsedBdi;
   const bdiFactor = 1 + bdiPercent / 100;
 
-  // Itens financeiros importados da Sintética (fonte da Medição quando presentes).
+  // Itens financeiros importados da Sintética + itens de aditivos APROVADOS (fonte da Medição).
   const syntheticBudgetItems = useMemo(
-    () => (project.budgetItems || []).filter(b => b.source === 'sintetica'),
+    () => (project.budgetItems || []).filter(b => b.source === 'sintetica' || b.source === 'aditivo'),
     [project.budgetItems],
   );
   const hasSyntheticBudget = syntheticBudgetItems.length > 0;
@@ -727,10 +727,11 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         });
         const valueContracted = money2(b.totalWithBDI || calc.totalContracted);
         const valueContractedNoBDI = money2(b.totalNoBDI || calc.totalContractedNoBDI);
+        const isAdditive = b.source === 'aditivo';
         orphanRows.push({
           item: b.item,
-          phaseId: '__synthetic_orphans__',
-          phaseChain: 'Itens da Sintética sem vínculo na EAP',
+          phaseId: isAdditive ? '__additive_items__' : '__synthetic_orphans__',
+          phaseChain: isAdditive ? 'Itens de Aditivo aprovado' : 'Itens da Sintética sem vínculo na EAP',
           taskId: `budget-${b.id}`,
           description: b.description,
           unit: b.unit,
