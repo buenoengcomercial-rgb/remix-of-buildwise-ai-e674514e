@@ -519,14 +519,22 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     }
 
 
-    // Index de tarefas por itemCode e por item (numeração) para casar logs/medições com BudgetItems
-    const tasksByCode = new Map<string, { task: Task; phase: Phase; itemNumber: string; chain: string }>();
-    const tasksByItem = new Map<string, { task: Task; phase: Phase; itemNumber: string; chain: string }>();
-    orderedTasks.forEach(o => {
-      const code = (o.task.itemCode || '').trim();
-      if (code) tasksByCode.set(code, o);
-      if (o.itemNumber) tasksByItem.set(o.itemNumber, o);
-    });
+    // Normalização de códigos para casamento robusto entre EAP e Sintética.
+    const normalizeCode = (s: string | undefined | null): string => {
+      if (!s) return '';
+      let v = String(s).trim().toUpperCase();
+      // Remove acentos
+      v = v.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      // Colapsa espaços
+      v = v.replace(/\s+/g, ' ');
+      return v;
+    };
+    const normalizeNumeric = (s: string | undefined | null): string => {
+      const v = normalizeCode(s);
+      // Remove zeros à esquerda em segmentos puramente numéricos
+      return v.split('.').map(seg => /^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg).join('.');
+    };
+    const normalizeDesc = (s: string | undefined | null): string => normalizeCode(s).replace(/[^A-Z0-9 ]/g, '');
 
     const computeQtyFromTask = (task: Task | undefined): { prior: number; period: number; hasNoLogsAtAll: boolean; hasNoLogsInPeriod: boolean } => {
       if (!task) return { prior: 0, period: 0, hasNoLogsAtAll: true, hasNoLogsInPeriod: true };
@@ -548,77 +556,72 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       return { prior, period, hasNoLogsAtAll, hasNoLogsInPeriod: !hasLogsInPeriod };
     };
 
-    // Modo Live com Sintética importada: a Medição usa project.budgetItems como fonte financeira
+    // ── Construção das filas de BudgetItems (Sintética) por chave, para consumo único ──
+    // Cada item da Sintética só pode ser associado a UMA tarefa da EAP.
+    const budgetById = new Map<string, typeof syntheticBudgetItems[number]>();
+    const budgetQueueByCode = new Map<string, typeof syntheticBudgetItems>();
+    const budgetQueueByItem = new Map<string, typeof syntheticBudgetItems>();
+    const budgetQueueByDesc = new Map<string, typeof syntheticBudgetItems>();
+    const consumed = new Set<string>();
+
     if (hasSyntheticBudget) {
-      return syntheticBudgetItems.map(b => {
-        const matched = (b.taskId && orderedTasks.find(o => o.task.id === b.taskId))
-          || (b.code && tasksByCode.get(b.code.trim()))
-          || tasksByItem.get(b.item)
-          || undefined;
-        const task = matched?.task;
-        const phase = matched?.phase;
-        const chain = matched?.chain || '';
-        const phaseId = phase?.id || '';
-
-        const logsInfo = computeQtyFromTask(task);
-        const priorFromMeas = task ? (priorAccumByTask.get(task.id) || 0) : 0;
-        const qtyPriorAccum = Math.max(logsInfo.prior, priorFromMeas);
-        const qtyPeriod = logsInfo.period;
-        const qtyContracted = b.quantity || 0;
-
-        // Preserva c/BDI da Sintética via BDI implícito (não força recálculo para zero)
-        const noBDI = trunc2(b.unitPriceNoBDI);
-        const withBDI = trunc2(b.unitPriceWithBDI);
-        const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
-
-        const calc = calculateMeasurementLine({
-          quantityContracted: qtyContracted,
-          quantityPeriod: qtyPeriod,
-          quantityPriorAccum: qtyPriorAccum,
-          unitPriceNoBDI: noBDI,
-          bdiPercent: implicitBdi,
-        });
-
-        // Garante totais contratados exatamente como na Sintética
-        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
-        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
-
-        return {
-          item: b.item,
-          phaseId,
-          phaseChain: chain,
-          taskId: task?.id || `budget-${b.id}`,
-          description: b.description,
-          unit: b.unit,
-          itemCode: b.code,
-          priceBank: b.bank,
-          qtyContracted,
-          qtyPriorAccum,
-          qtyPeriod,
-          qtyProposed: qtyPeriod,
-          qtyApproved: undefined,
-          qtyCurrentAccum: calc.quantityCurrentAccum,
-          qtyBalance: calc.quantityBalance,
-          percentExecuted: qtyContracted > 0 ? calc.percentExecuted : (task?.percentComplete || 0),
-          unitPriceNoBDI: noBDI,
-          unitPriceWithBDI: withBDI,
-          unitPriceIsEstimated: false,
-          valueContractedNoBDI,
-          valuePeriodNoBDI: calc.totalPeriodNoBDI,
-          valueAccumNoBDI: calc.totalAccumulatedNoBDI,
-          valueBalanceNoBDI: Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI)),
-          valueContracted,
-          valuePeriod: calc.totalPeriod,
-          valueAccum: calc.totalAccumulated,
-          valueBalance: Math.max(0, trunc2(valueContracted - calc.totalAccumulated)),
-          hasNoLogsInPeriod: logsInfo.hasNoLogsInPeriod,
-          hasNoLogsAtAll: logsInfo.hasNoLogsAtAll,
-        };
+      syntheticBudgetItems.forEach(b => {
+        budgetById.set(b.id, b);
+        const cKey = normalizeCode(b.code);
+        if (cKey) {
+          const arr = budgetQueueByCode.get(cKey) || [];
+          arr.push(b);
+          budgetQueueByCode.set(cKey, arr);
+        }
+        const iKey = normalizeNumeric(b.item);
+        if (iKey) {
+          const arr = budgetQueueByItem.get(iKey) || [];
+          arr.push(b);
+          budgetQueueByItem.set(iKey, arr);
+        }
+        const dKey = normalizeDesc(b.description);
+        if (dKey) {
+          const arr = budgetQueueByDesc.get(dKey) || [];
+          arr.push(b);
+          budgetQueueByDesc.set(dKey, arr);
+        }
       });
     }
 
-    // Modo Live (fallback antigo, sem Sintética importada): calcula a partir da EAP + apontamentos
-    return orderedTasks.map(({ task, phase, itemNumber, chain }) => {
+    const popFromQueue = (q: typeof syntheticBudgetItems | undefined): typeof syntheticBudgetItems[number] | undefined => {
+      if (!q) return undefined;
+      while (q.length > 0) {
+        const candidate = q.shift()!;
+        if (!consumed.has(candidate.id)) {
+          consumed.add(candidate.id);
+          return candidate;
+        }
+      }
+      return undefined;
+    };
+
+    const matchBudgetForTask = (task: Task): typeof syntheticBudgetItems[number] | undefined => {
+      if (!hasSyntheticBudget) return undefined;
+      // 1) taskId direto
+      const direct = syntheticBudgetItems.find(b => b.taskId === task.id && !consumed.has(b.id));
+      if (direct) { consumed.add(direct.id); return direct; }
+      // 2) código normalizado
+      const codeKey = normalizeCode(task.itemCode);
+      if (codeKey) {
+        const m = popFromQueue(budgetQueueByCode.get(codeKey));
+        if (m) return m;
+      }
+      // 3) descrição normalizada (fallback)
+      const descKey = normalizeDesc(task.name);
+      if (descKey) {
+        const m = popFromQueue(budgetQueueByDesc.get(descKey));
+        if (m) return m;
+      }
+      return undefined;
+    };
+
+    // ── Iteração principal: SEMPRE pela EAP (ordem/numeração/hierarquia da EAP) ──
+    const eapRows: Row[] = orderedTasks.map(({ task, phase, itemNumber, chain }) => {
       const qtyContracted = task.quantity ?? task.baseline?.quantity ?? 0;
       const unit = task.unit || '';
 
