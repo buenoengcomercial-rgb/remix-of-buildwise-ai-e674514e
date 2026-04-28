@@ -362,8 +362,10 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       {!active && (
         <Card className="p-10 text-center border-dashed">
           <p className="text-muted-foreground mb-4">
-            Nenhum aditivo importado ainda. Importe uma planilha Excel com as abas
-            <strong> Sintética </strong> e <strong> Analítica</strong>.
+            Nenhum aditivo importado ainda. Importe uma planilha Excel contendo a aba
+            <strong> Sintética</strong>, a aba <strong>Analítica</strong>, ou ambas.
+            <br />
+            <span className="text-xs">Você pode importar a Sintética primeiro e a Analítica depois — o sistema vincula os insumos automaticamente.</span>
           </p>
           <Button onClick={() => fileRef.current?.click()}>
             <Upload className="w-4 h-4 mr-2" /> Importar planilha
