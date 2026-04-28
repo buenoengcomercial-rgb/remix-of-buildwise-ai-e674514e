@@ -927,6 +927,11 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       t.accumNoBDI += r.valueAccumNoBDI; t.balanceNoBDI += r.valueBalanceNoBDI;
       t.qtyContracted += r.qtyContracted; t.qtyAccum += r.qtyCurrentAccum;
     });
+    // Normaliza acumuladores em 2 casas (arredondamento seguro) p/ bater com Excel
+    t.contracted = money2(t.contracted); t.period = money2(t.period);
+    t.accum = money2(t.accum); t.balance = money2(t.balance);
+    t.contractedNoBDI = money2(t.contractedNoBDI); t.periodNoBDI = money2(t.periodNoBDI);
+    t.accumNoBDI = money2(t.accumNoBDI); t.balanceNoBDI = money2(t.balanceNoBDI);
     const pctPeriod = t.contracted > 0 ? (t.period / t.contracted) * 100 : 0;
     const pctAccum = t.contracted > 0 ? (t.accum / t.contracted) * 100 : 0;
     const pctBalance = t.contracted > 0 ? (t.balance / t.contracted) * 100 : 0;
