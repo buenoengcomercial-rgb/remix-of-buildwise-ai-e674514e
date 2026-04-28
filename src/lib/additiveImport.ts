@@ -421,8 +421,22 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
   };
 }
 
+/**
+ * Soma dos insumos da Analítica (sem BDI). Útil para inspeção visual.
+ * NÃO use para comparar com o total da Sintética — use `analyticComparisonTotal`.
+ */
 export function sumAnalyticTotal(comp: AdditiveComposition): number {
   return comp.inputs.reduce((a, i) => a + (i.total || 0), 0);
+}
+
+/**
+ * Total c/ BDI derivado da Analítica para comparação com o total da Sintética.
+ * Prioriza a linha "Valor com BDI =" capturada na importação;
+ * caso ausente, retorna `null` (não há base válida para comparar com BDI).
+ */
+export function analyticComparisonTotal(comp: AdditiveComposition): number | null {
+  if (comp.analyticTotalWithBDI != null) return comp.analyticTotalWithBDI;
+  return null;
 }
 
 export function additiveTotals(add: Additive) {
@@ -437,10 +451,12 @@ export function additiveTotals(add: Additive) {
 
 export async function exportAdditiveToExcel(add: Additive) {
   const XLSX = await import('xlsx');
-  const synthHeader = ['Item', 'Código', 'Banco', 'Descrição', 'Quantidade', 'Unidade', 'Valor unit. s/ BDI', 'Valor unit. c/ BDI', 'Total', 'Total analítico', 'Diferença'];
+  const synthHeader = ['Item', 'Código', 'Banco', 'Descrição', 'Quantidade', 'Unidade', 'Valor unit. s/ BDI', 'Valor unit. c/ BDI', 'Total', 'V.Unit Analítico c/BDI', 'Total Analítico c/BDI', 'Diferença'];
   const synthRows = add.compositions.map(c => {
-    const sumA = sumAnalyticTotal(c);
-    return [c.item, c.code, c.bank, c.description, c.quantity, c.unit, c.unitPriceNoBDI, c.unitPriceWithBDI, c.total, sumA, +(sumA - c.total).toFixed(2)];
+    const aUnit = c.analyticUnitPriceWithBDI ?? '';
+    const aTot = c.analyticTotalWithBDI ?? '';
+    const diff = c.analyticTotalWithBDI != null ? +(c.analyticTotalWithBDI - c.total).toFixed(2) : '';
+    return [c.item, c.code, c.bank, c.description, c.quantity, c.unit, c.unitPriceNoBDI, c.unitPriceWithBDI, c.total, aUnit, aTot, diff];
   });
   const wsSynth = XLSX.utils.aoa_to_sheet([synthHeader, ...synthRows]);
 
