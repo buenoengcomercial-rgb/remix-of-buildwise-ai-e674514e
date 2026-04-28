@@ -538,16 +538,27 @@ export function totalAfterAdditive(c: AdditiveComposition): number {
  */
 export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent: number) {
   const fator = 1 + (bdiPercent || 0) / 100;
-  const unitPriceWithBDI = truncar2(comp.unitPriceNoBDI * fator);
+  // Preserva valores importados quando existirem (Sintética da Medição/Excel).
+  const unitPriceWithBDI = comp.unitPriceWithBDI || truncar2(comp.unitPriceNoBDI * fator);
   const qty = comp.quantity || 0;
-  const totalSyntheticWithBDI = truncar2(unitPriceWithBDI * qty);
+  const totalSyntheticWithBDI =
+    comp.totalWithBDI != null
+      ? comp.totalWithBDI
+      : (comp.total || truncar2(unitPriceWithBDI * qty));
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
   const totalAnalyticWithBDI = truncar2(sumAnalyticNoBDI * fator * qty);
   const diff = +(totalAnalyticWithBDI - totalSyntheticWithBDI).toFixed(2);
-  // Impacto financeiro considerando acréscimo/supressão
+  // Impacto financeiro considerando acréscimo/supressão.
+  // Se a quantidade efetiva == quantidade da composição, usa o total preservado.
   const effQty = effectiveQuantity(comp);
-  const impactoSemBDI = truncar2(comp.unitPriceNoBDI * effQty);
-  const impactoComBDI = truncar2(unitPriceWithBDI * effQty);
+  const impactoSemBDI =
+    effQty === qty && comp.totalNoBDI != null
+      ? comp.totalNoBDI
+      : truncar2(comp.unitPriceNoBDI * effQty);
+  const impactoComBDI =
+    effQty === qty && comp.totalWithBDI != null
+      ? comp.totalWithBDI
+      : truncar2(unitPriceWithBDI * effQty);
   return {
     unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
     impactoSemBDI, impactoComBDI,
@@ -557,7 +568,10 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
 export function additiveTotals(add: Additive) {
   const bdi = add.bdiPercent ?? 0;
   const compCount = add.compositions.length;
-  const totalSemBDI = add.compositions.reduce((a, c) => a + (c.unitPriceNoBDI * c.quantity), 0);
+  const totalSemBDI = add.compositions.reduce(
+    (a, c) => a + (c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity),
+    0,
+  );
   const totalComBDI = add.compositions.reduce((a, c) => {
     const { totalSyntheticWithBDI } = computeCompositionWithBDI(c, bdi);
     return a + totalSyntheticWithBDI;
@@ -688,7 +702,11 @@ export function buildAdditiveFromSyntheticBudgetItems(
   const bdi = project.syntheticBdiPercent ?? project.contractInfo?.bdiPercent ?? 0;
   const fator = 1 + bdi / 100;
   const compositions: AdditiveComposition[] = items.map(b => {
-    const upWithBDI = b.unitPriceWithBDI || truncar2(b.unitPriceNoBDI * fator);
+    // Preserva EXATAMENTE os valores já normalizados na Medição — não recalcula com BDI.
+    const upNoBDI = b.unitPriceNoBDI;
+    const upWithBDI = b.unitPriceWithBDI || truncar2(upNoBDI * fator);
+    const tNoBDI = b.totalNoBDI || truncar2(upNoBDI * b.quantity);
+    const tWithBDI = b.totalWithBDI || truncar2(upWithBDI * b.quantity);
     return {
       id: uid(),
       item: b.item,
@@ -697,9 +715,11 @@ export function buildAdditiveFromSyntheticBudgetItems(
       description: b.description,
       quantity: b.quantity,
       unit: b.unit,
-      unitPriceNoBDI: b.unitPriceNoBDI,
+      unitPriceNoBDI: upNoBDI,
       unitPriceWithBDI: upWithBDI,
-      total: truncar2(upWithBDI * b.quantity),
+      total: tWithBDI,
+      totalNoBDI: tNoBDI,
+      totalWithBDI: tWithBDI,
       inputs: [],
       changeKind: 'acrescido',
       originalQuantity: 0,
