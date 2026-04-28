@@ -934,6 +934,11 @@ function _trunc2(v: number): number {
   return Math.trunc(v * 100) / 100;
 }
 
+function _money2(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  return Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+}
+
 function _toNumSyn(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
