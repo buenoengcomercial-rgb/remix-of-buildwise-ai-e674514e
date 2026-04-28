@@ -329,20 +329,24 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
   const { items: synthItems, issues: synthIssues } = parseSyntheticSheet(synthRows);
   allIssues.push(...synthIssues);
 
-  const parentCodes = new Set(synthItems.map(s => s.code));
-  let byParent = new Map<string, AnalyticRow[]>();
+  // Mapeia código normalizado -> código original da Sintética (para casar ADM04 vs ADM4)
+  const parentByNorm = new Map<string, string>();
+  for (const s of synthItems) parentByNorm.set(normalizeCode(s.code), s.code);
+
+  let byParent = new Map<string, AnalyticParentData>();
 
   if (!analyName) {
     allIssues.push({ level: 'warning', message: 'Aba Analítica não encontrada — composições ficarão sem insumos.' });
   } else {
     const analyRows = sheetToRows(wb.Sheets[analyName], XLSX);
-    const result = parseAnalyticSheet(analyRows, parentCodes);
+    const result = parseAnalyticSheet(analyRows, parentByNorm);
     byParent = result.byParent;
     allIssues.push(...result.issues);
   }
 
   const compositions: AdditiveComposition[] = synthItems.map(s => {
-    const rawInputs = byParent.get(s.code) || [];
+    const data = byParent.get(s.code);
+    const rawInputs = data?.inputs ?? [];
     const inputs: AdditiveInput[] = rawInputs.map(r => ({
       id: uid(),
       code: r.code,
@@ -352,17 +356,25 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       unit: r.unit,
       coefficient: r.coefficient,
       unitPrice: r.unitPrice,
-      total: r.total || +(r.coefficient * r.unitPrice * (s.quantity || 1)).toFixed(2),
+      // Insumos da Analítica NÃO têm BDI. Mantém o total da planilha quando vier;
+      // senão, calcula coeficiente * preço unitário (sem multiplicar por quantidade
+      // da composição — o total do insumo é por unidade da composição).
+      total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
     }));
 
-    if (inputs.length === 0) {
+    const analyticUnitPriceWithBDI = data?.unitPriceWithBDI;
+    const analyticTotalWithBDI = analyticUnitPriceWithBDI != null
+      ? +(analyticUnitPriceWithBDI * (s.quantity || 0)).toFixed(2)
+      : undefined;
+
+    if (inputs.length === 0 && analyticUnitPriceWithBDI == null) {
       allIssues.push({ level: 'warning', message: `Composição sintética sem analítico vinculado (${s.code})`, code: s.code });
-    } else {
-      const sumAnalytic = inputs.reduce((acc, i) => acc + (i.total || 0), 0);
-      if (s.total > 0 && Math.abs(sumAnalytic - s.total) > 0.05) {
+    } else if (analyticTotalWithBDI != null && s.total > 0) {
+      // Comparação correta: usar valor c/ BDI da Analítica * quantidade da Sintética.
+      if (Math.abs(analyticTotalWithBDI - s.total) > 0.05) {
         allIssues.push({
           level: 'warning',
-          message: `Diferença entre total sintético (R$ ${s.total.toFixed(2)}) e soma analítica (R$ ${sumAnalytic.toFixed(2)}) — ${s.code}`,
+          message: `Diferença entre total sintético (R$ ${s.total.toFixed(2)}) e analítico c/ BDI (R$ ${analyticTotalWithBDI.toFixed(2)}) — ${s.code}`,
           code: s.code,
         });
       }
@@ -380,6 +392,8 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
       unitPriceWithBDI: s.unitPriceWithBDI,
       total: s.total,
       inputs,
+      analyticUnitPriceWithBDI,
+      analyticTotalWithBDI,
     };
   });
 
