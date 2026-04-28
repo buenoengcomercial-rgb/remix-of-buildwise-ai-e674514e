@@ -579,16 +579,16 @@ export function additiveTotals(add: Additive) {
   const bdi = add.bdiPercent ?? 0;
   const compCount = add.compositions.length;
   const totalSemBDI = add.compositions.reduce(
-    (a, c) => a + (c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity),
+    (a, c) => money2(a + money2(c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity)),
     0,
   );
   const totalComBDI = add.compositions.reduce((a, c) => {
     const { totalSyntheticWithBDI } = computeCompositionWithBDI(c, bdi);
-    return a + totalSyntheticWithBDI;
+    return money2(a + totalSyntheticWithBDI);
   }, 0);
   // Impacto líquido (acrescido positivo, suprimido negativo)
-  const impactoSemBDI = add.compositions.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoSemBDI, 0);
-  const impactoComBDI = add.compositions.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoComBDI, 0);
+  const impactoSemBDI = add.compositions.reduce((a, c) => money2(a + computeCompositionWithBDI(c, bdi).impactoSemBDI), 0);
+  const impactoComBDI = add.compositions.reduce((a, c) => money2(a + computeCompositionWithBDI(c, bdi).impactoComBDI), 0);
   const inputCount = add.compositions.reduce((a, c) => a + c.inputs.length, 0);
   const semAnalitico = add.compositions.filter(c => c.inputs.length === 0).length;
   const acrescidos = add.compositions.filter(c => (c.changeKind ?? 'acrescido') === 'acrescido').length;
