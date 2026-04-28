@@ -624,10 +624,11 @@ export default function TaskList({ project, onProjectChange, undoButton }: TaskL
                 toast.loading('Importando aditivo...', { id: 'imp-add-tl' });
                 const { importAdditiveFromExcel } = await import('@/lib/additiveImport');
                 const base = f.name.replace(/\.(xlsx|xls)$/i, '');
-                const additive = await importAdditiveFromExcel(f, base || 'Aditivo');
+                const result = await importAdditiveFromExcel(f, base || 'Aditivo');
+                const additive = result.additive;
                 onProjectChange({ ...project, additives: [...(project.additives ?? []), additive] });
                 toast.success(
-                  `Aditivo importado: ${additive.compositions.length} composições. Abra a aba Aditivo para revisar.`,
+                  `${result.message} (${additive.compositions.length} composições). Abra a aba Aditivo para revisar.`,
                   { id: 'imp-add-tl' },
                 );
               } catch (err) {
