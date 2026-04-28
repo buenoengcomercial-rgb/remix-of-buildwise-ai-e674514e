@@ -102,8 +102,6 @@ export function downloadInconsistencyReport(
     ['Mão de obra (insumos)', summary.labors],
     ['Erros', summary.errors],
     ['Avisos', summary.warnings],
-    ['Com preço s/ BDI', summary.withPrice],
-    ['Sem preço s/ BDI', summary.withoutPrice],
     [],
   ];
 
