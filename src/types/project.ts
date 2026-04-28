@@ -326,7 +326,54 @@ export interface Project {
   measurementDraft?: MeasurementDraft;
   /** Diários de obra registrados, indexados por data. */
   dailyReports?: DailyReport[];
+  /** Aditivos contratuais importados (Sintética + Analítica). Isolado das demais áreas. */
+  additives?: Additive[];
+}
+
+// =================== ADITIVO ===================
+
+export type AdditiveInputType = 'material' | 'mao_obra' | 'equipamento' | 'outro';
+
+export interface AdditiveInput {
+  id: string;
+  code: string;
+  bank: string;
+  description: string;
+  type: AdditiveInputType;
+  unit: string;
+  coefficient: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface AdditiveComposition {
+  id: string;
+  item: string;
+  code: string;
+  bank: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPriceNoBDI: number;
+  unitPriceWithBDI: number;
+  total: number;
+  inputs: AdditiveInput[];
+}
+
+export interface AdditiveImportIssue {
+  level: 'error' | 'warning' | 'info';
+  message: string;
+  code?: string;
+  line?: number;
+}
+
+export interface Additive {
+  id: string;
+  name: string;
+  importedAt: string;
+  compositions: AdditiveComposition[];
+  issues?: AdditiveImportIssue[];
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
-export type AppView = 'dashboard' | 'gantt' | 'tasks' | 'measurement' | 'dailyReport';
+export type AppView = 'dashboard' | 'gantt' | 'tasks' | 'measurement' | 'dailyReport' | 'additive';
