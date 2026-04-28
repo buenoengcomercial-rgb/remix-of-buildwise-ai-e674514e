@@ -307,22 +307,33 @@ export async function importAdditiveFromExcel(file: File, additiveName: string):
   const parentByNorm = new Map<string, string>();
   for (const s of synthItems) parentByNorm.set(normalizeCode(s.code), s.code);
 
-  let byParent = new Map<string, AnalyticParentData>();
+  let analyticBlocks: AnalyticBlock[] = [];
   if (!analyName) {
     allIssues.push({ level: 'warning', message: 'Aba Analítica não encontrada — composições ficarão sem insumos.' });
   } else {
     const analyRows = sheetToRows(wb.Sheets[analyName], XLSX);
-    const result = parseAnalyticSheet(analyRows, parentByNorm);
-    byParent = result.byParent;
+    const result = parseAnalyticSheet(analyRows);
+    analyticBlocks = result.blocks;
     allIssues.push(...result.issues);
+  }
+
+  // Vinculação por OCORRÊNCIA: fila de blocos por código normalizado.
+  // Cada bloco analítico só pode ser consumido UMA vez.
+  const queueByCode = new Map<string, AnalyticBlock[]>();
+  for (const b of analyticBlocks) {
+    const key = b.normCode;
+    if (!queueByCode.has(key)) queueByCode.set(key, []);
+    queueByCode.get(key)!.push(b);
   }
 
   const bdiPercent = bdi ?? 0;
   const fator = 1 + bdiPercent / 100;
 
   const compositions: AdditiveComposition[] = synthItems.map(s => {
-    const data = byParent.get(s.code);
-    const rawInputs = data?.inputs ?? [];
+    const key = normalizeCode(s.code);
+    const queue = queueByCode.get(key);
+    const block = queue && queue.length > 0 ? queue.shift()! : undefined;
+    const rawInputs = block?.inputs ?? [];
     const inputs: AdditiveInput[] = rawInputs.map(r => ({
       id: uid(),
       code: r.code,
