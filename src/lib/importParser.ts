@@ -255,14 +255,7 @@ export function parseStructuredExcel(data: ArrayBuffer): ParseResult {
         };
         comp.issues!.push(issue); pushIssue(issue);
       }
-      if (!hasPrice) {
-        const issue: ImportIssue = {
-          level: 'warning', line: lineNo, code: colA, type: 'Composição', description: comp.name,
-          message: 'Composição sem preço s/ BDI.',
-          suggestion: 'Preencher coluna H com preço s/ BDI.',
-        };
-        comp.issues!.push(issue); pushIssue(issue);
-      }
+      // Produtividade não importa preço — validação financeira fica na Sintética/Medição
       if (!colA) {
         const issue: ImportIssue = {
           level: 'warning', line: lineNo, type: 'Composição', description: comp.name,
