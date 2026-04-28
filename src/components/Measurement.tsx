@@ -510,43 +510,125 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       });
     }
 
-    // Modo Live: calcula a partir da EAP + apontamentos
+
+    // Index de tarefas por itemCode e por item (numeração) para casar logs/medições com BudgetItems
+    const tasksByCode = new Map<string, { task: Task; phase: Phase; itemNumber: string; chain: string }>();
+    const tasksByItem = new Map<string, { task: Task; phase: Phase; itemNumber: string; chain: string }>();
+    orderedTasks.forEach(o => {
+      const code = (o.task.itemCode || '').trim();
+      if (code) tasksByCode.set(code, o);
+      if (o.itemNumber) tasksByItem.set(o.itemNumber, o);
+    });
+
+    const computeQtyFromTask = (task: Task | undefined): { prior: number; period: number; hasNoLogsAtAll: boolean; hasNoLogsInPeriod: boolean } => {
+      if (!task) return { prior: 0, period: 0, hasNoLogsAtAll: true, hasNoLogsInPeriod: true };
+      const logs = task.dailyLogs || [];
+      const hasNoLogsAtAll = logs.length === 0;
+      let prior = 0;
+      let period = 0;
+      let hasLogsInPeriod = false;
+      if (!hasNoLogsAtAll) {
+        for (const log of logs) {
+          const d = log.date;
+          if (d < effStart) prior += log.actualQuantity || 0;
+          else if (d >= effStart && d <= effEnd) {
+            period += log.actualQuantity || 0;
+            if ((log.actualQuantity || 0) > 0) hasLogsInPeriod = true;
+          }
+        }
+      }
+      return { prior, period, hasNoLogsAtAll, hasNoLogsInPeriod: !hasLogsInPeriod };
+    };
+
+    // Modo Live com Sintética importada: a Medição usa project.budgetItems como fonte financeira
+    if (hasSyntheticBudget) {
+      return syntheticBudgetItems.map(b => {
+        const matched = (b.taskId && orderedTasks.find(o => o.task.id === b.taskId))
+          || (b.code && tasksByCode.get(b.code.trim()))
+          || tasksByItem.get(b.item)
+          || undefined;
+        const task = matched?.task;
+        const phase = matched?.phase;
+        const chain = matched?.chain || '';
+        const phaseId = phase?.id || '';
+
+        const logsInfo = computeQtyFromTask(task);
+        const priorFromMeas = task ? (priorAccumByTask.get(task.id) || 0) : 0;
+        const qtyPriorAccum = Math.max(logsInfo.prior, priorFromMeas);
+        const qtyPeriod = logsInfo.period;
+        const qtyContracted = b.quantity || 0;
+
+        // Preserva c/BDI da Sintética via BDI implícito (não força recálculo para zero)
+        const noBDI = trunc2(b.unitPriceNoBDI);
+        const withBDI = trunc2(b.unitPriceWithBDI);
+        const implicitBdi = noBDI > 0 ? ((withBDI / noBDI) - 1) * 100 : effBdi;
+
+        const calc = calculateMeasurementLine({
+          quantityContracted: qtyContracted,
+          quantityPeriod: qtyPeriod,
+          quantityPriorAccum: qtyPriorAccum,
+          unitPriceNoBDI: noBDI,
+          bdiPercent: implicitBdi,
+        });
+
+        // Garante totais contratados exatamente como na Sintética
+        const valueContracted = trunc2(b.totalWithBDI || calc.totalContracted);
+        const valueContractedNoBDI = trunc2(b.totalNoBDI || calc.totalContractedNoBDI);
+
+        return {
+          item: b.item,
+          phaseId,
+          phaseChain: chain,
+          taskId: task?.id || `budget-${b.id}`,
+          description: b.description,
+          unit: b.unit,
+          itemCode: b.code,
+          priceBank: b.bank,
+          qtyContracted,
+          qtyPriorAccum,
+          qtyPeriod,
+          qtyProposed: qtyPeriod,
+          qtyApproved: undefined,
+          qtyCurrentAccum: calc.quantityCurrentAccum,
+          qtyBalance: calc.quantityBalance,
+          percentExecuted: qtyContracted > 0 ? calc.percentExecuted : (task?.percentComplete || 0),
+          unitPriceNoBDI: noBDI,
+          unitPriceWithBDI: withBDI,
+          unitPriceIsEstimated: false,
+          valueContractedNoBDI,
+          valuePeriodNoBDI: calc.totalPeriodNoBDI,
+          valueAccumNoBDI: calc.totalAccumulatedNoBDI,
+          valueBalanceNoBDI: Math.max(0, trunc2(valueContractedNoBDI - calc.totalAccumulatedNoBDI)),
+          valueContracted,
+          valuePeriod: calc.totalPeriod,
+          valueAccum: calc.totalAccumulated,
+          valueBalance: Math.max(0, trunc2(valueContracted - calc.totalAccumulated)),
+          hasNoLogsInPeriod: logsInfo.hasNoLogsInPeriod,
+          hasNoLogsAtAll: logsInfo.hasNoLogsAtAll,
+        };
+      });
+    }
+
+    // Modo Live (fallback antigo, sem Sintética importada): calcula a partir da EAP + apontamentos
     return orderedTasks.map(({ task, phase, itemNumber, chain }) => {
       const qtyContracted = task.quantity ?? task.baseline?.quantity ?? 0;
       const unit = task.unit || '';
 
-      let qtyPriorAccumLogs = 0;
-      let qtyPeriod = 0;
-      const logs = task.dailyLogs || [];
-      const hasNoLogsAtAll = logs.length === 0;
-      let hasLogsInPeriod = false;
-
-      if (!hasNoLogsAtAll) {
-        for (const log of logs) {
-          const d = log.date;
-          if (d < effStart) {
-            qtyPriorAccumLogs += log.actualQuantity || 0;
-          } else if (d >= effStart && d <= effEnd) {
-            qtyPeriod += log.actualQuantity || 0;
-            if ((log.actualQuantity || 0) > 0) hasLogsInPeriod = true;
-          }
-        }
-      } else {
+      const logsInfo = computeQtyFromTask(task);
+      const priorFromMeas = priorAccumByTask.get(task.id) || 0;
+      const qtyPriorAccum = Math.max(logsInfo.prior, priorFromMeas);
+      let qtyPeriod = logsInfo.period;
+      if (logsInfo.hasNoLogsAtAll) {
+        // Sem logs: estima acumulado prévio pelo % concluído (mantém comportamento antigo)
         const pct = (task.percentComplete || 0) / 100;
-        qtyPriorAccumLogs = qtyContracted * pct;
+        const estPrior = qtyContracted * pct;
+        if (estPrior > qtyPriorAccum) {
+          // usa estimativa quando não há logs nem medições anteriores
+        }
         qtyPeriod = 0;
       }
 
-      // Soma medições anteriores aprovadas/geradas
-      const priorFromMeas = priorAccumByTask.get(task.id) || 0;
-      const qtyPriorAccum = Math.max(qtyPriorAccumLogs, priorFromMeas);
-
-      const hasNoLogsInPeriod = !hasLogsInPeriod;
-
       // Determinar preço s/ BDI base
-      // Prioridade: 1) unitPriceNoBDI importado/manual → c/BDI sempre derivado do BDI editável
-      //             2) unitPrice c/BDI manual (sem s/BDI) → s/BDI = c/BDI / (1+BDI)
-      //             3) Estimativa por materiais/mão de obra
       let unitPriceNoBDIBase = task.unitPriceNoBDI ?? 0;
       let unitPriceIsEstimated = false;
 
@@ -591,10 +673,11 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         valuePeriod: calc.totalPeriod,
         valueAccum: calc.totalAccumulated,
         valueBalance: calc.totalBalance,
-        hasNoLogsInPeriod, hasNoLogsAtAll,
+        hasNoLogsInPeriod: logsInfo.hasNoLogsInPeriod,
+        hasNoLogsAtAll: logsInfo.hasNoLogsAtAll,
       };
     });
-  }, [isSnapshotMode, activeMeasurement, orderedTasks, effStart, effEnd, effBdi, effBdiFactor, priorAccumByTask]);
+  }, [isSnapshotMode, activeMeasurement, orderedTasks, effStart, effEnd, effBdi, effBdiFactor, priorAccumByTask, hasSyntheticBudget, syntheticBudgetItems]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
