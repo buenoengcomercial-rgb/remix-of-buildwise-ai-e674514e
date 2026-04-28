@@ -187,9 +187,7 @@ function parseSyntheticSheet(rows: unknown[][]): { items: SyntheticRow[]; issues
     // sem código de fato → ignora
     if (!code) continue;
 
-    if (seenCodes.has(code)) {
-      issues.push({ level: 'error', message: `Código duplicado na Sintética: ${code}`, code, line: i + 1 });
-    }
+    // Códigos repetidos na Sintética são permitidos (cada ocorrência é uma composição independente).
     seenCodes.add(code);
 
     if (quantity <= 0) {
