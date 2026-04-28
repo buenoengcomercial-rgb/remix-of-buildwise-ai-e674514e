@@ -36,6 +36,13 @@ export function truncar2(v: number): number {
   return Math.trunc(v * 100) / 100;
 }
 
+function money2(value: number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 const norm = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
