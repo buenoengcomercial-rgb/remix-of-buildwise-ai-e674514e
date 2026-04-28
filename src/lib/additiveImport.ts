@@ -705,6 +705,10 @@ export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
 /**
  * Constrói um Additive em rascunho a partir dos BudgetItems Sintéticos já importados
  * em project.budgetItems (alimentados pela aba Tarefas/Medição).
+ *
+ * Cada composição recebe o vínculo com a EAP (phaseId, phaseChain, taskId, itemNumber)
+ * usando a mesma lógica de matching da Medição (taskId → código → item → descrição,
+ * com filas para evitar reuso de itens repetidos).
  */
 export function buildAdditiveFromSyntheticBudgetItems(
   project: Project,
@@ -717,6 +721,115 @@ export function buildAdditiveFromSyntheticBudgetItems(
     { level: 'info', message: `Sintética reaproveitada da Medição: ${items.length} composições.` },
     { level: 'warning', message: 'Sem Analítica vinculada — importe a Analítica do aditivo para preencher os insumos.' },
   ];
+
+  // ── Construção da lista ordenada de tarefas (mesma lógica da Medição) ──
+  const numbering = getChapterNumbering(project);
+  const tree = getChapterTree(project);
+  type OrderedTask = { task: Task; phase: Phase; itemNumber: string; chain: string };
+  const orderedTasks: OrderedTask[] = [];
+  const walk = (nodes: ChapterNode[], chain: string[]) => {
+    nodes.forEach(node => {
+      const phaseNumber = numbering.get(node.phase.id) || '';
+      const newChain = [...chain, node.phase.name];
+      node.phase.tasks.forEach((task, idx) => {
+        orderedTasks.push({
+          task, phase: node.phase,
+          itemNumber: `${phaseNumber}.${idx + 1}`,
+          chain: newChain.join(' › '),
+        });
+      });
+      walk(node.children, newChain);
+    });
+  };
+  walk(tree, []);
+  const visited = new Set(orderedTasks.map(o => o.phase.id));
+  project.phases.forEach(phase => {
+    if (visited.has(phase.id)) return;
+    const phaseNumber = numbering.get(phase.id) || '?';
+    phase.tasks.forEach((task, idx) => {
+      orderedTasks.push({
+        task, phase,
+        itemNumber: `${phaseNumber}.${idx + 1}`,
+        chain: phase.name,
+      });
+    });
+  });
+
+  // ── Matching: filas por chave para consumo único ──
+  const normCodeKey = (s: string | undefined | null): string => {
+    if (!s) return '';
+    let v = String(s).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return v.replace(/\s+/g, ' ');
+  };
+  const normNumeric = (s: string | undefined | null): string => {
+    const v = normCodeKey(s);
+    return v.split('.').map(seg => /^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg).join('.');
+  };
+  const normDesc = (s: string | undefined | null): string => normCodeKey(s).replace(/[^A-Z0-9 ]/g, '');
+
+  const queueByCode = new Map<string, BudgetItem[]>();
+  const queueByItem = new Map<string, BudgetItem[]>();
+  const queueByDesc = new Map<string, BudgetItem[]>();
+  const consumed = new Set<string>();
+
+  items.forEach(b => {
+    const cKey = normCodeKey(b.code);
+    if (cKey) {
+      const arr = queueByCode.get(cKey) || [];
+      arr.push(b); queueByCode.set(cKey, arr);
+    }
+    const iKey = normNumeric(b.item);
+    if (iKey) {
+      const arr = queueByItem.get(iKey) || [];
+      arr.push(b); queueByItem.set(iKey, arr);
+    }
+    const dKey = normDesc(b.description);
+    if (dKey) {
+      const arr = queueByDesc.get(dKey) || [];
+      arr.push(b); queueByDesc.set(dKey, arr);
+    }
+  });
+
+  const popFromQueue = (q: BudgetItem[] | undefined): BudgetItem | undefined => {
+    if (!q) return undefined;
+    while (q.length > 0) {
+      const candidate = q.shift()!;
+      if (!consumed.has(candidate.id)) {
+        consumed.add(candidate.id);
+        return candidate;
+      }
+    }
+    return undefined;
+  };
+
+  // Mapa: budgetItem.id → vínculo EAP encontrado (phaseId, chain, taskId, itemNumber)
+  const linkByBudgetId = new Map<string, { phaseId: string; phaseChain: string; taskId: string; itemNumber: string }>();
+
+  for (const ot of orderedTasks) {
+    let matched: BudgetItem | undefined;
+    // 1) taskId direto
+    matched = items.find(b => b.taskId === ot.task.id && !consumed.has(b.id));
+    if (matched) consumed.add(matched.id);
+    // 2) código normalizado
+    if (!matched) {
+      const k = normCodeKey(ot.task.itemCode);
+      if (k) matched = popFromQueue(queueByCode.get(k));
+    }
+    // 3) descrição normalizada (fallback)
+    if (!matched) {
+      const k = normDesc(ot.task.name);
+      if (k) matched = popFromQueue(queueByDesc.get(k));
+    }
+    if (matched) {
+      linkByBudgetId.set(matched.id, {
+        phaseId: ot.phase.id,
+        phaseChain: ot.chain,
+        taskId: ot.task.id,
+        itemNumber: ot.itemNumber,
+      });
+    }
+  }
+
   const compositions: AdditiveComposition[] = items.map(b => {
     // Preserva EXATAMENTE os valores já normalizados na Medição — não recalcula com BDI.
     const upNoBDI = money2(b.unitPriceNoBDI);
@@ -732,6 +845,7 @@ export function buildAdditiveFromSyntheticBudgetItems(
         code: b.code,
       });
     }
+    const link = linkByBudgetId.get(b.id);
     return {
       id: uid(),
       item: b.item,
@@ -751,8 +865,20 @@ export function buildAdditiveFromSyntheticBudgetItems(
       originalQuantity: 0,
       addedQuantity: b.quantity,
       suppressedQuantity: 0,
+      phaseId: link?.phaseId,
+      phaseChain: link?.phaseChain,
+      taskId: link?.taskId,
+      itemNumber: link?.itemNumber,
     };
   });
+
+  const linkedCount = compositions.filter(c => c.phaseId).length;
+  const orphanCount = compositions.length - linkedCount;
+  issues.push({
+    level: 'info',
+    message: `Vínculo com a EAP: ${linkedCount} composições associadas a tarefas; ${orphanCount} sem vínculo.`,
+  });
+
   return {
     id: uid(),
     name,
