@@ -420,9 +420,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                     </tr>
                                   ))}
                                   <tr className="border-t font-medium">
-                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica:</td>
-                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumA)}</td>
+                                    <td colSpan={7} className="px-1.5 py-1 text-right">Soma analítica (s/ BDI):</td>
+                                    <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotal(c))}</td>
                                   </tr>
+                                  {c.analyticUnitPriceWithBDI != null && (
+                                    <tr className="font-medium text-primary">
+                                      <td colSpan={7} className="px-1.5 py-1 text-right">Valor com BDI = (× qtd):</td>
+                                      <td className="px-1.5 py-1 text-right">{fmtBRL(c.analyticTotalWithBDI ?? 0)}</td>
+                                    </tr>
+                                  )}
                                 </tbody>
                               </table>
                             </td>
