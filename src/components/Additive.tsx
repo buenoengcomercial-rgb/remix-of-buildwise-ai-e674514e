@@ -582,7 +582,10 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 <div className="text-muted-foreground">Reprovado — ajuste e reenvie para análise.</div>
               )}
               {status === 'aprovado' && (
-                <div className="text-emerald-700">Aprovado — itens integrados ao projeto (rastreáveis em Medição, Tarefas e Diário).</div>
+                <div className="text-emerald-700">Aprovado — itens integrados ao projeto. Clique em "Marcar como Contratado" para liberar os novos serviços na EAP/Medição.</div>
+              )}
+              {status === 'aditivo_contratado' && (
+                <div className="text-primary">Aditivo Contratado — novos serviços integrados à EAP, disponíveis na Medição, Cronograma e Diário.</div>
               )}
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
