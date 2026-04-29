@@ -217,9 +217,21 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const handleConfirmImport = async () => {
     if (!pendingFile) return;
     try {
+      // Detecta antecipadamente se a planilha tem apenas Analítica para validar pré-condições.
+      const XLSX = await import('xlsx');
+      const buf = await pendingFile.arrayBuffer();
+      const peek = XLSX.read(buf, { type: 'array' });
+      const lower = peek.SheetNames.map(n => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      const hasSynth = lower.some(n => n.includes('sintetica'));
+      const hasAnaly = lower.some(n => n.includes('analitica'));
+      const draftCandidate = active && (active.status ?? 'rascunho') === 'rascunho' && !active.isContracted ? active : null;
+
+      if (!hasSynth && hasAnaly && !draftCandidate) {
+        toast.error('Importe ou selecione um aditivo em rascunho antes de vincular a Analítica.');
+        return;
+      }
+
       toast.loading('Importando aditivo...', { id: 'imp-add' });
-      // Para o modo "analytic_only", tentamos vincular ao aditivo ativo (em rascunho).
-      const draftCandidate = active && (active.status ?? 'rascunho') === 'rascunho' ? active : null;
       const result = await importAdditiveFromExcel(
         pendingFile,
         importName.trim() || 'Aditivo',
@@ -227,17 +239,19 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       );
 
       if (result.mode === 'analytic_only' && draftCandidate) {
-        // Substitui o aditivo existente pela versão mesclada
+        // Mescla a Analítica no aditivo ativo em rascunho — não cria nova aba.
         const merged = result.additive;
         onProjectChange(prev => ({
           ...prev,
           additives: (prev.additives ?? []).map(a =>
-            a.id === draftCandidate.id ? { ...merged, id: draftCandidate.id, name: draftCandidate.name } : a,
+            a.id === draftCandidate.id
+              ? { ...merged, id: draftCandidate.id, name: draftCandidate.name, status: draftCandidate.status ?? 'rascunho' }
+              : a,
           ),
         }));
         setActiveId(draftCandidate.id);
       } else {
-        // Adiciona como novo aditivo (synthetic_only, both ou analytic_only sem draft)
+        // Adiciona como novo aditivo (synthetic_only ou both)
         onProjectChange(prev => ({
           ...prev,
           additives: [...(prev.additives ?? []), result.additive],
