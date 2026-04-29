@@ -619,7 +619,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-right font-semibold text-rose-700">Suprimidos</th>
                     <th className="px-2 py-2 text-right font-semibold text-emerald-700">Aditivados</th>
                     <th className="px-2 py-2 text-right font-semibold">Total após troca</th>
-                    <th className="px-2 py-2 text-left font-semibold">Tipo</th>
+                    
                     <th className="px-2 py-2 text-right font-semibold">V.Unit s/BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">V.Unit c/BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">Impacto c/BDI</th>
