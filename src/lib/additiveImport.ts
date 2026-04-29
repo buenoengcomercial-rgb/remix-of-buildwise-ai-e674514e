@@ -729,7 +729,8 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
   const diferenca = money2(valorFinal - valorContratadoOriginalPreservado);
   const percentVar = valorContratadoOriginalPreservado > 0 ? diferenca / valorContratadoOriginalPreservado : 0;
   return {
-    unitPriceNoBDI, unitPriceWithBDI,
+    unitPriceNoBDI, unitPriceNoBDIWithDiscount, unitPriceWithBDI,
+    referenceUnitNoBDI, discountFactor, globalDiscountPercent: globalDiscountPercent || 0,
     qtdContratada, qtdSuprimida, qtdAcrescida, qtdFinal,
     totalFonte, valorContratadoCalc, valorContratadoOriginalPreservado,
     valorSuprimido, valorAcrescido, valorFinal,
