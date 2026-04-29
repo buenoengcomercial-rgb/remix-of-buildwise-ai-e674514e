@@ -54,6 +54,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import { useMeasurementExports } from '@/hooks/useMeasurementExports';
+import { useMeasurementState } from '@/hooks/useMeasurementState';
 import {
   AlertDialog,
   AlertDialogAction,
