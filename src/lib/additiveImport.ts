@@ -132,6 +132,7 @@ interface AnalyticBlock {
   code: string;
   inputs: AnalyticRow[];
   parentTotalNoBDI?: number;
+  analyticUnitPriceWithBDI?: number;
   startRow: number;
 }
 
@@ -225,13 +226,19 @@ function parseAnalyticSheet(
     const aLow = norm(aRaw);
     const dLow = norm(description);
 
-    // Linha "Valor com BDI =" → ignora completamente como insumo
+    // Linha "Valor com BDI =" → captura como analyticUnitPriceWithBDI do bloco atual e ignora como insumo
     if (
       dLow.includes('valor com bdi') ||
       aLow.includes('valor com bdi') ||
       norm(asString(r[6])).includes('valor com bdi') ||
       norm(asString(r[5])).includes('valor com bdi')
     ) {
+      if (current) {
+        const valWithBDI = toNumber(r[7]);
+        if (valWithBDI > 0) {
+          current.analyticUnitPriceWithBDI = valWithBDI;
+        }
+      }
       continue;
     }
 
@@ -370,7 +377,13 @@ export function mergeAnalyticIntoAdditive(
       unitPrice: r.unitPrice,
       total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
     }));
-    return { ...c, inputs };
+    const merged: AdditiveComposition = { ...c, inputs };
+    if (block.analyticUnitPriceWithBDI != null) {
+      merged.analyticUnitPriceWithBDI = money2(block.analyticUnitPriceWithBDI);
+      const q = money2(c.quantity ?? 0);
+      merged.analyticTotalWithBDI = truncar2(money2(block.analyticUnitPriceWithBDI) * q);
+    }
+    return merged;
   });
   let leftover = 0;
   for (const q of queueByCode.values()) leftover += q.length;
@@ -566,14 +579,21 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
       ? money2(comp.totalWithBDI)
       : money2(comp.total ?? truncar2(unitPriceWithBDI * qty));
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
-  const totalAnalyticWithBDI = money2(truncar2(sumAnalyticNoBDI * fator * qty));
+  // Valor unitário analítico c/ BDI: prioriza o lido da linha "Valor com BDI =" da planilha.
+  // Caso contrário, trunca em 2 casas o produto (soma analítica s/ BDI × fator BDI), por unidade.
+  const analyticUnitWithBDI = comp.analyticUnitPriceWithBDI != null
+    ? money2(comp.analyticUnitPriceWithBDI)
+    : truncar2(sumAnalyticNoBDI * fator);
+  // Total analítico c/ BDI = TRUNC(unit c/ BDI × quantidade, 2) — segue o Excel.
+  const totalAnalyticWithBDI = truncar2(analyticUnitWithBDI * qty);
   const diff = money2(totalAnalyticWithBDI - totalSyntheticWithBDI);
   // Impacto financeiro = (added − suppressed) × preço unitário.
   const effQty = money2(effectiveQuantity(comp));
   const impactoSemBDI = money2(truncar2(unitPriceNoBDI * effQty));
   const impactoComBDI = money2(truncar2(unitPriceWithBDI * effQty));
   return {
-    unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
+    unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI,
+    analyticUnitWithBDI, totalAnalyticWithBDI, diff,
     impactoSemBDI, impactoComBDI,
   };
 }
