@@ -160,7 +160,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       let subtotalContratado = 0;
       let subtotalFinal = 0;
       directRows.forEach(c => {
-        const r = computeAdditiveRow(c, bdi);
+        const r = computeAdditiveRow(c, bdi, globalDiscount);
         subtotalContratado += r.valorContratadoOriginalPreservado;
         subtotalFinal += r.valorFinal;
       });
