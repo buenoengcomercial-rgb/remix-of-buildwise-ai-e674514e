@@ -1296,6 +1296,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `Medição ${effNumber}`);
     XLSX.writeFile(wb, `medicao_${effNumber}_${effStart}_a_${effEnd}.xlsx`);
+    if (activeMeasurement) {
+      onProjectChange(logToProject(projectRef.current, {
+        ...auditUser,
+        entityType: 'measurement',
+        entityId: activeMeasurement.id,
+        action: 'exported',
+        title: 'Medição exportada em Excel',
+        metadata: { number: activeMeasurement.number },
+      }));
+    }
   };
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
