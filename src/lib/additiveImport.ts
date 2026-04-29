@@ -1188,3 +1188,126 @@ export async function exportAdditiveToPdf(
 
   doc.save(`${add.name.replace(/[^\w\d-]+/g, '_')}.pdf`);
 }
+
+// ============= Novos serviços (estudo no Aditivo) =============
+
+/**
+ * Calcula o próximo número de item dentro de um capítulo/subcapítulo no aditivo,
+ * baseado nas composições existentes vinculadas àquela phaseId.
+ * Ex.: se existe "2.1.11", retorna "2.1.12". Se não há nada, retorna `${parentNumber}.1`.
+ */
+export function nextItemNumberInPhase(
+  add: Additive,
+  phaseId: string,
+  parentNumber: string,
+): string {
+  const prefix = parentNumber + '.';
+  let max = 0;
+  for (const c of add.compositions) {
+    if (c.phaseId !== phaseId) continue;
+    const num = c.itemNumber || c.item || '';
+    if (num.startsWith(prefix)) {
+      const tail = num.slice(prefix.length);
+      const seg = tail.split('.')[0];
+      const n = parseInt(seg, 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return `${prefix}${max + 1}`;
+}
+
+/** Cria uma composição vazia de "novo serviço" para inserir num subcapítulo. */
+export function createNewServiceComposition(
+  add: Additive,
+  phaseId: string,
+  phaseChain: string,
+  parentNumber: string,
+): AdditiveComposition {
+  const itemNumber = nextItemNumberInPhase(add, phaseId, parentNumber);
+  return {
+    id: uid(),
+    item: itemNumber,
+    code: '',
+    bank: '',
+    description: 'Novo serviço',
+    quantity: 0,
+    unit: 'un',
+    unitPriceNoBDI: 0,
+    unitPriceWithBDI: 0,
+    total: 0,
+    inputs: [],
+    source: 'manual',
+    changeKind: 'acrescido',
+    originalQuantity: 0,
+    addedQuantity: 0,
+    suppressedQuantity: 0,
+    phaseId,
+    phaseChain,
+    itemNumber,
+    isNewService: true,
+    unitPriceNoBDIInformed: 0,
+  };
+}
+
+/**
+ * Marca o aditivo como contratado e cria as tarefas dos novos serviços na EAP,
+ * dentro dos respectivos capítulos/subcapítulos. Retorna o projeto atualizado.
+ */
+export function contractAdditive(project: Project, additiveId: string): Project {
+  const add = (project.additives ?? []).find(a => a.id === additiveId);
+  if (!add) return project;
+  const bdi = add.bdiPercent ?? 0;
+  const discount = add.globalDiscountPercent ?? 0;
+  const fator = 1 + bdi / 100;
+
+  // Indexa novos serviços por phaseId
+  const novos = add.compositions.filter(c => c.isNewService);
+
+  // Cria tarefas na EAP para cada novo serviço, dentro do phaseId correspondente.
+  const phases = project.phases.map(phase => {
+    const novosDaFase = novos.filter(n => n.phaseId === phase.id);
+    if (novosDaFase.length === 0) return phase;
+    const newTasks: Task[] = novosDaFase.map(n => {
+      const baseUnitNoBDI = money2((n.unitPriceNoBDIInformed ?? n.unitPriceNoBDI ?? 0) * (1 - discount / 100));
+      const upWithBDI = truncar2(baseUnitNoBDI * fator);
+      const qty = n.addedQuantity ?? 0;
+      const taskId = `add-${add.id}-${n.id}`;
+      return {
+        id: taskId,
+        name: n.description || 'Novo serviço (Aditivo)',
+        phase: phase.id,
+        startDate: project.startDate,
+        duration: 1,
+        dependencies: [],
+        responsible: '',
+        percentComplete: 0,
+        materials: [],
+        level: 0,
+        quantity: qty,
+        unit: n.unit,
+        unitPrice: upWithBDI,
+        unitPriceNoBDI: baseUnitNoBDI,
+        itemCode: n.code,
+        priceBank: n.bank,
+        durationMode: 'manual',
+        isManual: true,
+        manualDuration: 1,
+      } as Task;
+    });
+    return { ...phase, tasks: [...phase.tasks, ...newTasks] };
+  });
+
+  const updatedAdditive: Additive = {
+    ...add,
+    status: 'aditivo_contratado',
+    isContracted: true,
+    contractedAt: new Date().toISOString(),
+  };
+  const nextAdditives = (project.additives ?? []).map(a => a.id === add.id ? updatedAdditive : a);
+
+  // Recalcula budgetItems source 'aditivo' considerando o aditivo contratado
+  const projWithChange: Project = { ...project, phases, additives: nextAdditives };
+  const approvedBudget = getApprovedAdditiveBudgetItems(projWithChange);
+  const keep = (project.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+  return { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
+}
