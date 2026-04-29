@@ -461,8 +461,24 @@ export async function importAdditiveFromExcel(
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
 
-  const synthName = findSheetName(wb.SheetNames, 'Sintetica') || findSheetName(wb.SheetNames, 'sintética');
-  const analyName = findSheetName(wb.SheetNames, 'Analitica') || findSheetName(wb.SheetNames, 'analítica');
+  let synthName = findSheetName(wb.SheetNames, 'Sintetica') || findSheetName(wb.SheetNames, 'sintética');
+  let analyName = findSheetName(wb.SheetNames, 'Analitica') || findSheetName(wb.SheetNames, 'analítica');
+
+  // Fallback por conteúdo: se não há aba ANALITICA pelo nome, procura por cabeçalhos compatíveis
+  // em qualquer aba (exceto a Sintética). Aceita arquivos como "Folha 1" / "Planilha1".
+  if (!analyName) {
+    for (const name of wb.SheetNames) {
+      if (synthName && name === synthName) continue;
+      const rows = sheetToRows(wb.Sheets[name], XLSX);
+      if (looksLikeAnalyticSheet(rows)) {
+        analyName = name;
+        break;
+      }
+    }
+  }
+  // Fallback por conteúdo para Sintética: cabeçalho com "Total" ou "BDI" em A..J.
+  // (Mantemos detecção apenas por nome; conteúdo via looksLikeAnalyticSheet não deve confundir
+  // pois a Sintética foi descartada acima.)
   const hasSynthetic = !!synthName;
   const hasAnalytic = !!analyName;
 
