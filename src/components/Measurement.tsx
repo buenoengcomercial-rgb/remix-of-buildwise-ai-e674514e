@@ -1832,6 +1832,11 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
           <Button variant="default" size="sm" onClick={handlePrint}>
             <Printer className="w-4 h-4 mr-1" /> Imprimir / PDF
           </Button>
+          {activeMeasurement && (
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+              <History className="w-4 h-4 mr-1" /> Histórico
+            </Button>
+          )}
         </div>
       </div>
 
