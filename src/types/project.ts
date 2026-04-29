@@ -334,6 +334,8 @@ export interface Project {
   syntheticBdiPercent?: number;
   /** Carimbo de quando a Sintética foi importada. */
   syntheticImportedAt?: string;
+  /** Trilha de auditoria (Aditivo, Medição, Diário etc.). */
+  auditLogs?: AuditLog[];
 }
 
 /** Origem do item financeiro (Sintética importada ou Aditivo aprovado). */
