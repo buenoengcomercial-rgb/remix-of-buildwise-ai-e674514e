@@ -672,19 +672,36 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
  *   Diferença             = Valor Final − Valor Contratado Calc.
  *   % Var.                = Diferença / Valor Contratado Calc.
  */
+/**
+ * Retorna o valor unitário s/ BDI de REFERÊNCIA para um novo serviço.
+ * Prioridade: soma da analítica (banco de preços, p.ex. SINAPI) → valor informado manualmente.
+ */
+export function referenceUnitNoBDIForNewService(comp: AdditiveComposition): number {
+  const sumAnalytic = sumAnalyticTotalNoBDI(comp);
+  if (sumAnalytic > 0) return money2(sumAnalytic);
+  return money2(comp.unitPriceNoBDIInformed ?? comp.unitPriceNoBDI ?? 0);
+}
+
 export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number, globalDiscountPercent = 0) {
   const fator = 1 + (bdiPercent || 0) / 100;
   const isNew = !!comp.isNewService;
-  // Para novos serviços: aplica desconto global sobre o valor unitário s/ BDI informado.
+  // Para novos serviços: o valor unitário s/ BDI exibido é a REFERÊNCIA (SINAPI), sem desconto.
+  // O desconto global da licitação é aplicado em uma coluna separada e propaga para o BDI.
   const discountFactor = isNew ? (1 - (globalDiscountPercent || 0) / 100) : 1;
-  const baseUnitNoBDI = isNew
-    ? money2((comp.unitPriceNoBDIInformed ?? comp.unitPriceNoBDI ?? 0))
+  const referenceUnitNoBDI = isNew
+    ? referenceUnitNoBDIForNewService(comp)
     : money2(comp.unitPriceNoBDI);
-  const unitPriceNoBDI = isNew
-    ? money2(baseUnitNoBDI * discountFactor)
-    : baseUnitNoBDI;
+  // Valor unitário s/ BDI exibido na coluna principal:
+  //  - novos serviços: REFERÊNCIA SINAPI (sem desconto), para rastreabilidade;
+  //  - existentes: valor importado da Sintética/Medição.
+  const unitPriceNoBDI = referenceUnitNoBDI;
+  // Valor com desconto licitatório (somente novos serviços; nos demais é igual à referência).
+  const unitPriceNoBDIWithDiscount = isNew
+    ? money2(referenceUnitNoBDI * discountFactor)
+    : referenceUnitNoBDI;
+  // Valor c/ BDI: aplicado SOBRE o valor já com desconto (novos) ou sobre o contratado (existentes).
   const unitPriceWithBDI = isNew
-    ? truncar2(unitPriceNoBDI * fator)
+    ? truncar2(unitPriceNoBDIWithDiscount * fator)
     : money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
   const qtdContratada = comp.originalQuantity ?? comp.quantity ?? 0;
   const qtdSuprimida = comp.suppressedQuantity ?? 0;
