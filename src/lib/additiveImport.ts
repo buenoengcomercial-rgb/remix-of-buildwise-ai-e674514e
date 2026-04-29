@@ -608,24 +608,38 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
  *   Diferença             = Valor Final − Valor Contratado Calc.
  *   % Var.                = Diferença / Valor Contratado Calc.
  */
-export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number) {
+export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number, globalDiscountPercent = 0) {
   const fator = 1 + (bdiPercent || 0) / 100;
-  const unitPriceNoBDI = money2(comp.unitPriceNoBDI);
-  const unitPriceWithBDI = money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
+  const isNew = !!comp.isNewService;
+  // Para novos serviços: aplica desconto global sobre o valor unitário s/ BDI informado.
+  const discountFactor = isNew ? (1 - (globalDiscountPercent || 0) / 100) : 1;
+  const baseUnitNoBDI = isNew
+    ? money2((comp.unitPriceNoBDIInformed ?? comp.unitPriceNoBDI ?? 0))
+    : money2(comp.unitPriceNoBDI);
+  const unitPriceNoBDI = isNew
+    ? money2(baseUnitNoBDI * discountFactor)
+    : baseUnitNoBDI;
+  const unitPriceWithBDI = isNew
+    ? truncar2(unitPriceNoBDI * fator)
+    : money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
   const qtdContratada = comp.originalQuantity ?? comp.quantity ?? 0;
   const qtdSuprimida = comp.suppressedQuantity ?? 0;
   const qtdAcrescida = comp.addedQuantity ?? 0;
   const qtdFinal = qtdContratada - qtdSuprimida + qtdAcrescida;
-  // Total Fonte preserva o valor original da Sintética/Medição (não recalcula).
-  const totalFonte = comp.totalWithBDI != null
-    ? money2(comp.totalWithBDI)
-    : money2(comp.total ?? truncar2(unitPriceWithBDI * (comp.quantity ?? qtdContratada)));
-  // Valor contratado original PRESERVADO (fonte). Usado no rodapé "Total contratado original".
-  const valorContratadoOriginalPreservado = comp.totalWithBDI != null
-    ? money2(comp.totalWithBDI)
-    : comp.total != null
-      ? money2(comp.total)
-      : money2(unitPriceWithBDI * qtdContratada);
+  // Total Fonte preserva o valor original da Sintética/Medição (não recalcula). Para novos serviços é 0.
+  const totalFonte = isNew
+    ? 0
+    : (comp.totalWithBDI != null
+        ? money2(comp.totalWithBDI)
+        : money2(comp.total ?? truncar2(unitPriceWithBDI * (comp.quantity ?? qtdContratada))));
+  // Valor contratado original PRESERVADO (fonte). Para novos serviços = 0 (não havia contrato original).
+  const valorContratadoOriginalPreservado = isNew
+    ? 0
+    : (comp.totalWithBDI != null
+        ? money2(comp.totalWithBDI)
+        : comp.total != null
+          ? money2(comp.total)
+          : money2(unitPriceWithBDI * qtdContratada));
   const valorContratadoCalc = money2(unitPriceWithBDI * qtdContratada);
   const valorSuprimido = money2(unitPriceWithBDI * qtdSuprimida);
   const valorAcrescido = money2(unitPriceWithBDI * qtdAcrescida);
@@ -639,11 +653,13 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
     totalFonte, valorContratadoCalc, valorContratadoOriginalPreservado,
     valorSuprimido, valorAcrescido, valorFinal,
     diferenca, percentVar,
+    isNewService: isNew,
   };
 }
 
 export function additiveTotals(add: Additive) {
   const bdi = add.bdiPercent ?? 0;
+  const discount = add.globalDiscountPercent ?? 0;
   const compCount = add.compositions.length;
   const totalSemBDI = add.compositions.reduce(
     (a, c) => money2(a + money2(c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity)),
@@ -665,12 +681,19 @@ export function additiveTotals(add: Additive) {
   let totalContratadoOriginal = 0;
   let totalSuprimido = 0;
   let totalAcrescido = 0;
+  let totalAcrescidoExistentes = 0;
+  let totalNovosServicos = 0;
   let valorFinal = 0;
   for (const c of add.compositions) {
-    const r = computeAdditiveRow(c, bdi);
+    const r = computeAdditiveRow(c, bdi, discount);
     totalContratadoOriginal = money2(totalContratadoOriginal + r.valorContratadoOriginalPreservado);
     totalSuprimido = money2(totalSuprimido + r.valorSuprimido);
     totalAcrescido = money2(totalAcrescido + r.valorAcrescido);
+    if (r.isNewService) {
+      totalNovosServicos = money2(totalNovosServicos + r.valorAcrescido);
+    } else {
+      totalAcrescidoExistentes = money2(totalAcrescidoExistentes + r.valorAcrescido);
+    }
     valorFinal = money2(valorFinal + r.valorFinal);
   }
   const diferencaLiquida = money2(valorFinal - totalContratadoOriginal);
@@ -689,6 +712,7 @@ export function additiveTotals(add: Additive) {
     impactoSemBDI, impactoComBDI,
     // Bloco TOTAL GERAL
     totalContratadoOriginal, totalSuprimido, totalAcrescido, valorFinal,
+    totalAcrescidoExistentes, totalNovosServicos,
     diferencaLiquida, percentVariacaoLiquida,
     percentSupressao, percentAcrescimo, percentImpactoLiquido,
     limitPercent, limitStatus,
@@ -762,18 +786,28 @@ export function getApprovedAdditiveItems(project: Project): ApprovedAdditiveItem
 export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
   const out: BudgetItem[] = [];
   for (const a of project.additives ?? []) {
-    if (a.status !== 'aprovado') continue;
+    if (a.status !== 'aprovado' && a.status !== 'aditivo_contratado' && !a.isContracted) continue;
     const bdi = a.bdiPercent ?? 0;
+    const discount = a.globalDiscountPercent ?? 0;
     const fator = 1 + bdi / 100;
     for (const c of a.compositions) {
+      // Novos serviços só entram na Medição quando o aditivo foi contratado.
+      if (c.isNewService && !a.isContracted) continue;
       const kind = c.changeKind ?? 'acrescido';
-      if (kind === 'sem_alteracao') continue;
-      const qty = kind === 'suprimido'
-        ? -(c.suppressedQuantity ?? c.quantity ?? 0)
-        : (c.addedQuantity ?? c.quantity ?? 0);
+      if (kind === 'sem_alteracao' && !c.isNewService) continue;
+      const qty = c.isNewService
+        ? (c.addedQuantity ?? c.quantity ?? 0)
+        : kind === 'suprimido'
+          ? -(c.suppressedQuantity ?? c.quantity ?? 0)
+          : (c.addedQuantity ?? c.quantity ?? 0);
       if (!qty) continue;
-      const upNoBDI = c.unitPriceNoBDI || 0;
-      const upWithBDI = c.unitPriceWithBDI || truncar2(upNoBDI * fator);
+      // Para novos serviços, recalcula com desconto global da licitação.
+      const baseUnitNoBDI = c.isNewService
+        ? money2((c.unitPriceNoBDIInformed ?? c.unitPriceNoBDI ?? 0) * (1 - discount / 100))
+        : (c.unitPriceNoBDI || 0);
+      const upWithBDI = c.isNewService
+        ? truncar2(baseUnitNoBDI * fator)
+        : (c.unitPriceWithBDI || truncar2(baseUnitNoBDI * fator));
       out.push({
         id: `add-${a.id}-${c.id}`,
         item: c.item,
@@ -782,9 +816,9 @@ export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
         description: c.description,
         unit: c.unit,
         quantity: qty,
-        unitPriceNoBDI: upNoBDI,
+        unitPriceNoBDI: baseUnitNoBDI,
         unitPriceWithBDI: upWithBDI,
-        totalNoBDI: truncar2(upNoBDI * qty),
+        totalNoBDI: truncar2(baseUnitNoBDI * qty),
         totalWithBDI: truncar2(upWithBDI * qty),
         source: 'aditivo',
         additiveId: a.id,
@@ -1153,4 +1187,127 @@ export async function exportAdditiveToPdf(
   }
 
   doc.save(`${add.name.replace(/[^\w\d-]+/g, '_')}.pdf`);
+}
+
+// ============= Novos serviços (estudo no Aditivo) =============
+
+/**
+ * Calcula o próximo número de item dentro de um capítulo/subcapítulo no aditivo,
+ * baseado nas composições existentes vinculadas àquela phaseId.
+ * Ex.: se existe "2.1.11", retorna "2.1.12". Se não há nada, retorna `${parentNumber}.1`.
+ */
+export function nextItemNumberInPhase(
+  add: Additive,
+  phaseId: string,
+  parentNumber: string,
+): string {
+  const prefix = parentNumber + '.';
+  let max = 0;
+  for (const c of add.compositions) {
+    if (c.phaseId !== phaseId) continue;
+    const num = c.itemNumber || c.item || '';
+    if (num.startsWith(prefix)) {
+      const tail = num.slice(prefix.length);
+      const seg = tail.split('.')[0];
+      const n = parseInt(seg, 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return `${prefix}${max + 1}`;
+}
+
+/** Cria uma composição vazia de "novo serviço" para inserir num subcapítulo. */
+export function createNewServiceComposition(
+  add: Additive,
+  phaseId: string,
+  phaseChain: string,
+  parentNumber: string,
+): AdditiveComposition {
+  const itemNumber = nextItemNumberInPhase(add, phaseId, parentNumber);
+  return {
+    id: uid(),
+    item: itemNumber,
+    code: '',
+    bank: '',
+    description: 'Novo serviço',
+    quantity: 0,
+    unit: 'un',
+    unitPriceNoBDI: 0,
+    unitPriceWithBDI: 0,
+    total: 0,
+    inputs: [],
+    source: 'manual',
+    changeKind: 'acrescido',
+    originalQuantity: 0,
+    addedQuantity: 0,
+    suppressedQuantity: 0,
+    phaseId,
+    phaseChain,
+    itemNumber,
+    isNewService: true,
+    unitPriceNoBDIInformed: 0,
+  };
+}
+
+/**
+ * Marca o aditivo como contratado e cria as tarefas dos novos serviços na EAP,
+ * dentro dos respectivos capítulos/subcapítulos. Retorna o projeto atualizado.
+ */
+export function contractAdditive(project: Project, additiveId: string): Project {
+  const add = (project.additives ?? []).find(a => a.id === additiveId);
+  if (!add) return project;
+  const bdi = add.bdiPercent ?? 0;
+  const discount = add.globalDiscountPercent ?? 0;
+  const fator = 1 + bdi / 100;
+
+  // Indexa novos serviços por phaseId
+  const novos = add.compositions.filter(c => c.isNewService);
+
+  // Cria tarefas na EAP para cada novo serviço, dentro do phaseId correspondente.
+  const phases = project.phases.map(phase => {
+    const novosDaFase = novos.filter(n => n.phaseId === phase.id);
+    if (novosDaFase.length === 0) return phase;
+    const newTasks: Task[] = novosDaFase.map(n => {
+      const baseUnitNoBDI = money2((n.unitPriceNoBDIInformed ?? n.unitPriceNoBDI ?? 0) * (1 - discount / 100));
+      const upWithBDI = truncar2(baseUnitNoBDI * fator);
+      const qty = n.addedQuantity ?? 0;
+      const taskId = `add-${add.id}-${n.id}`;
+      return {
+        id: taskId,
+        name: n.description || 'Novo serviço (Aditivo)',
+        phase: phase.id,
+        startDate: project.startDate,
+        duration: 1,
+        dependencies: [],
+        responsible: '',
+        percentComplete: 0,
+        materials: [],
+        level: 0,
+        quantity: qty,
+        unit: n.unit,
+        unitPrice: upWithBDI,
+        unitPriceNoBDI: baseUnitNoBDI,
+        itemCode: n.code,
+        priceBank: n.bank,
+        durationMode: 'manual',
+        isManual: true,
+        manualDuration: 1,
+      } as Task;
+    });
+    return { ...phase, tasks: [...phase.tasks, ...newTasks] };
+  });
+
+  const updatedAdditive: Additive = {
+    ...add,
+    status: 'aditivo_contratado',
+    isContracted: true,
+    contractedAt: new Date().toISOString(),
+  };
+  const nextAdditives = (project.additives ?? []).map(a => a.id === add.id ? updatedAdditive : a);
+
+  // Recalcula budgetItems source 'aditivo' considerando o aditivo contratado
+  const projWithChange: Project = { ...project, phases, additives: nextAdditives };
+  const approvedBudget = getApprovedAdditiveBudgetItems(projWithChange);
+  const keep = (project.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+  return { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
 }

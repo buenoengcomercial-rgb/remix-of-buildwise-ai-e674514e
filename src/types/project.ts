@@ -426,6 +426,11 @@ export interface AdditiveComposition {
   taskId?: string;
   /** Numeração hierárquica da EAP (ex.: "1.1.3"). */
   itemNumber?: string;
+  // ----- Novos serviços em estudo (criados manualmente no Aditivo) -----
+  /** Quando true, é um novo serviço ainda em estudo no Aditivo (não integra Medição/EAP/Cronograma até "Aditivo Contratado"). */
+  isNewService?: boolean;
+  /** Valor unitário s/ BDI informado pelo usuário (antes do desconto global). Apenas para novos serviços. */
+  unitPriceNoBDIInformed?: number;
 }
 
 export interface AdditiveImportIssue {
@@ -436,7 +441,7 @@ export interface AdditiveImportIssue {
 }
 
 /** Estados do fluxo de aprovação do aditivo. */
-export type AdditiveStatus = 'rascunho' | 'em_analise' | 'reprovado' | 'aprovado';
+export type AdditiveStatus = 'rascunho' | 'em_analise' | 'reprovado' | 'aprovado' | 'aditivo_contratado';
 
 export interface Additive {
   id: string;
@@ -453,6 +458,12 @@ export interface Additive {
   reviewNotes?: string;
   /** Limite de aditivo da licitação em % (padrão 50%). Usado para indicar status OK/Revisar. */
   aditivoLimitPercent?: number;
+  /** Desconto global da licitação (%). Aplicado APENAS aos novos serviços (isNewService). */
+  globalDiscountPercent?: number;
+  /** True quando o usuário clicou em "Aditivo Contratado" — integra novos serviços ao projeto. */
+  isContracted?: boolean;
+  /** Carimbo de quando o aditivo foi marcado como contratado. */
+  contractedAt?: string;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';

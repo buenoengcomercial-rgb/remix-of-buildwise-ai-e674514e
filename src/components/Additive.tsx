@@ -29,6 +29,7 @@ import {
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
   totalAfterAdditive, getApprovedAdditiveBudgetItems,
   buildAdditiveFromSyntheticBudgetItems, computeAdditiveRow,
+  createNewServiceComposition, contractAdditive,
 } from '@/lib/additiveImport';
 
 interface Props {
@@ -42,12 +43,14 @@ const STATUS_LABEL: Record<AdditiveStatus, string> = {
   em_analise: 'Em análise fiscal',
   reprovado: 'Reprovado',
   aprovado: 'Aprovado',
+  aditivo_contratado: 'Aditivo Contratado',
 };
 const STATUS_BADGE: Record<AdditiveStatus, string> = {
   rascunho: 'bg-slate-100 text-slate-700 border-slate-300',
   em_analise: 'bg-amber-100 text-amber-800 border-amber-300',
   reprovado: 'bg-rose-100 text-rose-800 border-rose-300',
   aprovado: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  aditivo_contratado: 'bg-primary/15 text-primary border-primary/40',
 };
 
 const CHANGE_LABEL: Record<AdditiveChangeKind, string> = {
@@ -89,7 +92,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const fileRef = useRef<HTMLInputElement>(null);
 
   const status: AdditiveStatus = active?.status ?? 'rascunho';
-  const isLocked = status === 'em_analise' || status === 'aprovado';
+  const isLocked = status === 'em_analise' || status === 'aprovado' || status === 'aditivo_contratado' || !!active?.isContracted;
+  const globalDiscount = active?.globalDiscountPercent ?? 0;
 
   const banks = useMemo(() => {
     if (!active) return [] as string[];
@@ -128,6 +132,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     const empty = { groupTree: [] as CompGroup[], orphanRows: [] as AdditiveComposition[], hasEapLink: false };
     if (!active) return empty;
     const bdi = active.bdiPercent ?? 0;
+    void globalDiscount; // captured pra recalcular grupos quando muda
     const compsByPhase = new Map<string, AdditiveComposition[]>();
     const orphans: AdditiveComposition[] = [];
     let anyLinked = false;
@@ -156,7 +161,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       let subtotalContratado = 0;
       let subtotalFinal = 0;
       directRows.forEach(c => {
-        const r = computeAdditiveRow(c, bdi);
+        const r = computeAdditiveRow(c, bdi, globalDiscount);
         subtotalContratado += r.valorContratadoOriginalPreservado;
         subtotalFinal += r.valorFinal;
       });
@@ -182,7 +187,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
 
     return { groupTree: groups, orphanRows: orphans, hasEapLink: anyLinked };
-  }, [active, filteredComps, project]);
+  }, [active, filteredComps, project, globalDiscount]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -374,6 +379,35 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     toast.success(`Sintética da Medição reaproveitada (${built.compositions.length} composições).`);
   };
 
+  const handleChangeGlobalDiscount = (value: string) => {
+    if (!active || isLocked) return;
+    const num = Number(value.replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) return;
+    updateAdditive(a => ({ ...a, globalDiscountPercent: num }));
+  };
+
+  const handleAddNewService = (phaseId: string, phaseChain: string, parentNumber: string) => {
+    if (!active || isLocked) return;
+    const novo = createNewServiceComposition(active, phaseId, phaseChain, parentNumber);
+    updateAdditive(a => ({ ...a, compositions: [...a.compositions, novo] }));
+    toast.success(`Novo serviço ${novo.itemNumber} adicionado`);
+  };
+
+  const handleRemoveComposition = (compId: string) => {
+    if (!active || isLocked) return;
+    updateAdditive(a => ({ ...a, compositions: a.compositions.filter(c => c.id !== compId) }));
+  };
+
+  const handleContractAdditive = () => {
+    if (!active) return;
+    if (active.status !== 'aprovado' && !active.isContracted) {
+      toast.error('O aditivo precisa estar Aprovado para ser contratado.');
+      return;
+    }
+    onProjectChange(prev => contractAdditive(prev, active.id));
+    toast.success('Aditivo contratado — novos serviços integrados ao projeto');
+  };
+
   const bdi = active?.bdiPercent ?? 0;
 
   return (
@@ -422,6 +456,23 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
               />
             </div>
           )}
+          {active && (
+            <div
+              className="flex items-center gap-1.5 px-2 py-1 rounded border bg-card"
+              title="Desconto global aplicado APENAS aos novos serviços (estudo do aditivo)."
+            >
+              <span className="text-xs text-muted-foreground">Desconto Licit. (%):</span>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={globalDiscount}
+                disabled={isLocked}
+                onChange={e => handleChangeGlobalDiscount(e.target.value)}
+                className="h-7 w-20 text-xs"
+              />
+            </div>
+          )}
           <input
             ref={fileRef} type="file" accept=".xlsx,.xls"
             className="hidden"
@@ -438,6 +489,20 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
               title="Cria um aditivo em rascunho a partir da Sintética já importada na Medição/EAP"
             >
               <Upload className="w-4 h-4 mr-1" /> Usar Sintética da Medição
+            </Button>
+          )}
+          {active && (active.status === 'aprovado' || active.isContracted) && (
+            <Button
+              size="sm"
+              className="bg-primary hover:bg-primary/90"
+              onClick={handleContractAdditive}
+              disabled={!!active.isContracted}
+              title={active.isContracted
+                ? 'Aditivo já contratado — novos serviços integrados ao projeto.'
+                : 'Marca o aditivo como contratado e integra os novos serviços à EAP/Medição.'}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1" />
+              {active.isContracted ? 'Aditivo Contratado' : 'Marcar como Contratado'}
             </Button>
           )}
           <Button variant="outline" size="sm" disabled={!active} onClick={handleExportExcel}>
@@ -517,7 +582,10 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 <div className="text-muted-foreground">Reprovado — ajuste e reenvie para análise.</div>
               )}
               {status === 'aprovado' && (
-                <div className="text-emerald-700">Aprovado — itens integrados ao projeto (rastreáveis em Medição, Tarefas e Diário).</div>
+                <div className="text-emerald-700">Aprovado — itens integrados ao projeto. Clique em "Marcar como Contratado" para liberar os novos serviços na EAP/Medição.</div>
+              )}
+              {status === 'aditivo_contratado' && (
+                <div className="text-primary">Aditivo Contratado — novos serviços integrados à EAP, disponíveis na Medição, Cronograma e Diário.</div>
               )}
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -648,16 +716,17 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     const COL_COUNT = 19; // expander + 18 colunas (A..R)
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
-                      const r = computeAdditiveRow(c, bdi);
+                      const r = computeAdditiveRow(c, bdi, globalDiscount);
                       const cb = computeCompositionWithBDI(c, bdi);
                       const hasInputs = c.inputs.length > 0;
                       const diff = hasInputs ? cb.diff : 0;
                       const hasDiff = hasInputs && Math.abs(diff) > 0.05;
-                      const noAnalytic = !hasInputs;
+                      const noAnalytic = !hasInputs && !c.isNewService;
+                      const isNew = !!c.isNewService;
 
                       return (
                         <Fragment key={c.id}>
-                          <tr className="border-b hover:bg-muted/30 align-top">
+                          <tr className={`border-b hover:bg-muted/30 align-top ${isNew ? 'bg-sky-50/40' : ''}`}>
                             <td className="px-1 py-2 text-center">
                               <button
                                 onClick={() => toggleExpand(c.id)}
@@ -669,26 +738,72 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               </button>
                             </td>
                             <td className="px-2 py-2">{c.itemNumber || c.item}</td>
-                            <td className="px-2 py-2 font-mono text-[11px]">{c.code}</td>
-                            <td className="px-2 py-2">{c.bank}</td>
+                            <td className="px-2 py-2 font-mono text-[11px]">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.code}
+                                  onChange={e => updateComposition(c.id, { code: e.target.value })}
+                                  className="h-7 w-20 text-[11px] font-mono"
+                                />
+                              ) : c.code}
+                            </td>
+                            <td className="px-2 py-2">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.bank}
+                                  onChange={e => updateComposition(c.id, { bank: e.target.value })}
+                                  className="h-7 w-20 text-xs"
+                                />
+                              ) : c.bank}
+                            </td>
                             <td className="px-2 py-2 max-w-[320px]">
-                              <div>{c.description}</div>
-                              <div className="flex flex-wrap gap-1 mt-1">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.description}
+                                  onChange={e => updateComposition(c.id, { description: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              ) : (
+                                <div>{c.description}</div>
+                              )}
+                              <div className="flex flex-wrap gap-1 mt-1 items-center">
+                                {isNew && (
+                                  <Badge variant="outline" className="text-[9px] text-sky-700 border-sky-400 bg-sky-50">
+                                    Novo serviço
+                                  </Badge>
+                                )}
                                 {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
                                 {hasDiff && (
                                   <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
                                     Dif. analítica c/ BDI: {fmtBRL(diff)}
                                   </Badge>
                                 )}
+                                {isNew && !isLocked && (
+                                  <button
+                                    onClick={() => handleRemoveComposition(c.id)}
+                                    className="text-[10px] text-rose-600 hover:underline ml-1"
+                                    title="Remover novo serviço"
+                                  >
+                                    <Trash2 className="w-3 h-3 inline" />
+                                  </button>
+                                )}
                               </div>
                             </td>
-                            <td className="px-2 py-2">{c.unit}</td>
+                            <td className="px-2 py-2">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.unit}
+                                  onChange={e => updateComposition(c.id, { unit: e.target.value })}
+                                  className="h-7 w-14 text-xs"
+                                />
+                              ) : c.unit}
+                            </td>
                             {/* F — Qtd Contratada */}
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
                                 value={c.originalQuantity ?? 0}
-                                disabled={isLocked}
+                                disabled={isLocked || isNew}
                                 onChange={e => updateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
                                 className="h-7 w-20 text-xs text-right"
                               />
@@ -698,7 +813,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               <Input
                                 type="number" step="0.0001" min={0}
                                 value={c.suppressedQuantity ?? 0}
-                                disabled={isLocked}
+                                disabled={isLocked || isNew}
                                 onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
                                 className="h-7 w-20 text-xs text-right border-rose-200"
                               />
@@ -715,8 +830,18 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                             {/* I — Qtd Final */}
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
-                            {/* J — Valor Unit (s/ BDI) */}
-                            <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceNoBDI)}</td>
+                            {/* J — Valor Unit (s/ BDI) — editável para novos serviços */}
+                            <td className="px-2 py-2 text-right">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  type="number" step="0.01" min={0}
+                                  value={c.unitPriceNoBDIInformed ?? 0}
+                                  onChange={e => updateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
+                                  className="h-7 w-24 text-xs text-right"
+                                  title={globalDiscount > 0 ? `Desconto licit. ${globalDiscount}% será aplicado` : undefined}
+                                />
+                              ) : fmtBRL(r.unitPriceNoBDI)}
+                            </td>
                             {/* K — Valor Unit c/ BDI */}
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
                             {/* L — Total Fonte (preserva valor original da Sintética) */}
@@ -808,6 +933,21 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                           </tr>
                           {!isCollapsed && g.rows.map(c => renderCompRow(c))}
+                          {!isCollapsed && !isLocked && (
+                            <tr className="border-b bg-sky-50/30">
+                              <td colSpan={COL_COUNT} className="px-2 py-1">
+                                <div style={{ paddingLeft: indent + 24 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddNewService(g.phaseId, `${g.number} ${g.name}`, g.number)}
+                                    className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline inline-flex items-center gap-1"
+                                  >
+                                    + Novo serviço em {g.number} {g.name}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           {!isCollapsed && g.children.map(child => renderGroup(child))}
                           <tr className="border-b bg-muted/30 font-medium">
                             <td colSpan={13} className="px-2 py-1 text-right text-[11px]" style={{ paddingLeft: indent }}>
@@ -873,7 +1013,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">Total acrescido</div>
+                  <div className="text-[11px] text-muted-foreground">Total acrescido (existentes)</div>
+                  <div className="font-semibold text-emerald-700">{fmtBRL(totals.totalAcrescidoExistentes)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total novos serviços</div>
+                  <div className="font-semibold text-sky-700">{fmtBRL(totals.totalNovosServicos)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total acrescido (geral)</div>
                   <div className="font-semibold text-emerald-700">{fmtBRL(totals.totalAcrescido)}</div>
                 </div>
                 <div>
