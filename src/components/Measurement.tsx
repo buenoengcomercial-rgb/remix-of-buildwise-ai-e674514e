@@ -53,20 +53,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
-import type jsPDFType from 'jspdf';
-type AutoTableFn = typeof import('jspdf-autotable').default;
-type XLSXMod = typeof import('xlsx');
-// Bibliotecas pesadas (~600 kB combinadas) são carregadas só ao exportar.
-async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: AutoTableFn }> {
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable'),
-  ]);
-  return { jsPDF, autoTable };
-}
-async function loadXLSX(): Promise<XLSXMod> {
-  return await import('xlsx');
-}
+import { useMeasurementExports } from '@/hooks/useMeasurementExports';
 import {
   AlertDialog,
   AlertDialogAction,
