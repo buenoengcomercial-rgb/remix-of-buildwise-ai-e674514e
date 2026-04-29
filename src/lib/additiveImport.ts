@@ -130,10 +130,31 @@ interface AnalyticRow {
 interface AnalyticBlock {
   normCode: string;
   code: string;
+  item: string;
   inputs: AnalyticRow[];
   parentTotalNoBDI?: number;
   analyticUnitPriceWithBDI?: number;
   startRow: number;
+}
+
+/**
+ * Verifica se a planilha tem cabeçalhos compatíveis com Analítica.
+ * Procura nos primeiros 30 linhas por cabeçalhos típicos.
+ */
+function looksLikeAnalyticSheet(rows: unknown[][]): boolean {
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const cells = (rows[i] || []).map(c => norm(asString(c)));
+    const joined = cells.join(' | ');
+    const hasItem = cells.some(c => c === 'item' || c.startsWith('item'));
+    const hasCodigo = joined.includes('codigo') || joined.includes('código');
+    const hasBanco = cells.some(c => c === 'banco' || c.startsWith('banco'));
+    const hasDesc = joined.includes('descricao') || joined.includes('descrição');
+    const hasQuant = cells.some(c => c === 'quant' || c.startsWith('quant') || c === 'coef' || c.startsWith('coef'));
+    const hasUn = cells.some(c => c === 'un' || c === 'und' || c === 'unid' || c.startsWith('unid'));
+    const hits = [hasItem, hasCodigo, hasBanco, hasDesc, hasQuant, hasUn].filter(Boolean).length;
+    if (hits >= 4) return true;
+  }
+  return false;
 }
 
 /**
