@@ -929,15 +929,7 @@ export interface ParsedSynthetic {
   warnings: string[];
 }
 
-function _trunc2(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  return Math.trunc(v * 100) / 100;
-}
-
-function _money2(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  return Math.round((Number(v) + Number.EPSILON) * 100) / 100;
-}
+import { trunc2 as _trunc2, money2 as _money2, calculateUnitPriceWithBDI as _calcUnitWithBDI, calculateLineTotal as _calcLineTotal } from './financialEngine';
 
 function _toNumSyn(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
