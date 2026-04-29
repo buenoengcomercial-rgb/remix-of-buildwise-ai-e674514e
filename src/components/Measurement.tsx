@@ -281,6 +281,9 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   const contract = project.contractInfo || {};
   const [activeId, setActiveId] = useState<string>('live');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { user } = useAuth();
+  const auditUser = useMemo(() => userInfoFromSupabaseUser(user), [user]);
 
   // Número da próxima medição em preparação (default)
   const defaultNextNumber =
