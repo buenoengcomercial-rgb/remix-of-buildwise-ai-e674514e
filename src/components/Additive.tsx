@@ -92,7 +92,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const fileRef = useRef<HTMLInputElement>(null);
 
   const status: AdditiveStatus = active?.status ?? 'rascunho';
-  const isLocked = status === 'em_analise' || status === 'aprovado';
+  const isLocked = status === 'em_analise' || status === 'aprovado' || status === 'aditivo_contratado' || !!active?.isContracted;
+  const globalDiscount = active?.globalDiscountPercent ?? 0;
 
   const banks = useMemo(() => {
     if (!active) return [] as string[];
