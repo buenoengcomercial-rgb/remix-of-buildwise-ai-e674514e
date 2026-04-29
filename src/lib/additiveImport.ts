@@ -579,14 +579,21 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
       ? money2(comp.totalWithBDI)
       : money2(comp.total ?? truncar2(unitPriceWithBDI * qty));
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
-  const totalAnalyticWithBDI = money2(truncar2(sumAnalyticNoBDI * fator * qty));
+  // Valor unitário analítico c/ BDI: prioriza o lido da linha "Valor com BDI =" da planilha.
+  // Caso contrário, trunca em 2 casas o produto (soma analítica s/ BDI × fator BDI), por unidade.
+  const analyticUnitWithBDI = comp.analyticUnitPriceWithBDI != null
+    ? money2(comp.analyticUnitPriceWithBDI)
+    : truncar2(sumAnalyticNoBDI * fator);
+  // Total analítico c/ BDI = TRUNC(unit c/ BDI × quantidade, 2) — segue o Excel.
+  const totalAnalyticWithBDI = truncar2(analyticUnitWithBDI * qty);
   const diff = money2(totalAnalyticWithBDI - totalSyntheticWithBDI);
   // Impacto financeiro = (added − suppressed) × preço unitário.
   const effQty = money2(effectiveQuantity(comp));
   const impactoSemBDI = money2(truncar2(unitPriceNoBDI * effQty));
   const impactoComBDI = money2(truncar2(unitPriceWithBDI * effQty));
   return {
-    unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
+    unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI,
+    analyticUnitWithBDI, totalAnalyticWithBDI, diff,
     impactoSemBDI, impactoComBDI,
   };
 }
