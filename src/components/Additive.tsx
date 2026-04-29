@@ -756,7 +756,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-right font-semibold text-emerald-700">Qtd Acrescida</th>
                     <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Unit</th>
-                    <th className="px-2 py-2 text-right font-semibold text-sky-700">V. Unit s/ BDI c/ Desc.</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Contratado Calc.</th>
@@ -769,7 +768,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 </thead>
                 <tbody>
                   {(() => {
-                    const COL_COUNT = 20; // expander + 19 colunas
+                    const COL_COUNT = 19; // expander + 18 colunas
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
                       const r = computeAdditiveRow(c, bdi, globalDiscount);
@@ -886,7 +885,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                             {/* I — Qtd Final */}
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
-                            {/* J — Valor Unit (s/ BDI) — REFERÊNCIA SINAPI (sem desconto) */}
+                            {/* J — Valor Unit (s/ BDI). Para novos serviços, exibe valor JÁ COM desconto. */}
                             <td className="px-2 py-2 text-right">
                               {isNew && !isLocked && c.inputs.length === 0 ? (
                                 <Input
@@ -894,19 +893,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                   value={c.unitPriceNoBDIInformed ?? 0}
                                   onChange={e => updateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
                                   className="h-7 w-24 text-xs text-right"
-                                  title="Valor de referência s/ BDI (banco de preços, ex.: SINAPI). O desconto da licitação é aplicado na coluna ao lado."
+                                  title={globalDiscount > 0 ? `Informe a referência s/ BDI. Desconto licit. ${globalDiscount}% será aplicado.` : 'Valor s/ BDI'}
                                 />
                               ) : (
-                                <span title={isNew ? 'Referência s/ BDI (SINAPI / banco de preços)' : undefined}>
-                                  {fmtBRL(isNew ? r.referenceUnitNoBDI : r.unitPriceNoBDI)}
+                                <span title={isNew && globalDiscount > 0 ? `Já com desconto de ${globalDiscount}% (referência: ${fmtBRL(r.referenceUnitNoBDI)})` : undefined}>
+                                  {fmtBRL(isNew ? r.unitPriceNoBDIWithDiscount : r.unitPriceNoBDI)}
                                 </span>
                               )}
-                            </td>
-                            {/* J2 — V. Unit s/ BDI c/ Desconto — apenas novos serviços acrescidos */}
-                            <td className="px-2 py-2 text-right text-sky-700">
-                              {isNew && (c.addedQuantity ?? 0) > 0
-                                ? <span title={`Desconto licitatório: ${globalDiscount}%`}>{fmtBRL(r.unitPriceNoBDIWithDiscount)}</span>
-                                : <span className="text-muted-foreground">—</span>}
                             </td>
                             {/* K — Valor Unit c/ BDI */}
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>

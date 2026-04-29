@@ -697,7 +697,7 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
   const unitPriceNoBDI = referenceUnitNoBDI;
   // Valor com desconto licitatório (somente novos serviços; nos demais é igual à referência).
   const unitPriceNoBDIWithDiscount = isNew
-    ? money2(referenceUnitNoBDI * discountFactor)
+    ? truncar2(referenceUnitNoBDI * discountFactor)
     : referenceUnitNoBDI;
   // Valor c/ BDI: aplicado SOBRE o valor já com desconto (novos) ou sobre o contratado (existentes).
   const unitPriceWithBDI = isNew
@@ -723,7 +723,7 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
           : money2(unitPriceWithBDI * qtdContratada));
   const valorContratadoCalc = money2(unitPriceWithBDI * qtdContratada);
   const valorSuprimido = money2(unitPriceWithBDI * qtdSuprimida);
-  const valorAcrescido = money2(unitPriceWithBDI * qtdAcrescida);
+  const valorAcrescido = truncar2(unitPriceWithBDI * qtdAcrescida);
   // Valor final preservando a fonte: original + acrescido − suprimido.
   const valorFinal = money2(valorContratadoOriginalPreservado + valorAcrescido - valorSuprimido);
   const diferenca = money2(valorFinal - valorContratadoOriginalPreservado);
