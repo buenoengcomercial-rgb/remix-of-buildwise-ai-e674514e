@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Upload, Download, Printer, Search, ChevronRight, ChevronDown,
-  AlertTriangle, Trash2, CheckCircle2, XCircle, Send, RotateCcw, Lock,
+  AlertTriangle, Trash2, CheckCircle2, XCircle, Send, RotateCcw, Lock, History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -31,6 +31,10 @@ import {
   buildAdditiveFromSyntheticBudgetItems, computeAdditiveRow,
   createNewServiceComposition, contractAdditive, money2, truncar2,
 } from '@/lib/additiveImport';
+import { useAuth } from '@/hooks/useAuth';
+import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
+import AuditHistoryPanel from '@/components/AuditHistoryPanel';
+import type { AdditiveApprovalSnapshot } from '@/types/project';
 
 interface Props {
   project: Project;
