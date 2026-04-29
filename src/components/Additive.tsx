@@ -594,15 +594,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 {banks.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={changeFilter} onValueChange={setChangeFilter}>
-              <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Tipo de alteração" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as alterações</SelectItem>
-                <SelectItem value="acrescido">Acrescidas</SelectItem>
-                <SelectItem value="suprimido">Suprimidas</SelectItem>
-                <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
-              </SelectContent>
-            </Select>
             <Button
               size="sm"
               variant={showAnalytic ? 'default' : 'outline'}
