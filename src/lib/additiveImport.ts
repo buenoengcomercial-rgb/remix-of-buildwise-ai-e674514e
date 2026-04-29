@@ -39,7 +39,7 @@ export function truncar2(v: number): number {
   return Math.trunc(v * 100) / 100;
 }
 
-function money2(value: number | null | undefined): number {
+export function money2(value: number | null | undefined): number {
   if (value === null || value === undefined) return 0;
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
@@ -672,19 +672,36 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
  *   Diferença             = Valor Final − Valor Contratado Calc.
  *   % Var.                = Diferença / Valor Contratado Calc.
  */
+/**
+ * Retorna o valor unitário s/ BDI de REFERÊNCIA para um novo serviço.
+ * Prioridade: soma da analítica (banco de preços, p.ex. SINAPI) → valor informado manualmente.
+ */
+export function referenceUnitNoBDIForNewService(comp: AdditiveComposition): number {
+  const sumAnalytic = sumAnalyticTotalNoBDI(comp);
+  if (sumAnalytic > 0) return money2(sumAnalytic);
+  return money2(comp.unitPriceNoBDIInformed ?? comp.unitPriceNoBDI ?? 0);
+}
+
 export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number, globalDiscountPercent = 0) {
   const fator = 1 + (bdiPercent || 0) / 100;
   const isNew = !!comp.isNewService;
-  // Para novos serviços: aplica desconto global sobre o valor unitário s/ BDI informado.
+  // Para novos serviços: o valor unitário s/ BDI exibido é a REFERÊNCIA (SINAPI), sem desconto.
+  // O desconto global da licitação é aplicado em uma coluna separada e propaga para o BDI.
   const discountFactor = isNew ? (1 - (globalDiscountPercent || 0) / 100) : 1;
-  const baseUnitNoBDI = isNew
-    ? money2((comp.unitPriceNoBDIInformed ?? comp.unitPriceNoBDI ?? 0))
+  const referenceUnitNoBDI = isNew
+    ? referenceUnitNoBDIForNewService(comp)
     : money2(comp.unitPriceNoBDI);
-  const unitPriceNoBDI = isNew
-    ? money2(baseUnitNoBDI * discountFactor)
-    : baseUnitNoBDI;
+  // Valor unitário s/ BDI exibido na coluna principal:
+  //  - novos serviços: REFERÊNCIA SINAPI (sem desconto), para rastreabilidade;
+  //  - existentes: valor importado da Sintética/Medição.
+  const unitPriceNoBDI = referenceUnitNoBDI;
+  // Valor com desconto licitatório (somente novos serviços; nos demais é igual à referência).
+  const unitPriceNoBDIWithDiscount = isNew
+    ? money2(referenceUnitNoBDI * discountFactor)
+    : referenceUnitNoBDI;
+  // Valor c/ BDI: aplicado SOBRE o valor já com desconto (novos) ou sobre o contratado (existentes).
   const unitPriceWithBDI = isNew
-    ? truncar2(unitPriceNoBDI * fator)
+    ? truncar2(unitPriceNoBDIWithDiscount * fator)
     : money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
   const qtdContratada = comp.originalQuantity ?? comp.quantity ?? 0;
   const qtdSuprimida = comp.suppressedQuantity ?? 0;
@@ -712,7 +729,8 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
   const diferenca = money2(valorFinal - valorContratadoOriginalPreservado);
   const percentVar = valorContratadoOriginalPreservado > 0 ? diferenca / valorContratadoOriginalPreservado : 0;
   return {
-    unitPriceNoBDI, unitPriceWithBDI,
+    unitPriceNoBDI, unitPriceNoBDIWithDiscount, unitPriceWithBDI,
+    referenceUnitNoBDI, discountFactor, globalDiscountPercent: globalDiscountPercent || 0,
     qtdContratada, qtdSuprimida, qtdAcrescida, qtdFinal,
     totalFonte, valorContratadoCalc, valorContratadoOriginalPreservado,
     valorSuprimido, valorAcrescido, valorFinal,
@@ -865,9 +883,9 @@ export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
           ? -(c.suppressedQuantity ?? c.quantity ?? 0)
           : (c.addedQuantity ?? c.quantity ?? 0);
       if (!qty) continue;
-      // Para novos serviços, recalcula com desconto global da licitação.
+      // Para novos serviços, usa REFERÊNCIA da analítica (SINAPI) e aplica desconto global da licitação.
       const baseUnitNoBDI = c.isNewService
-        ? money2((c.unitPriceNoBDIInformed ?? c.unitPriceNoBDI ?? 0) * (1 - discount / 100))
+        ? money2(referenceUnitNoBDIForNewService(c) * (1 - discount / 100))
         : (c.unitPriceNoBDI || 0);
       const upWithBDI = c.isNewService
         ? truncar2(baseUnitNoBDI * fator)
@@ -1332,7 +1350,8 @@ export function contractAdditive(project: Project, additiveId: string): Project 
     const novosDaFase = novos.filter(n => n.phaseId === phase.id);
     if (novosDaFase.length === 0) return phase;
     const newTasks: Task[] = novosDaFase.map(n => {
-      const baseUnitNoBDI = money2((n.unitPriceNoBDIInformed ?? n.unitPriceNoBDI ?? 0) * (1 - discount / 100));
+      const referenceUnit = referenceUnitNoBDIForNewService(n);
+      const baseUnitNoBDI = money2(referenceUnit * (1 - discount / 100));
       const upWithBDI = truncar2(baseUnitNoBDI * fator);
       const qty = n.addedQuantity ?? 0;
       const taskId = `add-${add.id}-${n.id}`;

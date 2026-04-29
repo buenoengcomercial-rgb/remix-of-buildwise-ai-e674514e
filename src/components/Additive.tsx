@@ -29,7 +29,7 @@ import {
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
   totalAfterAdditive, getApprovedAdditiveBudgetItems,
   buildAdditiveFromSyntheticBudgetItems, computeAdditiveRow,
-  createNewServiceComposition, contractAdditive,
+  createNewServiceComposition, contractAdditive, money2, truncar2,
 } from '@/lib/additiveImport';
 
 interface Props {
@@ -756,6 +756,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-right font-semibold text-emerald-700">Qtd Acrescida</th>
                     <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Unit</th>
+                    <th className="px-2 py-2 text-right font-semibold text-sky-700">V. Unit s/ BDI c/ Desc.</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Contratado Calc.</th>
@@ -768,7 +769,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 </thead>
                 <tbody>
                   {(() => {
-                    const COL_COUNT = 19; // expander + 18 colunas (A..R)
+                    const COL_COUNT = 20; // expander + 19 colunas
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
                       const r = computeAdditiveRow(c, bdi, globalDiscount);
@@ -885,17 +886,27 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                             {/* I — Qtd Final */}
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
-                            {/* J — Valor Unit (s/ BDI) — editável para novos serviços */}
+                            {/* J — Valor Unit (s/ BDI) — REFERÊNCIA SINAPI (sem desconto) */}
                             <td className="px-2 py-2 text-right">
-                              {isNew && !isLocked ? (
+                              {isNew && !isLocked && c.inputs.length === 0 ? (
                                 <Input
                                   type="number" step="0.01" min={0}
                                   value={c.unitPriceNoBDIInformed ?? 0}
                                   onChange={e => updateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
                                   className="h-7 w-24 text-xs text-right"
-                                  title={globalDiscount > 0 ? `Desconto licit. ${globalDiscount}% será aplicado` : undefined}
+                                  title="Valor de referência s/ BDI (banco de preços, ex.: SINAPI). O desconto da licitação é aplicado na coluna ao lado."
                                 />
-                              ) : fmtBRL(r.unitPriceNoBDI)}
+                              ) : (
+                                <span title={isNew ? 'Referência s/ BDI (SINAPI / banco de preços)' : undefined}>
+                                  {fmtBRL(isNew ? r.referenceUnitNoBDI : r.unitPriceNoBDI)}
+                                </span>
+                              )}
+                            </td>
+                            {/* J2 — V. Unit s/ BDI c/ Desconto — apenas novos serviços acrescidos */}
+                            <td className="px-2 py-2 text-right text-sky-700">
+                              {isNew && (c.addedQuantity ?? 0) > 0
+                                ? <span title={`Desconto licitatório: ${globalDiscount}%`}>{fmtBRL(r.unitPriceNoBDIWithDiscount)}</span>
+                                : <span className="text-muted-foreground">—</span>}
                             </td>
                             {/* K — Valor Unit c/ BDI */}
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
@@ -924,40 +935,80 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             <tr className="bg-muted/20 border-b">
                               <td />
                               <td colSpan={COL_COUNT - 1} className="px-3 py-2">
-                                <table className="w-full text-[11px]">
-                                  <thead>
-                                    <tr className="text-muted-foreground">
-                                      <th className="text-left px-1.5 py-1 font-medium">Código</th>
-                                      <th className="text-left px-1.5 py-1 font-medium">Banco</th>
-                                      <th className="text-left px-1.5 py-1 font-medium">Descrição</th>
-                                      <th className="text-left px-1.5 py-1 font-medium">Un</th>
-                                      <th className="text-right px-1.5 py-1 font-medium">Coef.</th>
-                                      <th className="text-right px-1.5 py-1 font-medium">V. Unit s/ BDI</th>
-                                      <th className="text-right px-1.5 py-1 font-medium">Total s/ BDI</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {c.inputs.map(i => (
-                                      <tr key={i.id} className="border-t border-border/50">
-                                        <td className="px-1.5 py-1 font-mono">{i.code}</td>
-                                        <td className="px-1.5 py-1">{i.bank}</td>
-                                        <td className="px-1.5 py-1">{i.description}</td>
-                                        <td className="px-1.5 py-1">{i.unit}</td>
-                                        <td className="px-1.5 py-1 text-right">{i.coefficient.toLocaleString('pt-BR')}</td>
-                                        <td className="px-1.5 py-1 text-right">{fmtBRL(i.unitPrice)}</td>
-                                        <td className="px-1.5 py-1 text-right">{fmtBRL(i.total)}</td>
-                                      </tr>
-                                    ))}
-                                    <tr className="border-t font-medium">
-                                      <td colSpan={6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
-                                      <td className="px-1.5 py-1 text-right">{fmtBRL(sumAnalyticTotalNoBDI(c))}</td>
-                                    </tr>
-                                    <tr className="font-medium text-primary">
-                                      <td colSpan={6} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
-                                      <td className="px-1.5 py-1 text-right">{fmtBRL(cb.totalAnalyticWithBDI)}</td>
-                                    </tr>
-                                  </tbody>
-                                </table>
+                                {(() => {
+                                  const showDiscount = isNew && globalDiscount > 0;
+                                  const discFactor = showDiscount ? (1 - globalDiscount / 100) : 1;
+                                  const sumNoBDI = sumAnalyticTotalNoBDI(c);
+                                  const sumNoBDIDisc = money2(sumNoBDI * discFactor);
+                                  const qty = c.addedQuantity ?? c.quantity ?? 0;
+                                  const fator = 1 + bdi / 100;
+                                  // Para novos serviços com desconto: valor analítico c/ BDI usa a base já com desconto.
+                                  const totalAnalyticWithBDI = showDiscount
+                                    ? truncar2(truncar2(sumNoBDIDisc * fator) * qty)
+                                    : cb.totalAnalyticWithBDI;
+                                  return (
+                                    <table className="w-full text-[11px]">
+                                      <thead>
+                                        <tr className="text-muted-foreground">
+                                          <th className="text-left px-1.5 py-1 font-medium">Código</th>
+                                          <th className="text-left px-1.5 py-1 font-medium">Banco</th>
+                                          <th className="text-left px-1.5 py-1 font-medium">Descrição</th>
+                                          <th className="text-left px-1.5 py-1 font-medium">Un</th>
+                                          <th className="text-right px-1.5 py-1 font-medium">Coef.</th>
+                                          <th className="text-right px-1.5 py-1 font-medium">V. Unit s/ BDI</th>
+                                          {showDiscount && (
+                                            <th className="text-right px-1.5 py-1 font-medium text-sky-700">V. Unit s/ BDI c/ Desc.</th>
+                                          )}
+                                          <th className="text-right px-1.5 py-1 font-medium">Total s/ BDI</th>
+                                          {showDiscount && (
+                                            <th className="text-right px-1.5 py-1 font-medium text-sky-700">Total s/ BDI c/ Desc.</th>
+                                          )}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {c.inputs.map(i => {
+                                          const unitDisc = money2(i.unitPrice * discFactor);
+                                          const totalDisc = money2(i.coefficient * unitDisc);
+                                          return (
+                                            <tr key={i.id} className="border-t border-border/50">
+                                              <td className="px-1.5 py-1 font-mono">{i.code}</td>
+                                              <td className="px-1.5 py-1">{i.bank}</td>
+                                              <td className="px-1.5 py-1">{i.description}</td>
+                                              <td className="px-1.5 py-1">{i.unit}</td>
+                                              <td className="px-1.5 py-1 text-right">{i.coefficient.toLocaleString('pt-BR')}</td>
+                                              <td className="px-1.5 py-1 text-right">{fmtBRL(i.unitPrice)}</td>
+                                              {showDiscount && (
+                                                <td className="px-1.5 py-1 text-right text-sky-700">{fmtBRL(unitDisc)}</td>
+                                              )}
+                                              <td className="px-1.5 py-1 text-right">{fmtBRL(i.total)}</td>
+                                              {showDiscount && (
+                                                <td className="px-1.5 py-1 text-right text-sky-700">{fmtBRL(totalDisc)}</td>
+                                              )}
+                                            </tr>
+                                          );
+                                        })}
+                                        <tr className="border-t font-medium">
+                                          <td colSpan={showDiscount ? 6 : 6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI:</td>
+                                          {showDiscount && <td />}
+                                          <td className="px-1.5 py-1 text-right">{fmtBRL(sumNoBDI)}</td>
+                                          {showDiscount && <td />}
+                                        </tr>
+                                        {showDiscount && (
+                                          <tr className="font-medium text-sky-700">
+                                            <td colSpan={6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI c/ desconto ({globalDiscount}%):</td>
+                                            <td />
+                                            <td />
+                                            <td className="px-1.5 py-1 text-right">{fmtBRL(sumNoBDIDisc)}</td>
+                                          </tr>
+                                        )}
+                                        <tr className="font-medium text-primary">
+                                          <td colSpan={showDiscount ? 8 : 6} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
+                                          <td className="px-1.5 py-1 text-right">{fmtBRL(totalAnalyticWithBDI)}</td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           )}
