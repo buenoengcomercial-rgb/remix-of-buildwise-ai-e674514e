@@ -54,6 +54,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import { useMeasurementExports } from '@/hooks/useMeasurementExports';
+import { useMeasurementState } from '@/hooks/useMeasurementState';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,158 +81,40 @@ interface MeasurementProps {
 
 // ───────────────────────── Componente principal ─────────────────────────
 export default function Measurement({ project, onProjectChange, undoButton, onOpenDailyReport }: MeasurementProps) {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-
-  // Mantém referência sempre atualizada do projeto, para evitar que callbacks/effects
-  // usem versões obsoletas após múltiplas chamadas a onProjectChange no mesmo tick
-  // (ex.: gerar medição + persistir rascunho da próxima).
-  const projectRef = useRef(project);
-  useEffect(() => { projectRef.current = project; }, [project]);
-
-  const measurements = useMemo<SavedMeasurement[]>(
-    () => (project.measurements || []).slice().sort((a, b) => a.number - b.number),
-    [project.measurements],
-  );
-
-  const contract = project.contractInfo || {};
-  const [activeId, setActiveId] = useState<string>('live');
-  const [historyOpen, setHistoryOpen] = useState(false);
   const { user } = useAuth();
   const auditUser = useMemo(() => userInfoFromSupabaseUser(user), [user]);
 
-  // Número da próxima medição em preparação (default)
-  const defaultNextNumber =
-    (contract.nextMeasurementNumber ??
-      ((measurements[measurements.length - 1]?.number || 0) + 1)) || 1;
-
-  // Rascunho persistido para a medição em preparação
-  const initialDraft = project.measurementDraft;
-  const initialDraftMatches = initialDraft && initialDraft.number === defaultNextNumber;
-
-  // Período sugerido (caso não exista rascunho válido)
-  const initialSuggested = suggestPeriodForNext(measurements, today, monthAgo);
-
-  // Form de filtros (modo "live" = preview antes de gerar)
-  const [startDate, setStartDate] = useState(
-    initialDraftMatches && initialDraft?.startDate ? initialDraft.startDate : initialSuggested.startDate,
-  );
-  const [endDate, setEndDate] = useState(
-    initialDraftMatches && initialDraft?.endDate ? initialDraft.endDate : initialSuggested.endDate,
-  );
-  const [chapterFilter, setChapterFilter] = useState<string>(
-    initialDraftMatches && initialDraft?.chapterFilter ? initialDraft.chapterFilter : 'all',
-  );
-  const [search, setSearch] = useState(
-    initialDraftMatches && initialDraft?.search ? initialDraft.search : '',
-  );
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  // Cabeçalho (formulário contratual)
-  const [contractor, setContractor] = useState(contract.contractor || '');
-  const [contracted, setContracted] = useState(contract.contracted || '');
-  const [contractNumber, setContractNumber] = useState(contract.contractNumber || '');
-  const [contractObject, setContractObject] = useState(contract.contractObject || '');
-  const [location, setLocation] = useState(contract.location || '');
-  const [budgetSource, setBudgetSource] = useState(contract.budgetSource || '');
-  const [bdiInput, setBdiInput] = useState(
-    contract.bdiPercent !== undefined ? String(contract.bdiPercent) : '25',
-  );
-  const [measurementNumber, setMeasurementNumber] = useState(String(defaultNextNumber));
-  const issueDate = today;
-
-  // Diálogos
-  const [confirmGenerate, setConfirmGenerate] = useState(false);
-  const [confirmEdit, setConfirmEdit] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [editReason, setEditReason] = useState('');
-  const [editingPriceTaskId, setEditingPriceTaskId] = useState<string | null>(null);
-  const [editingPriceValue, setEditingPriceValue] = useState<string>('');
-
-  useEffect(() => {
-    const c = project.contractInfo || {};
-    setContractor(c.contractor || '');
-    setContracted(c.contracted || '');
-    setContractNumber(c.contractNumber || '');
-    setContractObject(c.contractObject || '');
-    setLocation(c.location || '');
-    setBudgetSource(c.budgetSource || '');
-    setBdiInput(c.bdiPercent !== undefined ? String(c.bdiPercent) : '25');
-
-    // Recarrega rascunho de filtros ao trocar de obra
-    const sortedMs = (project.measurements || []).slice().sort((a, b) => a.number - b.number);
-    const nextNum =
-      (c.nextMeasurementNumber ?? ((sortedMs[sortedMs.length - 1]?.number || 0) + 1)) || 1;
-    setMeasurementNumber(String(nextNum));
-    const d = project.measurementDraft;
-    if (d && d.number === nextNum && d.startDate && d.endDate) {
-      setStartDate(d.startDate);
-      setEndDate(d.endDate);
-      setChapterFilter(d.chapterFilter || 'all');
-      setSearch(d.search || '');
-    } else {
-      const s = suggestPeriodForNext(sortedMs, today, monthAgo);
-      setStartDate(s.startDate);
-      setEndDate(s.endDate);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
-
-  // Sincroniza nº sugerido quando muda quantidade de medições; restaura rascunho ou sugere período
-  useEffect(() => {
-    if (activeId !== 'live') return;
-    const next = (measurements[measurements.length - 1]?.number || 0) + 1;
-    setMeasurementNumber(prev => (prev === String(next) ? prev : String(next || 1)));
-    const d = project.measurementDraft;
-    if (d && d.number === next && d.startDate && d.endDate) {
-      setStartDate(d.startDate);
-      setEndDate(d.endDate);
-    } else {
-      const s = suggestPeriodForNext(measurements, today, monthAgo);
-      setStartDate(s.startDate);
-      setEndDate(s.endDate);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measurements.length, activeId]);
-
-  // Autocorreção: se Data final < Data inicial, ajusta para início + 30 dias
-  useEffect(() => {
-    if (activeId !== 'live') return;
-    if (startDate && endDate && endDate < startDate) {
-      setEndDate(isoAddDays(startDate, 30));
-    }
-  }, [activeId, startDate, endDate]);
-
-
-  // Persiste rascunho (datas + filtros) por nº de medição em preparação.
-  // Usa projectRef para garantir que estamos espalhando o projeto MAIS RECENTE
-  // (após generateMeasurement, o `project` do closure ainda não reflete o snapshot).
-  useEffect(() => {
-    if (activeId !== 'live') return;
-    const num = Number(measurementNumber);
-    if (!Number.isFinite(num) || num <= 0) return;
-    const latestProject = projectRef.current;
-    const current = latestProject.measurementDraft;
-    const nextDraft = {
-      number: num,
-      startDate,
-      endDate,
-      chapterFilter,
-      search,
-    };
-    if (
-      current &&
-      current.number === nextDraft.number &&
-      current.startDate === nextDraft.startDate &&
-      current.endDate === nextDraft.endDate &&
-      (current.chapterFilter || 'all') === nextDraft.chapterFilter &&
-      (current.search || '') === nextDraft.search
-    ) {
-      return;
-    }
-    onProjectChange({ ...latestProject, measurementDraft: nextDraft });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, measurementNumber, startDate, endDate, chapterFilter, search]);
+  const measurementState = useMeasurementState({ project, onProjectChange });
+  const {
+    projectRef,
+    measurements,
+    contract,
+    today,
+    monthAgo,
+    defaultNextNumber,
+    issueDate,
+    activeId, setActiveId,
+    historyOpen, setHistoryOpen,
+    startDate, setStartDate,
+    endDate, setEndDate,
+    chapterFilter, setChapterFilter,
+    search, setSearch,
+    collapsed, setCollapsed,
+    contractor, setContractor,
+    contracted, setContracted,
+    contractNumber, setContractNumber,
+    contractObject, setContractObject,
+    location, setLocation,
+    budgetSource, setBudgetSource,
+    bdiInput, setBdiInput,
+    measurementNumber, setMeasurementNumber,
+    confirmGenerate, setConfirmGenerate,
+    confirmEdit, setConfirmEdit,
+    confirmDelete, setConfirmDelete,
+    editReason, setEditReason,
+    editingPriceTaskId, setEditingPriceTaskId,
+    editingPriceValue, setEditingPriceValue,
+  } = measurementState;
 
   const parsedBdi = Number.isFinite(parseFloat(bdiInput)) ? Math.max(0, parseFloat(bdiInput)) : 0;
   // Sintética importada tem prioridade sobre o BDI do contrato.
