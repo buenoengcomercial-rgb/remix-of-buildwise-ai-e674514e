@@ -426,6 +426,11 @@ export interface AdditiveComposition {
   taskId?: string;
   /** Numeração hierárquica da EAP (ex.: "1.1.3"). */
   itemNumber?: string;
+  // ----- Novos serviços em estudo (criados manualmente no Aditivo) -----
+  /** Quando true, é um novo serviço ainda em estudo no Aditivo (não integra Medição/EAP/Cronograma até "Aditivo Contratado"). */
+  isNewService?: boolean;
+  /** Valor unitário s/ BDI informado pelo usuário (antes do desconto global). Apenas para novos serviços. */
+  unitPriceNoBDIInformed?: number;
 }
 
 export interface AdditiveImportIssue {
