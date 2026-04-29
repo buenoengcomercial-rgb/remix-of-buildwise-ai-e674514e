@@ -668,7 +668,7 @@ export function additiveTotals(add: Additive) {
   let valorFinal = 0;
   for (const c of add.compositions) {
     const r = computeAdditiveRow(c, bdi);
-    totalContratadoOriginal = money2(totalContratadoOriginal + r.valorContratadoCalc);
+    totalContratadoOriginal = money2(totalContratadoOriginal + r.valorContratadoOriginalPreservado);
     totalSuprimido = money2(totalSuprimido + r.valorSuprimido);
     totalAcrescido = money2(totalAcrescido + r.valorAcrescido);
     valorFinal = money2(valorFinal + r.valorFinal);
