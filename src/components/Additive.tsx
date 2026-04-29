@@ -217,14 +217,46 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const handleConfirmImport = async () => {
     if (!pendingFile) return;
     try {
-      // Detecta antecipadamente se a planilha tem apenas Analítica para validar pré-condições.
+      // Detecta antecipadamente o conteúdo da planilha (nome + cabeçalhos) para validar pré-condições.
       const XLSX = await import('xlsx');
       const buf = await pendingFile.arrayBuffer();
       const peek = XLSX.read(buf, { type: 'array' });
-      const lower = peek.SheetNames.map(n => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-      const hasSynth = lower.some(n => n.includes('sintetica'));
-      const hasAnaly = lower.some(n => n.includes('analitica'));
+      const normName = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const lower = peek.SheetNames.map(normName);
+      let hasSynth = lower.some(n => n.includes('sintetica'));
+      let hasAnaly = lower.some(n => n.includes('analitica'));
+
+      // Fallback por conteúdo: aceita "Planilha1" / "Folha 1" como Analítica se cabeçalhos baterem.
+      if (!hasAnaly) {
+        for (let i = 0; i < peek.SheetNames.length; i++) {
+          const name = peek.SheetNames[i];
+          if (hasSynth && normName(name).includes('sintetica')) continue;
+          const ws = peek.Sheets[name];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as unknown[][];
+          const norm = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          for (let r = 0; r < Math.min(rows.length, 30); r++) {
+            const cells = (rows[r] || []).map(norm);
+            const joined = cells.join(' | ');
+            const hits = [
+              cells.some(c => c === 'item' || c.startsWith('item')),
+              joined.includes('codigo'),
+              cells.some(c => c === 'banco' || c.startsWith('banco')),
+              joined.includes('descricao'),
+              cells.some(c => c === 'quant' || c.startsWith('quant') || c === 'coef' || c.startsWith('coef')),
+              cells.some(c => c === 'un' || c === 'und' || c === 'unid' || c.startsWith('unid')),
+            ].filter(Boolean).length;
+            if (hits >= 4) { hasAnaly = true; break; }
+          }
+          if (hasAnaly) break;
+        }
+      }
+
       const draftCandidate = active && (active.status ?? 'rascunho') === 'rascunho' && !active.isContracted ? active : null;
+
+      if (!hasSynth && !hasAnaly) {
+        toast.error('Nenhuma aba reconhecida (esperado SINTETICA e/ou ANALITICA, ou planilha com cabeçalhos compatíveis).');
+        return;
+      }
 
       if (!hasSynth && hasAnaly && !draftCandidate) {
         toast.error('Importe ou selecione um aditivo em rascunho antes de vincular a Analítica.');
@@ -237,6 +269,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
         importName.trim() || 'Aditivo',
         draftCandidate,
       );
+
+      // Salvaguarda: se o resultado vier vazio com erro "Nenhuma aba reconhecida", não cria aba.
+      const hasFatalError = (result.additive.issues ?? []).some(
+        i => i.level === 'error' && /nenhuma aba reconhecida/i.test(i.message),
+      );
+      if (hasFatalError && result.additive.compositions.length === 0) {
+        toast.error('Nenhuma aba reconhecida na planilha. Nada foi adicionado.', { id: 'imp-add' });
+        return;
+      }
 
       if (result.mode === 'analytic_only' && draftCandidate) {
         // Mescla a Analítica no aditivo ativo em rascunho — não cria nova aba.
