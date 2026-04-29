@@ -451,6 +451,8 @@ export interface Additive {
   approvedAt?: string;
   approvedBy?: string;
   reviewNotes?: string;
+  /** Limite de aditivo da licitação em % (padrão 50%). Usado para indicar status OK/Revisar. */
+  aditivoLimitPercent?: number;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
