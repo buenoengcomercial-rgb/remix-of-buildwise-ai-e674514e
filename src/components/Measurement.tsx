@@ -2717,6 +2717,16 @@ function SignatureBox({ label }: { label: string }) {
         <p className="font-semibold uppercase tracking-wider text-[10px]">{label}</p>
         <p className="text-[9px] text-muted-foreground">Nome / CREA / Assinatura</p>
       </div>
+      {activeMeasurement && (
+        <AuditHistoryPanel
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          project={project}
+          entityType="measurement"
+          entityId={activeMeasurement.id}
+          title={`Medição nº ${activeMeasurement.number}`}
+        />
+      )}
     </div>
   );
 }
