@@ -2650,6 +2650,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {activeMeasurement && (
+        <AuditHistoryPanel
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          project={project}
+          entityType="measurement"
+          entityId={activeMeasurement.id}
+          title={`Medição nº ${activeMeasurement.number}`}
+        />
+      )}
     </div>
   );
 }
