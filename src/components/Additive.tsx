@@ -62,6 +62,9 @@ const fmtBRL = (v: number) =>
 const fmtNum = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
 
+const fmtPct = (v: number) =>
+  `${(v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+
 export default function Additive({ project, onProjectChange, undoButton }: Props) {
   const additives = project.additives ?? [];
   const [activeId, setActiveId] = useState<string | null>(additives[0]?.id ?? null);
