@@ -1104,8 +1104,22 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         search: '',
       },
     };
-    projectRef.current = nextProject;
-    onProjectChange(nextProject);
+    const nextProjectWithLog = logToProject(nextProject, {
+      ...auditUser,
+      entityType: 'measurement',
+      entityId: snapshot.id,
+      action: 'created',
+      title: `Medição nº ${number} gerada`,
+      metadata: {
+        number,
+        startDate,
+        endDate,
+        bdiPercent,
+        itemsCount: items.length,
+      },
+    });
+    projectRef.current = nextProjectWithLog;
+    onProjectChange(nextProjectWithLog);
     // Prepara automaticamente a próxima medição (volta ao modo "live")
     setStartDate(nextStartIso);
     setEndDate(nextEndIso);
