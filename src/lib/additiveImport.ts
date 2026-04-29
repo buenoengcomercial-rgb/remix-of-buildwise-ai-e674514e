@@ -132,6 +132,7 @@ interface AnalyticBlock {
   code: string;
   inputs: AnalyticRow[];
   parentTotalNoBDI?: number;
+  analyticUnitPriceWithBDI?: number;
   startRow: number;
 }
 
