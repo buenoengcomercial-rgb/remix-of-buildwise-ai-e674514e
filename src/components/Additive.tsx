@@ -627,7 +627,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 </thead>
                 <tbody>
                   {(() => {
-                    const COL_COUNT = 14;
+                    const COL_COUNT = 13;
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
                       const r = computeCompositionWithBDI(c, bdi);
