@@ -1675,6 +1675,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const num = String(effNumber).padStart(2, '0');
     const projectSlug = safe(project.name || 'Obra');
     doc.save(`Medicao_${num}_${projectSlug}.pdf`);
+    if (activeMeasurement) {
+      onProjectChange(logToProject(projectRef.current, {
+        ...auditUser,
+        entityType: 'measurement',
+        entityId: activeMeasurement.id,
+        action: 'exported',
+        title: 'Medição exportada em PDF',
+        metadata: { number: activeMeasurement.number },
+      }));
+    }
   };
 
   const handlePrint = () => exportPDF();
