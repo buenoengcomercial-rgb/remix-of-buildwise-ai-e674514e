@@ -286,24 +286,54 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
         return;
       }
 
+      const inputsCount = result.additive.compositions.reduce((a, c) => a + (c.inputs?.length ?? 0), 0);
+      const importMeta = {
+        fileName: pendingFile.name,
+        mode: result.mode,
+        hasSynthetic: hasSynth,
+        hasAnalytic: hasAnaly,
+        compositionsCount: result.additive.compositions.length,
+        inputsCount,
+      };
+
       if (result.mode === 'analytic_only' && draftCandidate) {
         // Mescla a Analítica no aditivo ativo em rascunho — não cria nova aba.
         const merged = result.additive;
-        onProjectChange(prev => ({
-          ...prev,
-          additives: (prev.additives ?? []).map(a =>
-            a.id === draftCandidate.id
-              ? { ...merged, id: draftCandidate.id, name: draftCandidate.name, status: draftCandidate.status ?? 'rascunho' }
-              : a,
-          ),
-        }));
+        onProjectChange(prev => {
+          const next = {
+            ...prev,
+            additives: (prev.additives ?? []).map(a =>
+              a.id === draftCandidate.id
+                ? { ...merged, id: draftCandidate.id, name: draftCandidate.name, status: draftCandidate.status ?? 'rascunho' }
+                : a,
+            ),
+          };
+          return logToProject(next, {
+            ...auditUser,
+            entityType: 'additive',
+            entityId: draftCandidate.id,
+            action: 'imported',
+            title: 'Planilha importada no Aditivo',
+            metadata: importMeta,
+          });
+        });
         setActiveId(draftCandidate.id);
       } else {
         // Adiciona como novo aditivo (synthetic_only ou both)
-        onProjectChange(prev => ({
-          ...prev,
-          additives: [...(prev.additives ?? []), result.additive],
-        }));
+        onProjectChange(prev => {
+          const next = {
+            ...prev,
+            additives: [...(prev.additives ?? []), result.additive],
+          };
+          return logToProject(next, {
+            ...auditUser,
+            entityType: 'additive',
+            entityId: result.additive.id,
+            action: 'imported',
+            title: 'Planilha importada no Aditivo',
+            metadata: importMeta,
+          });
+        });
         setActiveId(result.additive.id);
       }
 
