@@ -72,7 +72,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const [search, setSearch] = useState('');
   const [bankFilter, setBankFilter] = useState<string>('all');
-  const [changeFilter, setChangeFilter] = useState<string>('all');
   const [showAnalytic, setShowAnalytic] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [importDialogOpen, setImportDialogOpen] = useState(false);
