@@ -35,7 +35,11 @@ import {
   Pencil,
   Check,
   X,
+  History,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
+import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import type jsPDFType from 'jspdf';
 type AutoTableFn = typeof import('jspdf-autotable').default;
 type XLSXMod = typeof import('xlsx');
