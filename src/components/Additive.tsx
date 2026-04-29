@@ -187,7 +187,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
 
     return { groupTree: groups, orphanRows: orphans, hasEapLink: anyLinked };
-  }, [active, filteredComps, project]);
+  }, [active, filteredComps, project, globalDiscount]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
