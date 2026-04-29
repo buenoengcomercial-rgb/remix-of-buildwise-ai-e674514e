@@ -886,17 +886,27 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                             {/* I — Qtd Final */}
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
-                            {/* J — Valor Unit (s/ BDI) — editável para novos serviços */}
+                            {/* J — Valor Unit (s/ BDI) — REFERÊNCIA SINAPI (sem desconto) */}
                             <td className="px-2 py-2 text-right">
-                              {isNew && !isLocked ? (
+                              {isNew && !isLocked && c.inputs.length === 0 ? (
                                 <Input
                                   type="number" step="0.01" min={0}
                                   value={c.unitPriceNoBDIInformed ?? 0}
                                   onChange={e => updateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
                                   className="h-7 w-24 text-xs text-right"
-                                  title={globalDiscount > 0 ? `Desconto licit. ${globalDiscount}% será aplicado` : undefined}
+                                  title="Valor de referência s/ BDI (banco de preços, ex.: SINAPI). O desconto da licitação é aplicado na coluna ao lado."
                                 />
-                              ) : fmtBRL(r.unitPriceNoBDI)}
+                              ) : (
+                                <span title={isNew ? 'Referência s/ BDI (SINAPI / banco de preços)' : undefined}>
+                                  {fmtBRL(isNew ? r.referenceUnitNoBDI : r.unitPriceNoBDI)}
+                                </span>
+                              )}
+                            </td>
+                            {/* J2 — V. Unit s/ BDI c/ Desconto — apenas novos serviços acrescidos */}
+                            <td className="px-2 py-2 text-right text-sky-700">
+                              {isNew && (c.addedQuantity ?? 0) > 0
+                                ? <span title={`Desconto licitatório: ${globalDiscount}%`}>{fmtBRL(r.unitPriceNoBDIWithDiscount)}</span>
+                                : <span className="text-muted-foreground">—</span>}
                             </td>
                             {/* K — Valor Unit c/ BDI */}
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
