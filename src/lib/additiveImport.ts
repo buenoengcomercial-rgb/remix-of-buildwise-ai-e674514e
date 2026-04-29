@@ -786,18 +786,28 @@ export function getApprovedAdditiveItems(project: Project): ApprovedAdditiveItem
 export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
   const out: BudgetItem[] = [];
   for (const a of project.additives ?? []) {
-    if (a.status !== 'aprovado') continue;
+    if (a.status !== 'aprovado' && a.status !== 'aditivo_contratado' && !a.isContracted) continue;
     const bdi = a.bdiPercent ?? 0;
+    const discount = a.globalDiscountPercent ?? 0;
     const fator = 1 + bdi / 100;
     for (const c of a.compositions) {
+      // Novos serviços só entram na Medição quando o aditivo foi contratado.
+      if (c.isNewService && !a.isContracted) continue;
       const kind = c.changeKind ?? 'acrescido';
-      if (kind === 'sem_alteracao') continue;
-      const qty = kind === 'suprimido'
-        ? -(c.suppressedQuantity ?? c.quantity ?? 0)
-        : (c.addedQuantity ?? c.quantity ?? 0);
+      if (kind === 'sem_alteracao' && !c.isNewService) continue;
+      const qty = c.isNewService
+        ? (c.addedQuantity ?? c.quantity ?? 0)
+        : kind === 'suprimido'
+          ? -(c.suppressedQuantity ?? c.quantity ?? 0)
+          : (c.addedQuantity ?? c.quantity ?? 0);
       if (!qty) continue;
-      const upNoBDI = c.unitPriceNoBDI || 0;
-      const upWithBDI = c.unitPriceWithBDI || truncar2(upNoBDI * fator);
+      // Para novos serviços, recalcula com desconto global da licitação.
+      const baseUnitNoBDI = c.isNewService
+        ? money2((c.unitPriceNoBDIInformed ?? c.unitPriceNoBDI ?? 0) * (1 - discount / 100))
+        : (c.unitPriceNoBDI || 0);
+      const upWithBDI = c.isNewService
+        ? truncar2(baseUnitNoBDI * fator)
+        : (c.unitPriceWithBDI || truncar2(baseUnitNoBDI * fator));
       out.push({
         id: `add-${a.id}-${c.id}`,
         item: c.item,
@@ -806,9 +816,9 @@ export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
         description: c.description,
         unit: c.unit,
         quantity: qty,
-        unitPriceNoBDI: upNoBDI,
+        unitPriceNoBDI: baseUnitNoBDI,
         unitPriceWithBDI: upWithBDI,
-        totalNoBDI: truncar2(upNoBDI * qty),
+        totalNoBDI: truncar2(baseUnitNoBDI * qty),
         totalWithBDI: truncar2(upWithBDI * qty),
         source: 'aditivo',
         additiveId: a.id,
