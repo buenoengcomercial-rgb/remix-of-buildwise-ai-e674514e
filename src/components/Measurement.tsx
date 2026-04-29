@@ -1176,7 +1176,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     };
     const cfg = actionMap[next];
     if (cfg) {
-      onProjectChange(prev => logToProject(prev, {
+      onProjectChange(logToProject(projectRef.current, {
         ...auditUser,
         entityType: 'measurement',
         entityId: activeMeasurement.id,
