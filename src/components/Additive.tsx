@@ -713,16 +713,17 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     const COL_COUNT = 19; // expander + 18 colunas (A..R)
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
-                      const r = computeAdditiveRow(c, bdi);
+                      const r = computeAdditiveRow(c, bdi, globalDiscount);
                       const cb = computeCompositionWithBDI(c, bdi);
                       const hasInputs = c.inputs.length > 0;
                       const diff = hasInputs ? cb.diff : 0;
                       const hasDiff = hasInputs && Math.abs(diff) > 0.05;
-                      const noAnalytic = !hasInputs;
+                      const noAnalytic = !hasInputs && !c.isNewService;
+                      const isNew = !!c.isNewService;
 
                       return (
                         <Fragment key={c.id}>
-                          <tr className="border-b hover:bg-muted/30 align-top">
+                          <tr className={`border-b hover:bg-muted/30 align-top ${isNew ? 'bg-sky-50/40' : ''}`}>
                             <td className="px-1 py-2 text-center">
                               <button
                                 onClick={() => toggleExpand(c.id)}
@@ -734,26 +735,72 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               </button>
                             </td>
                             <td className="px-2 py-2">{c.itemNumber || c.item}</td>
-                            <td className="px-2 py-2 font-mono text-[11px]">{c.code}</td>
-                            <td className="px-2 py-2">{c.bank}</td>
+                            <td className="px-2 py-2 font-mono text-[11px]">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.code}
+                                  onChange={e => updateComposition(c.id, { code: e.target.value })}
+                                  className="h-7 w-20 text-[11px] font-mono"
+                                />
+                              ) : c.code}
+                            </td>
+                            <td className="px-2 py-2">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.bank}
+                                  onChange={e => updateComposition(c.id, { bank: e.target.value })}
+                                  className="h-7 w-20 text-xs"
+                                />
+                              ) : c.bank}
+                            </td>
                             <td className="px-2 py-2 max-w-[320px]">
-                              <div>{c.description}</div>
-                              <div className="flex flex-wrap gap-1 mt-1">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.description}
+                                  onChange={e => updateComposition(c.id, { description: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              ) : (
+                                <div>{c.description}</div>
+                              )}
+                              <div className="flex flex-wrap gap-1 mt-1 items-center">
+                                {isNew && (
+                                  <Badge variant="outline" className="text-[9px] text-sky-700 border-sky-400 bg-sky-50">
+                                    Novo serviço
+                                  </Badge>
+                                )}
                                 {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
                                 {hasDiff && (
                                   <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
                                     Dif. analítica c/ BDI: {fmtBRL(diff)}
                                   </Badge>
                                 )}
+                                {isNew && !isLocked && (
+                                  <button
+                                    onClick={() => handleRemoveComposition(c.id)}
+                                    className="text-[10px] text-rose-600 hover:underline ml-1"
+                                    title="Remover novo serviço"
+                                  >
+                                    <Trash2 className="w-3 h-3 inline" />
+                                  </button>
+                                )}
                               </div>
                             </td>
-                            <td className="px-2 py-2">{c.unit}</td>
+                            <td className="px-2 py-2">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  value={c.unit}
+                                  onChange={e => updateComposition(c.id, { unit: e.target.value })}
+                                  className="h-7 w-14 text-xs"
+                                />
+                              ) : c.unit}
+                            </td>
                             {/* F — Qtd Contratada */}
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
                                 value={c.originalQuantity ?? 0}
-                                disabled={isLocked}
+                                disabled={isLocked || isNew}
                                 onChange={e => updateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
                                 className="h-7 w-20 text-xs text-right"
                               />
@@ -763,7 +810,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               <Input
                                 type="number" step="0.0001" min={0}
                                 value={c.suppressedQuantity ?? 0}
-                                disabled={isLocked}
+                                disabled={isLocked || isNew}
                                 onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
                                 className="h-7 w-20 text-xs text-right border-rose-200"
                               />
@@ -780,8 +827,18 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                             {/* I — Qtd Final */}
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
-                            {/* J — Valor Unit (s/ BDI) */}
-                            <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceNoBDI)}</td>
+                            {/* J — Valor Unit (s/ BDI) — editável para novos serviços */}
+                            <td className="px-2 py-2 text-right">
+                              {isNew && !isLocked ? (
+                                <Input
+                                  type="number" step="0.01" min={0}
+                                  value={c.unitPriceNoBDIInformed ?? 0}
+                                  onChange={e => updateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
+                                  className="h-7 w-24 text-xs text-right"
+                                  title={globalDiscount > 0 ? `Desconto licit. ${globalDiscount}% será aplicado` : undefined}
+                                />
+                              ) : fmtBRL(r.unitPriceNoBDI)}
+                            </td>
                             {/* K — Valor Unit c/ BDI */}
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
                             {/* L — Total Fonte (preserva valor original da Sintética) */}
