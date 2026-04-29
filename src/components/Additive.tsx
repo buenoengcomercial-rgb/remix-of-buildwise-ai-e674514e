@@ -72,7 +72,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const [search, setSearch] = useState('');
   const [bankFilter, setBankFilter] = useState<string>('all');
-  const [changeFilter, setChangeFilter] = useState<string>('all');
   const [showAnalytic, setShowAnalytic] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -100,17 +99,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     const term = search.trim().toLowerCase();
     return active.compositions.filter(c => {
       if (bankFilter !== 'all' && c.bank !== bankFilter) return false;
-      if (changeFilter !== 'all') {
-        const kind = c.changeKind ?? 'acrescido';
-        if (kind !== changeFilter) return false;
-      }
       if (term) {
         const hay = `${c.item} ${c.code} ${c.description}`.toLowerCase();
         if (!hay.includes(term)) return false;
       }
       return true;
     });
-  }, [active, search, bankFilter, changeFilter]);
+  }, [active, search, bankFilter]);
 
   const totals = active ? additiveTotals(active) : null;
 
@@ -599,15 +594,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 {banks.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={changeFilter} onValueChange={setChangeFilter}>
-              <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="Tipo de alteração" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as alterações</SelectItem>
-                <SelectItem value="acrescido">Acrescidas</SelectItem>
-                <SelectItem value="suprimido">Suprimidas</SelectItem>
-                <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
-              </SelectContent>
-            </Select>
             <Button
               size="sm"
               variant={showAnalytic ? 'default' : 'outline'}
@@ -633,7 +619,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-right font-semibold text-rose-700">Suprimidos</th>
                     <th className="px-2 py-2 text-right font-semibold text-emerald-700">Aditivados</th>
                     <th className="px-2 py-2 text-right font-semibold">Total após troca</th>
-                    <th className="px-2 py-2 text-left font-semibold">Tipo</th>
+                    
                     <th className="px-2 py-2 text-right font-semibold">V.Unit s/BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">V.Unit c/BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">Impacto c/BDI</th>
@@ -641,7 +627,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 </thead>
                 <tbody>
                   {(() => {
-                    const COL_COUNT = 14;
+                    const COL_COUNT = 13;
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
                       const r = computeCompositionWithBDI(c, bdi);
@@ -649,7 +635,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                       const diff = hasInputs ? r.diff : 0;
                       const hasDiff = hasInputs && Math.abs(diff) > 0.05;
                       const noAnalytic = !hasInputs;
-                      const kind: AdditiveChangeKind = c.changeKind ?? 'acrescido';
+                      
                       return (
                         <Fragment key={c.id}>
                           <tr className="border-b hover:bg-muted/30 align-top">
@@ -699,29 +685,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
-                                value={c.addedQuantity ?? c.quantity}
+                                value={c.addedQuantity ?? 0}
                                 disabled={isLocked}
                                 onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
                                 className="h-7 w-20 text-xs text-right border-emerald-200"
                               />
                             </td>
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(totalAfterAdditive(c))}</td>
-                            <td className="px-2 py-2">
-                              <Select
-                                value={kind}
-                                disabled={isLocked}
-                                onValueChange={v => updateComposition(c.id, { changeKind: v as AdditiveChangeKind })}
-                              >
-                                <SelectTrigger className="h-7 text-[11px] w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="acrescido">Acrescido</SelectItem>
-                                  <SelectItem value="suprimido">Suprimido</SelectItem>
-                                  <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </td>
                             <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
                             <td className={`px-2 py-2 text-right font-medium ${r.impactoComBDI < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
