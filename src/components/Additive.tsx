@@ -606,7 +606,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             </Button>
           </Card>
 
-          {/* Tabela principal — modelo "1ºADITIVO" */}
+          {/* Tabela principal — modelo Excel "Aditivo e Supressao" */}
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -616,29 +616,35 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-left font-semibold">Item</th>
                     <th className="px-2 py-2 text-left font-semibold">Código</th>
                     <th className="px-2 py-2 text-left font-semibold">Banco</th>
-                    <th className="px-2 py-2 text-left font-semibold">Discriminação</th>
+                    <th className="px-2 py-2 text-left font-semibold">Descrição</th>
                     <th className="px-2 py-2 text-left font-semibold">Und</th>
-                    <th className="px-2 py-2 text-right font-semibold">Quant. Contrat.</th>
-                    <th className="px-2 py-2 text-right font-semibold text-rose-700">Suprimidos</th>
-                    <th className="px-2 py-2 text-right font-semibold text-emerald-700">Aditivados</th>
-                    <th className="px-2 py-2 text-right font-semibold">Total após troca</th>
-                    
-                    <th className="px-2 py-2 text-right font-semibold">V.Unit s/BDI</th>
-                    <th className="px-2 py-2 text-right font-semibold">V.Unit c/BDI</th>
-                    <th className="px-2 py-2 text-right font-semibold">Impacto c/BDI</th>
+                    <th className="px-2 py-2 text-right font-semibold">Qtd Contratada</th>
+                    <th className="px-2 py-2 text-right font-semibold text-rose-700">Qtd Suprimida</th>
+                    <th className="px-2 py-2 text-right font-semibold text-emerald-700">Qtd Acrescida</th>
+                    <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
+                    <th className="px-2 py-2 text-right font-semibold">Valor Unit</th>
+                    <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
+                    <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
+                    <th className="px-2 py-2 text-right font-semibold">Valor Contratado Calc.</th>
+                    <th className="px-2 py-2 text-right font-semibold text-rose-700">Valor Suprimido</th>
+                    <th className="px-2 py-2 text-right font-semibold text-emerald-700">Valor Acrescido</th>
+                    <th className="px-2 py-2 text-right font-semibold">Valor Final</th>
+                    <th className="px-2 py-2 text-right font-semibold">Diferença</th>
+                    <th className="px-2 py-2 text-right font-semibold">% Var.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
-                    const COL_COUNT = 13;
+                    const COL_COUNT = 19; // expander + 18 colunas (A..R)
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
-                      const r = computeCompositionWithBDI(c, bdi);
+                      const r = computeAdditiveRow(c, bdi);
+                      const cb = computeCompositionWithBDI(c, bdi);
                       const hasInputs = c.inputs.length > 0;
-                      const diff = hasInputs ? r.diff : 0;
+                      const diff = hasInputs ? cb.diff : 0;
                       const hasDiff = hasInputs && Math.abs(diff) > 0.05;
                       const noAnalytic = !hasInputs;
-                      
+
                       return (
                         <Fragment key={c.id}>
                           <tr className="border-b hover:bg-muted/30 align-top">
@@ -655,7 +661,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             <td className="px-2 py-2">{c.itemNumber || c.item}</td>
                             <td className="px-2 py-2 font-mono text-[11px]">{c.code}</td>
                             <td className="px-2 py-2">{c.bank}</td>
-                            <td className="px-2 py-2 max-w-[360px]">
+                            <td className="px-2 py-2 max-w-[320px]">
                               <div>{c.description}</div>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
@@ -667,6 +673,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               </div>
                             </td>
                             <td className="px-2 py-2">{c.unit}</td>
+                            {/* F — Qtd Contratada */}
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
@@ -676,6 +683,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 className="h-7 w-20 text-xs text-right"
                               />
                             </td>
+                            {/* G — Qtd Suprimida */}
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
@@ -685,6 +693,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 className="h-7 w-20 text-xs text-right border-rose-200"
                               />
                             </td>
+                            {/* H — Qtd Acrescida */}
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
@@ -694,11 +703,31 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 className="h-7 w-20 text-xs text-right border-emerald-200"
                               />
                             </td>
-                            <td className="px-2 py-2 text-right font-medium">{fmtNum(totalAfterAdditive(c))}</td>
-                            <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
+                            {/* I — Qtd Final */}
+                            <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
+                            {/* J — Valor Unit (s/ BDI) */}
+                            <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceNoBDI)}</td>
+                            {/* K — Valor Unit c/ BDI */}
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
-                            <td className={`px-2 py-2 text-right font-medium ${r.impactoComBDI < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                              {fmtBRL(r.impactoComBDI)}
+                            {/* L — Total Fonte (preserva valor original da Sintética) */}
+                            <td className="px-2 py-2 text-right text-muted-foreground">{fmtBRL(r.totalFonte)}</td>
+                            {/* M — Valor Contratado Calc. */}
+                            <td className="px-2 py-2 text-right">{fmtBRL(r.valorContratadoCalc)}</td>
+                            {/* N — Valor Suprimido */}
+                            <td className="px-2 py-2 text-right text-rose-700">
+                              {r.valorSuprimido > 0 ? fmtBRL(-r.valorSuprimido) : fmtBRL(0)}
+                            </td>
+                            {/* O — Valor Acrescido */}
+                            <td className="px-2 py-2 text-right text-emerald-700">{fmtBRL(r.valorAcrescido)}</td>
+                            {/* P — Valor Final */}
+                            <td className="px-2 py-2 text-right font-medium">{fmtBRL(r.valorFinal)}</td>
+                            {/* Q — Diferença */}
+                            <td className={`px-2 py-2 text-right font-medium ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : ''}`}>
+                              {fmtBRL(r.diferenca)}
+                            </td>
+                            {/* R — % Var. */}
+                            <td className={`px-2 py-2 text-right ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : ''}`}>
+                              {fmtPct(r.percentVar)}
                             </td>
                           </tr>
                           {isOpen && showAnalytic && c.inputs.length > 0 && (
@@ -735,7 +764,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                     </tr>
                                     <tr className="font-medium text-primary">
                                       <td colSpan={6} className="px-1.5 py-1 text-right">Valor analítico c/ BDI calculado (× qtd):</td>
-                                      <td className="px-1.5 py-1 text-right">{fmtBRL(computeCompositionWithBDI(c, bdi).totalAnalyticWithBDI)}</td>
+                                      <td className="px-1.5 py-1 text-right">{fmtBRL(cb.totalAnalyticWithBDI)}</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -760,10 +789,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                           {g.rows.map(c => renderCompRow(c))}
                           {g.children.map(child => renderGroup(child))}
                           <tr className="border-b bg-muted/30 font-medium">
-                            <td colSpan={COL_COUNT - 1} className="px-2 py-1 text-right text-[11px]" style={{ paddingLeft: indent }}>
+                            <td colSpan={13} className="px-2 py-1 text-right text-[11px]" style={{ paddingLeft: indent }}>
                               Subtotal {g.number} {g.name}
                             </td>
-                            <td className="px-2 py-1 text-right text-[11px]">{fmtBRL(g.subtotalComBDI)}</td>
+                            <td className="px-2 py-1 text-right text-[11px]">{fmtBRL(g.subtotalContratado)}</td>
+                            <td colSpan={3} />
+                            <td className="px-2 py-1 text-right text-[11px]">{fmtBRL(g.subtotalFinal)}</td>
+                            <td colSpan={2} />
                           </tr>
                         </Fragment>
                       );
@@ -783,8 +815,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                       return <>{filteredComps.map(c => renderCompRow(c))}</>;
                     }
 
-                    const grandComBDI = groupTree.reduce((a, g) => a + g.subtotalComBDI, 0);
-                    const orphanComBDI = orphanRows.reduce((a, c) => a + computeCompositionWithBDI(c, bdi).impactoComBDI, 0);
                     return (
                       <>
                         {groupTree.map(g => renderGroup(g))}
@@ -796,24 +826,114 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                               </td>
                             </tr>
                             {orphanRows.map(c => renderCompRow(c))}
-                            <tr className="border-b bg-amber-50/60 font-medium">
-                              <td colSpan={COL_COUNT - 1} className="px-2 py-1 text-right text-[11px]">
-                                Subtotal sem vínculo
-                              </td>
-                              <td className="px-2 py-1 text-right text-[11px]">{fmtBRL(orphanComBDI)}</td>
-                            </tr>
                           </>
                         )}
-                        <tr className="bg-primary/10 border-t-2 border-primary/40 font-bold">
-                          <td colSpan={COL_COUNT - 1} className="px-2 py-2 text-right">TOTAL GERAL c/ BDI</td>
-                          <td className="px-2 py-2 text-right text-primary">{fmtBRL(grandComBDI + orphanComBDI)}</td>
-                        </tr>
                       </>
                     );
                   })()}
                 </tbody>
-
               </table>
+            </div>
+          </Card>
+
+          {/* Bloco TOTAL GERAL — modelo Excel "Aditivo e Supressao" */}
+          <Card className="p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-bold mb-2 text-primary">TOTAL GERAL</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total contratado original</div>
+                  <div className="font-semibold">{fmtBRL(totals.totalContratadoOriginal)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total suprimido</div>
+                  <div className="font-semibold text-rose-700">
+                    {totals.totalSuprimido > 0 ? fmtBRL(-totals.totalSuprimido) : fmtBRL(0)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total acrescido</div>
+                  <div className="font-semibold text-emerald-700">{fmtBRL(totals.totalAcrescido)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Valor final</div>
+                  <div className="font-semibold">{fmtBRL(totals.valorFinal)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Diferença líquida</div>
+                  <div className={`font-semibold ${totals.diferencaLiquida < 0 ? 'text-rose-700' : totals.diferencaLiquida > 0 ? 'text-emerald-700' : ''}`}>
+                    {fmtBRL(totals.diferencaLiquida)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">% variação líquida</div>
+                  <div className={`font-semibold ${totals.percentVariacaoLiquida < 0 ? 'text-rose-700' : totals.percentVariacaoLiquida > 0 ? 'text-emerald-700' : ''}`}>
+                    {fmtPct(totals.percentVariacaoLiquida)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-3">
+              <h3 className="text-sm font-bold mb-2">PERCENTUAIS SOBRE O VALOR CONTRATADO</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">% Supressão</div>
+                  <div className="font-semibold text-rose-700">{fmtPct(totals.percentSupressao)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">% Acréscimo</div>
+                  <div className="font-semibold text-emerald-700">{fmtPct(totals.percentAcrescimo)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">% Impacto líquido</div>
+                  <div className={`font-semibold ${totals.percentImpactoLiquido < 0 ? 'text-rose-700' : totals.percentImpactoLiquido > 0 ? 'text-emerald-700' : ''}`}>
+                    {fmtPct(totals.percentImpactoLiquido)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-3">
+              <h3 className="text-sm font-bold mb-2">LIMITE DE ADITIVO DA LICITAÇÃO</h3>
+              <div className="flex flex-wrap items-end gap-4 text-xs">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Limite (%)</div>
+                  <Input
+                    type="number" step="0.5" min={0}
+                    value={active.aditivoLimitPercent ?? 50}
+                    disabled={isLocked}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      if (!Number.isFinite(v) || v < 0) return;
+                      updateAdditive(a => ({ ...a, aditivoLimitPercent: v }));
+                    }}
+                    className="h-8 w-24 text-xs"
+                  />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Status</div>
+                  <Badge
+                    variant="outline"
+                    className={
+                      totals.limitStatus === 'ok'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }
+                  >
+                    {totals.limitStatus === 'ok' ? (
+                      <><CheckCircle2 className="w-3 h-3 mr-1" /> OK</>
+                    ) : (
+                      <><AlertTriangle className="w-3 h-3 mr-1" /> Revisar Limite</>
+                    )}
+                  </Badge>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Impacto líquido atual: <span className="font-semibold">{fmtPct(totals.percentImpactoLiquido)}</span>
+                  {' · '}
+                  Limite: <span className="font-semibold">{fmtPct(totals.limitPercent)}</span>
+                </div>
+              </div>
             </div>
           </Card>
         </>
