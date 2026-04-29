@@ -1093,6 +1093,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 value={c.suppressedQuantity ?? 0}
                                 disabled={isLocked || isNew}
                                 onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
+                                onBlur={e => updateCompositionQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
                                 className="h-7 w-20 text-xs text-right border-rose-200"
                               />
                             </td>
@@ -1103,6 +1104,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 value={c.addedQuantity ?? 0}
                                 disabled={isLocked}
                                 onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
+                                onBlur={e => updateCompositionQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
                                 className="h-7 w-20 text-xs text-right border-emerald-200"
                               />
                             </td>
