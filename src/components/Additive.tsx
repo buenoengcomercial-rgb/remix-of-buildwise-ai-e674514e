@@ -635,7 +635,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                       const diff = hasInputs ? r.diff : 0;
                       const hasDiff = hasInputs && Math.abs(diff) > 0.05;
                       const noAnalytic = !hasInputs;
-                      const kind: AdditiveChangeKind = c.changeKind ?? 'acrescido';
+                      
                       return (
                         <Fragment key={c.id}>
                           <tr className="border-b hover:bg-muted/30 align-top">
