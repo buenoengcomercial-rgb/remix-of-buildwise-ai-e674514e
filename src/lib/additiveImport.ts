@@ -578,6 +578,42 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
   };
 }
 
+/**
+ * Calcula os valores por linha conforme o modelo Excel "Aditivo e Supressao":
+ *   Qtd Final = Qtd Contratada − Qtd Suprimida + Qtd Acrescida
+ *   Valor Contratado Calc. = Qtd Contratada × Valor Unit c/ BDI
+ *   Valor Suprimido       = Qtd Suprimida × Valor Unit c/ BDI
+ *   Valor Acrescido       = Qtd Acrescida × Valor Unit c/ BDI
+ *   Valor Final           = Qtd Final × Valor Unit c/ BDI
+ *   Diferença             = Valor Final − Valor Contratado Calc.
+ *   % Var.                = Diferença / Valor Contratado Calc.
+ */
+export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number) {
+  const fator = 1 + (bdiPercent || 0) / 100;
+  const unitPriceNoBDI = money2(comp.unitPriceNoBDI);
+  const unitPriceWithBDI = money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
+  const qtdContratada = comp.originalQuantity ?? comp.quantity ?? 0;
+  const qtdSuprimida = comp.suppressedQuantity ?? 0;
+  const qtdAcrescida = comp.addedQuantity ?? 0;
+  const qtdFinal = qtdContratada - qtdSuprimida + qtdAcrescida;
+  // Total Fonte preserva o valor original da Sintética/Medição (não recalcula).
+  const totalFonte = comp.totalWithBDI != null
+    ? money2(comp.totalWithBDI)
+    : money2(comp.total ?? truncar2(unitPriceWithBDI * (comp.quantity ?? qtdContratada)));
+  const valorContratadoCalc = money2(unitPriceWithBDI * qtdContratada);
+  const valorSuprimido = money2(unitPriceWithBDI * qtdSuprimida);
+  const valorAcrescido = money2(unitPriceWithBDI * qtdAcrescida);
+  const valorFinal = money2(unitPriceWithBDI * qtdFinal);
+  const diferenca = money2(valorFinal - valorContratadoCalc);
+  const percentVar = valorContratadoCalc > 0 ? diferenca / valorContratadoCalc : 0;
+  return {
+    unitPriceNoBDI, unitPriceWithBDI,
+    qtdContratada, qtdSuprimida, qtdAcrescida, qtdFinal,
+    totalFonte, valorContratadoCalc, valorSuprimido, valorAcrescido, valorFinal,
+    diferenca, percentVar,
+  };
+}
+
 export function additiveTotals(add: Additive) {
   const bdi = add.bdiPercent ?? 0;
   const compCount = add.compositions.length;
@@ -596,10 +632,38 @@ export function additiveTotals(add: Additive) {
   const semAnalitico = add.compositions.filter(c => c.inputs.length === 0).length;
   const acrescidos = add.compositions.filter(c => (c.addedQuantity ?? 0) > 0).length;
   const suprimidos = add.compositions.filter(c => (c.suppressedQuantity ?? 0) > 0).length;
+
+  // Bloco TOTAL GERAL (modelo Excel)
+  let totalContratadoOriginal = 0;
+  let totalSuprimido = 0;
+  let totalAcrescido = 0;
+  let valorFinal = 0;
+  for (const c of add.compositions) {
+    const r = computeAdditiveRow(c, bdi);
+    totalContratadoOriginal = money2(totalContratadoOriginal + r.valorContratadoCalc);
+    totalSuprimido = money2(totalSuprimido + r.valorSuprimido);
+    totalAcrescido = money2(totalAcrescido + r.valorAcrescido);
+    valorFinal = money2(valorFinal + r.valorFinal);
+  }
+  const diferencaLiquida = money2(valorFinal - totalContratadoOriginal);
+  const percentVariacaoLiquida = totalContratadoOriginal > 0 ? diferencaLiquida / totalContratadoOriginal : 0;
+  const percentSupressao = totalContratadoOriginal > 0 ? totalSuprimido / totalContratadoOriginal : 0;
+  const percentAcrescimo = totalContratadoOriginal > 0 ? totalAcrescido / totalContratadoOriginal : 0;
+  const percentImpactoLiquido = percentVariacaoLiquida;
+
+  const limitPercent = (add.aditivoLimitPercent ?? 50) / 100;
+  const limitStatus: 'ok' | 'revisar' =
+    Math.abs(percentImpactoLiquido) <= limitPercent ? 'ok' : 'revisar';
+
   return {
     compCount, totalSemBDI, totalComBDI, total: totalComBDI,
     inputCount, semAnalitico, acrescidos, suprimidos,
     impactoSemBDI, impactoComBDI,
+    // Bloco TOTAL GERAL
+    totalContratadoOriginal, totalSuprimido, totalAcrescido, valorFinal,
+    diferencaLiquida, percentVariacaoLiquida,
+    percentSupressao, percentAcrescimo, percentImpactoLiquido,
+    limitPercent, limitStatus,
   };
 }
 
