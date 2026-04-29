@@ -659,6 +659,7 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
 
 export function additiveTotals(add: Additive) {
   const bdi = add.bdiPercent ?? 0;
+  const discount = add.globalDiscountPercent ?? 0;
   const compCount = add.compositions.length;
   const totalSemBDI = add.compositions.reduce(
     (a, c) => money2(a + money2(c.totalNoBDI ?? c.unitPriceNoBDI * c.quantity)),
@@ -680,12 +681,19 @@ export function additiveTotals(add: Additive) {
   let totalContratadoOriginal = 0;
   let totalSuprimido = 0;
   let totalAcrescido = 0;
+  let totalAcrescidoExistentes = 0;
+  let totalNovosServicos = 0;
   let valorFinal = 0;
   for (const c of add.compositions) {
-    const r = computeAdditiveRow(c, bdi);
+    const r = computeAdditiveRow(c, bdi, discount);
     totalContratadoOriginal = money2(totalContratadoOriginal + r.valorContratadoOriginalPreservado);
     totalSuprimido = money2(totalSuprimido + r.valorSuprimido);
     totalAcrescido = money2(totalAcrescido + r.valorAcrescido);
+    if (r.isNewService) {
+      totalNovosServicos = money2(totalNovosServicos + r.valorAcrescido);
+    } else {
+      totalAcrescidoExistentes = money2(totalAcrescidoExistentes + r.valorAcrescido);
+    }
     valorFinal = money2(valorFinal + r.valorFinal);
   }
   const diferencaLiquida = money2(valorFinal - totalContratadoOriginal);
@@ -704,6 +712,7 @@ export function additiveTotals(add: Additive) {
     impactoSemBDI, impactoComBDI,
     // Bloco TOTAL GERAL
     totalContratadoOriginal, totalSuprimido, totalAcrescido, valorFinal,
+    totalAcrescidoExistentes, totalNovosServicos,
     diferencaLiquida, percentVariacaoLiquida,
     percentSupressao, percentAcrescimo, percentImpactoLiquido,
     limitPercent, limitStatus,
