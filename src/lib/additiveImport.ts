@@ -33,17 +33,16 @@ function asString(v: unknown): string {
   return String(v).trim();
 }
 
-/** Trunca para 2 casas decimais (sem arredondar para cima). */
+// Motor financeiro único — não duplicar regras aqui.
+import { trunc2 as _trunc2, money2 as _money2 } from './financialEngine';
+
+/** Alias histórico — usar trunc2 do financialEngine. */
 export function truncar2(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  return Math.trunc(v * 100) / 100;
+  return _trunc2(v);
 }
 
 export function money2(value: number | null | undefined): number {
-  if (value === null || value === undefined) return 0;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+  return _money2(value);
 }
 
 const norm = (s: string) =>
