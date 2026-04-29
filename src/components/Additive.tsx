@@ -698,25 +698,41 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <p className="text-sm text-muted-foreground mt-0.5">
             Importação de planilhas de aditivo contratual (Sintética + Analítica).
           </p>
-          {active && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className={STATUS_BADGE[status]}>
-                {status === 'aprovado' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                {status === 'em_analise' && <Lock className="w-3 h-3 mr-1" />}
-                {status === 'reprovado' && <XCircle className="w-3 h-3 mr-1" />}
-                {STATUS_LABEL[status]}
-              </Badge>
-              {active.approvedAt && (
-                <span className="text-[11px] text-muted-foreground">
-                  Aprovado em {new Date(active.approvedAt).toLocaleDateString('pt-BR')}
-                  {active.approvedBy ? ` por ${active.approvedBy}` : ''}
-                </span>
-              )}
-              {active.reviewNotes && (
-                <span className="text-[11px] text-muted-foreground italic">"{active.reviewNotes}"</span>
-              )}
-            </div>
-          )}
+          {active && (() => {
+            const lastLog = (project.auditLogs ?? [])
+              .filter(l => l.entityType === 'additive' && l.entityId === active.id)
+              .sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+            return (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={STATUS_BADGE[status]}>
+                  {status === 'aprovado' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                  {status === 'em_analise' && <Lock className="w-3 h-3 mr-1" />}
+                  {status === 'reprovado' && <XCircle className="w-3 h-3 mr-1" />}
+                  {STATUS_LABEL[status]}
+                </Badge>
+                {(active.version ?? 0) > 0 && (
+                  <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-300">
+                    v{active.version}
+                  </Badge>
+                )}
+                {active.approvedAt && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Aprovado em {new Date(active.approvedAt).toLocaleDateString('pt-BR')}
+                    {active.approvedBy ? ` por ${active.approvedBy}` : ''}
+                  </span>
+                )}
+                {lastLog && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Última alteração: {new Date(lastLog.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {lastLog.userName ? ` · ${lastLog.userName}` : ''}
+                  </span>
+                )}
+                {active.reviewNotes && (
+                  <span className="text-[11px] text-muted-foreground italic">"{active.reviewNotes}"</span>
+                )}
+              </div>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
