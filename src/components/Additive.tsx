@@ -192,6 +192,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     });
   };
 
+  const toggleCollapsed = (id: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleFileSelected = (f: File | null) => {
     if (!f) return;
     setPendingFile(f);
