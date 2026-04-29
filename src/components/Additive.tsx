@@ -1010,7 +1010,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">Total acrescido</div>
+                  <div className="text-[11px] text-muted-foreground">Total acrescido (existentes)</div>
+                  <div className="font-semibold text-emerald-700">{fmtBRL(totals.totalAcrescidoExistentes)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total novos serviços</div>
+                  <div className="font-semibold text-sky-700">{fmtBRL(totals.totalNovosServicos)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Total acrescido (geral)</div>
                   <div className="font-semibold text-emerald-700">{fmtBRL(totals.totalAcrescido)}</div>
                 </div>
                 <div>
