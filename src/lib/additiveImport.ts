@@ -883,9 +883,9 @@ export function getApprovedAdditiveBudgetItems(project: Project): BudgetItem[] {
           ? -(c.suppressedQuantity ?? c.quantity ?? 0)
           : (c.addedQuantity ?? c.quantity ?? 0);
       if (!qty) continue;
-      // Para novos serviços, recalcula com desconto global da licitação.
+      // Para novos serviços, usa REFERÊNCIA da analítica (SINAPI) e aplica desconto global da licitação.
       const baseUnitNoBDI = c.isNewService
-        ? money2((c.unitPriceNoBDIInformed ?? c.unitPriceNoBDI ?? 0) * (1 - discount / 100))
+        ? money2(referenceUnitNoBDIForNewService(c) * (1 - discount / 100))
         : (c.unitPriceNoBDI || 0);
       const upWithBDI = c.isNewService
         ? truncar2(baseUnitNoBDI * fator)
