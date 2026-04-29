@@ -473,6 +473,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
               />
             </div>
           )}
+          <input
             ref={fileRef} type="file" accept=".xlsx,.xls"
             className="hidden"
             onChange={e => handleFileSelected(e.target.files?.[0] ?? null)}
