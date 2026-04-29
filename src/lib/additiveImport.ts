@@ -594,8 +594,8 @@ export function additiveTotals(add: Additive) {
   const impactoComBDI = add.compositions.reduce((a, c) => money2(a + computeCompositionWithBDI(c, bdi).impactoComBDI), 0);
   const inputCount = add.compositions.reduce((a, c) => a + c.inputs.length, 0);
   const semAnalitico = add.compositions.filter(c => c.inputs.length === 0).length;
-  const acrescidos = add.compositions.filter(c => (c.changeKind ?? 'acrescido') === 'acrescido').length;
-  const suprimidos = add.compositions.filter(c => c.changeKind === 'suprimido').length;
+  const acrescidos = add.compositions.filter(c => (c.addedQuantity ?? 0) > 0).length;
+  const suprimidos = add.compositions.filter(c => (c.suppressedQuantity ?? 0) > 0).length;
   return {
     compCount, totalSemBDI, totalComBDI, total: totalComBDI,
     inputCount, semAnalitico, acrescidos, suprimidos,
