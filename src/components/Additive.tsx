@@ -756,7 +756,6 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                     <th className="px-2 py-2 text-right font-semibold text-emerald-700">Qtd Acrescida</th>
                     <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Unit</th>
-                    <th className="px-2 py-2 text-right font-semibold text-sky-700">V. Unit s/ BDI c/ Desc.</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
                     <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
                     <th className="px-2 py-2 text-right font-semibold">Valor Contratado Calc.</th>
