@@ -930,6 +930,21 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             </td>
                           </tr>
                           {!isCollapsed && g.rows.map(c => renderCompRow(c))}
+                          {!isCollapsed && !isLocked && (
+                            <tr className="border-b bg-sky-50/30">
+                              <td colSpan={COL_COUNT} className="px-2 py-1">
+                                <div style={{ paddingLeft: indent + 24 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddNewService(g.phaseId, `${g.number} ${g.name}`, g.number)}
+                                    className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline inline-flex items-center gap-1"
+                                  >
+                                    + Novo serviço em {g.number} {g.name}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           {!isCollapsed && g.children.map(child => renderGroup(child))}
                           <tr className="border-b bg-muted/30 font-medium">
                             <td colSpan={13} className="px-2 py-1 text-right text-[11px]" style={{ paddingLeft: indent }}>
