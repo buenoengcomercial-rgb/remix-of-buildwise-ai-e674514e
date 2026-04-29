@@ -35,7 +35,11 @@ import {
   Pencil,
   Check,
   X,
+  History,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
+import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import type jsPDFType from 'jspdf';
 type AutoTableFn = typeof import('jspdf-autotable').default;
 type XLSXMod = typeof import('xlsx');
@@ -277,6 +281,9 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   const contract = project.contractInfo || {};
   const [activeId, setActiveId] = useState<string>('live');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { user } = useAuth();
+  const auditUser = useMemo(() => userInfoFromSupabaseUser(user), [user]);
 
   // Número da próxima medição em preparação (default)
   const defaultNextNumber =
@@ -1097,8 +1104,22 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         search: '',
       },
     };
-    projectRef.current = nextProject;
-    onProjectChange(nextProject);
+    const nextProjectWithLog = logToProject(nextProject, {
+      ...auditUser,
+      entityType: 'measurement',
+      entityId: snapshot.id,
+      action: 'created',
+      title: `Medição nº ${number} gerada`,
+      metadata: {
+        number,
+        startDate,
+        endDate,
+        bdiPercent,
+        itemsCount: items.length,
+      },
+    });
+    projectRef.current = nextProjectWithLog;
+    onProjectChange(nextProjectWithLog);
     // Prepara automaticamente a próxima medição (volta ao modo "live")
     setStartDate(nextStartIso);
     setEndDate(nextEndIso);
@@ -1137,6 +1158,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   const setStatus = (next: MeasurementStatus) => {
     if (!activeMeasurement) return;
+    const previous = activeMeasurement.status;
     updateMeasurement(activeMeasurement.id, m => ({
       ...m,
       status: next,
@@ -1145,6 +1167,28 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         { at: new Date().toISOString(), field: 'status', previous: m.status, next },
       ],
     }));
+    const actionMap: Record<MeasurementStatus, { action: Parameters<typeof logToProject>[1]['action']; title: string } | null> = {
+      draft: null,
+      generated: { action: 'created', title: 'Medição gerada' },
+      in_review: { action: 'submitted_for_review', title: 'Medição enviada para análise fiscal' },
+      approved: { action: 'approved', title: 'Medição aprovada' },
+      rejected: { action: 'rejected', title: 'Medição reprovada — liberada para ajuste' },
+    };
+    const cfg = actionMap[next];
+    if (cfg) {
+      onProjectChange(logToProject(projectRef.current, {
+        ...auditUser,
+        entityType: 'measurement',
+        entityId: activeMeasurement.id,
+        action: cfg.action,
+        title: cfg.title,
+        metadata: {
+          number: activeMeasurement.number,
+          previousStatus: previous,
+          nextStatus: next,
+        },
+      }));
+    }
   };
 
   const deleteMeasurement = () => {
@@ -1252,6 +1296,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `Medição ${effNumber}`);
     XLSX.writeFile(wb, `medicao_${effNumber}_${effStart}_a_${effEnd}.xlsx`);
+    if (activeMeasurement) {
+      onProjectChange(logToProject(projectRef.current, {
+        ...auditUser,
+        entityType: 'measurement',
+        entityId: activeMeasurement.id,
+        action: 'exported',
+        title: 'Medição exportada em Excel',
+        metadata: { number: activeMeasurement.number },
+      }));
+    }
   };
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
@@ -1621,6 +1675,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     const num = String(effNumber).padStart(2, '0');
     const projectSlug = safe(project.name || 'Obra');
     doc.save(`Medicao_${num}_${projectSlug}.pdf`);
+    if (activeMeasurement) {
+      onProjectChange(logToProject(projectRef.current, {
+        ...auditUser,
+        entityType: 'measurement',
+        entityId: activeMeasurement.id,
+        action: 'exported',
+        title: 'Medição exportada em PDF',
+        metadata: { number: activeMeasurement.number },
+      }));
+    }
   };
 
   const handlePrint = () => exportPDF();
@@ -1768,6 +1832,11 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
           <Button variant="default" size="sm" onClick={handlePrint}>
             <Printer className="w-4 h-4 mr-1" /> Imprimir / PDF
           </Button>
+          {activeMeasurement && (
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+              <History className="w-4 h-4 mr-1" /> Histórico
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2581,6 +2650,16 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {activeMeasurement && (
+        <AuditHistoryPanel
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          project={project}
+          entityType="measurement"
+          entityId={activeMeasurement.id}
+          title={`Medição nº ${activeMeasurement.number}`}
+        />
+      )}
     </div>
   );
 }

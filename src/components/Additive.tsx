@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Upload, Download, Printer, Search, ChevronRight, ChevronDown,
-  AlertTriangle, Trash2, CheckCircle2, XCircle, Send, RotateCcw, Lock,
+  AlertTriangle, Trash2, CheckCircle2, XCircle, Send, RotateCcw, Lock, History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -31,6 +31,10 @@ import {
   buildAdditiveFromSyntheticBudgetItems, computeAdditiveRow,
   createNewServiceComposition, contractAdditive, money2, truncar2,
 } from '@/lib/additiveImport';
+import { useAuth } from '@/hooks/useAuth';
+import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
+import AuditHistoryPanel from '@/components/AuditHistoryPanel';
+import type { AdditiveApprovalSnapshot } from '@/types/project';
 
 interface Props {
   project: Project;
@@ -90,6 +94,9 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvedBy, setApprovedBy] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { user } = useAuth();
+  const auditUser = useMemo(() => userInfoFromSupabaseUser(user), [user]);
 
   const status: AdditiveStatus = active?.status ?? 'rascunho';
   const isLocked = status === 'em_analise' || status === 'aprovado' || status === 'aditivo_contratado' || !!active?.isContracted;
@@ -279,24 +286,54 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
         return;
       }
 
+      const inputsCount = result.additive.compositions.reduce((a, c) => a + (c.inputs?.length ?? 0), 0);
+      const importMeta = {
+        fileName: pendingFile.name,
+        mode: result.mode,
+        hasSynthetic: hasSynth,
+        hasAnalytic: hasAnaly,
+        compositionsCount: result.additive.compositions.length,
+        inputsCount,
+      };
+
       if (result.mode === 'analytic_only' && draftCandidate) {
         // Mescla a Analítica no aditivo ativo em rascunho — não cria nova aba.
         const merged = result.additive;
-        onProjectChange(prev => ({
-          ...prev,
-          additives: (prev.additives ?? []).map(a =>
-            a.id === draftCandidate.id
-              ? { ...merged, id: draftCandidate.id, name: draftCandidate.name, status: draftCandidate.status ?? 'rascunho' }
-              : a,
-          ),
-        }));
+        onProjectChange(prev => {
+          const next = {
+            ...prev,
+            additives: (prev.additives ?? []).map(a =>
+              a.id === draftCandidate.id
+                ? { ...merged, id: draftCandidate.id, name: draftCandidate.name, status: draftCandidate.status ?? 'rascunho' }
+                : a,
+            ),
+          };
+          return logToProject(next, {
+            ...auditUser,
+            entityType: 'additive',
+            entityId: draftCandidate.id,
+            action: 'imported',
+            title: 'Planilha importada no Aditivo',
+            metadata: importMeta,
+          });
+        });
         setActiveId(draftCandidate.id);
       } else {
         // Adiciona como novo aditivo (synthetic_only ou both)
-        onProjectChange(prev => ({
-          ...prev,
-          additives: [...(prev.additives ?? []), result.additive],
-        }));
+        onProjectChange(prev => {
+          const next = {
+            ...prev,
+            additives: [...(prev.additives ?? []), result.additive],
+          };
+          return logToProject(next, {
+            ...auditUser,
+            entityType: 'additive',
+            entityId: result.additive.id,
+            action: 'imported',
+            title: 'Planilha importada no Aditivo',
+            metadata: importMeta,
+          });
+        });
         setActiveId(result.additive.id);
       }
 
@@ -319,14 +356,33 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const handleExportExcel = async () => {
     if (!active) return;
-    try { await exportAdditiveToExcel(active); toast.success('Excel gerado'); }
-    catch { toast.error('Falha ao gerar Excel'); }
+    try {
+      await exportAdditiveToExcel(active);
+      toast.success('Excel gerado');
+      logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em Excel' });
+    } catch { toast.error('Falha ao gerar Excel'); }
   };
 
   const handleExportPdf = async () => {
     if (!active) return;
-    try { await exportAdditiveToPdf(active, project.name, showAnalytic); toast.success('PDF gerado'); }
-    catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
+    try {
+      await exportAdditiveToPdf(active, project.name, showAnalytic);
+      toast.success('PDF gerado');
+      logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em PDF' });
+    } catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
+  };
+
+  // ===== Helper de log (Aditivo) =====
+  const logAdd = (
+    additiveId: string,
+    params: Omit<Parameters<typeof logToProject>[1], 'entityType' | 'entityId'>,
+  ) => {
+    onProjectChange(prev => logToProject(prev, {
+      ...params,
+      ...auditUser,
+      entityType: 'additive',
+      entityId: additiveId,
+    }));
   };
 
   // ===== Atualizações =====
@@ -345,11 +401,51 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     }));
   };
 
+  /** Atualiza uma quantidade da composição registrando AuditLog para acrescida/suprimida. */
+  const updateCompositionQuantity = (
+    compId: string,
+    field: 'addedQuantity' | 'suppressedQuantity',
+    nextValue: number,
+  ) => {
+    if (!active) return;
+    const comp = active.compositions.find(c => c.id === compId);
+    if (!comp) return;
+    const before = comp[field] ?? 0;
+    if (before === nextValue) return;
+    updateComposition(compId, { [field]: nextValue });
+    logAdd(active.id, {
+      action: 'updated',
+      title: field === 'addedQuantity'
+        ? 'Quantidade acrescida alterada'
+        : 'Quantidade suprimida alterada',
+      metadata: {
+        item: comp.item || comp.itemNumber,
+        code: comp.code,
+        description: comp.description,
+        before,
+        after: nextValue,
+      },
+      before,
+      after: nextValue,
+    });
+  };
+
   const handleDeleteAdditive = (id: string) => {
-    onProjectChange(prev => ({
-      ...prev,
-      additives: (prev.additives ?? []).filter(a => a.id !== id),
-    }));
+    const target = (project.additives ?? []).find(a => a.id === id);
+    onProjectChange(prev => {
+      const next = {
+        ...prev,
+        additives: (prev.additives ?? []).filter(a => a.id !== id),
+      };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: id,
+        action: 'deleted',
+        title: 'Aditivo excluído',
+        description: target?.name,
+      });
+    });
     if (activeId === id) {
       const remaining = (project.additives ?? []).filter(a => a.id !== id);
       setActiveId(remaining[0]?.id ?? null);
@@ -362,7 +458,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     if (!active || isLocked) return;
     const num = Number(value.replace(',', '.'));
     if (!Number.isFinite(num) || num < 0) return;
+    const before = active.bdiPercent ?? 0;
+    if (before === num) return;
     updateAdditive(a => ({ ...a, bdiPercent: num }));
+    logAdd(active.id, {
+      action: 'updated',
+      title: 'BDI do aditivo alterado',
+      before,
+      after: num,
+    });
   };
 
   const setStatus = (next: AdditiveStatus, extra?: Partial<AdditiveModel>) => {
@@ -370,12 +474,36 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   };
 
   const handleSendForReview = () => {
+    if (!active) return;
     setStatus('em_analise');
+    const t = additiveTotals(active);
+    const errCount = (active.issues ?? []).filter(i => i.level === 'error').length;
+    const warnCount = (active.issues ?? []).filter(i => i.level === 'warning').length;
+    logAdd(active.id, {
+      action: 'submitted_for_review',
+      title: 'Aditivo enviado para análise fiscal',
+      metadata: {
+        totalContratadoOriginal: t.totalContratadoOriginal,
+        totalSuprimido: t.totalSuprimido,
+        totalAcrescido: t.totalAcrescido,
+        valorFinal: t.valorFinal,
+        diferencaLiquida: t.diferencaLiquida,
+        percentImpactoLiquido: t.percentImpactoLiquido,
+        errorsCount: errCount,
+        warningsCount: warnCount,
+      },
+    });
     toast.success('Aditivo enviado para análise fiscal');
   };
 
   const handleReject = () => {
+    if (!active) return;
     setStatus('reprovado', { reviewNotes: reviewNotes || undefined });
+    logAdd(active.id, {
+      action: 'rejected',
+      title: 'Aditivo reprovado',
+      description: reviewNotes || undefined,
+    });
     toast.success('Aditivo reprovado — voltou para ajuste');
     setReviewDialogOpen(false);
     setReviewNotes('');
@@ -383,25 +511,56 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const handleApprove = () => {
     if (!active) return;
+    const totals = additiveTotals(active);
+    const nextVersion = (active.version ?? 0) + 1;
+    const approvedAt = new Date().toISOString();
+    const snapshot: AdditiveApprovalSnapshot = {
+      version: nextVersion,
+      approvedAt,
+      approvedBy: approvedBy || undefined,
+      reviewNotes: reviewNotes || undefined,
+      bdiPercent: active.bdiPercent ?? 0,
+      globalDiscountPercent: active.globalDiscountPercent ?? 0,
+      totals,
+      compositions: JSON.parse(JSON.stringify(active.compositions)),
+      issues: JSON.parse(JSON.stringify(active.issues ?? [])),
+    };
     const approvedAdditive: AdditiveModel = {
       ...active,
       status: 'aprovado',
-      approvedAt: new Date().toISOString(),
+      approvedAt,
       approvedBy: approvedBy || undefined,
       reviewNotes: reviewNotes || undefined,
+      version: nextVersion,
+      approvalSnapshots: [...(active.approvalSnapshots ?? []), snapshot],
     };
     onProjectChange(prev => {
       const nextAdditives = (prev.additives ?? []).map(a =>
         a.id === active.id ? approvedAdditive : a,
       );
-      // Recalcula budgetItems source 'aditivo' a partir de TODOS aditivos aprovados
       const projWithApproved: Project = { ...prev, additives: nextAdditives };
       const approvedBudget = getApprovedAdditiveBudgetItems(projWithApproved);
       const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
-      return {
+      const next = {
         ...projWithApproved,
         budgetItems: [...keep, ...approvedBudget],
       };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: active.id,
+        action: 'approved',
+        title: 'Aditivo aprovado',
+        description: approvedBy ? `Por ${approvedBy}` : undefined,
+        metadata: {
+          version: nextVersion,
+          totalContratadoOriginal: totals.totalContratadoOriginal,
+          totalSuprimido: totals.totalSuprimido,
+          totalAcrescido: totals.totalAcrescido,
+          valorFinal: totals.valorFinal,
+          percentImpactoLiquido: totals.percentImpactoLiquido,
+        },
+      });
     });
     toast.success('Aditivo aprovado e integrado à Medição');
     setReviewDialogOpen(false);
@@ -418,7 +577,14 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       const projWithChange: Project = { ...prev, additives: nextAdditives };
       const approvedBudget = getApprovedAdditiveBudgetItems(projWithChange);
       const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
-      return { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
+      const next = { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: active.id,
+        action: 'unlocked',
+        title: 'Aditivo voltou para rascunho',
+      });
     });
     toast.success('Aditivo voltou para rascunho — itens removidos da Medição');
   };
@@ -429,7 +595,20 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       toast.error('Nenhuma Sintética encontrada na Medição. Importe a Sintética primeiro na aba Tarefas/EAP.');
       return;
     }
-    onProjectChange(prev => ({ ...prev, additives: [...(prev.additives ?? []), built] }));
+    onProjectChange(prev => {
+      const next = { ...prev, additives: [...(prev.additives ?? []), built] };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: built.id,
+        action: 'imported',
+        title: 'Aditivo criado a partir da Sintética da Medição',
+        metadata: {
+          compositionsCount: built.compositions.length,
+          source: 'sintetica_medicao',
+        },
+      });
+    });
     setActiveId(built.id);
     toast.success(`Sintética da Medição reaproveitada (${built.compositions.length} composições).`);
   };
@@ -438,19 +617,49 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     if (!active || isLocked) return;
     const num = Number(value.replace(',', '.'));
     if (!Number.isFinite(num) || num < 0) return;
+    const before = active.globalDiscountPercent ?? 0;
+    if (before === num) return;
     updateAdditive(a => ({ ...a, globalDiscountPercent: num }));
+    logAdd(active.id, {
+      action: 'updated',
+      title: 'Desconto licitatório do aditivo alterado',
+      before,
+      after: num,
+    });
   };
 
   const handleAddNewService = (phaseId: string, phaseChain: string, parentNumber: string) => {
     if (!active || isLocked) return;
     const novo = createNewServiceComposition(active, phaseId, phaseChain, parentNumber);
     updateAdditive(a => ({ ...a, compositions: [...a.compositions, novo] }));
+    logAdd(active.id, {
+      action: 'created',
+      title: 'Novo serviço criado no aditivo',
+      metadata: {
+        item: novo.itemNumber,
+        code: novo.code,
+        phaseId,
+        phaseChain,
+      },
+    });
     toast.success(`Novo serviço ${novo.itemNumber} adicionado`);
   };
 
   const handleRemoveComposition = (compId: string) => {
     if (!active || isLocked) return;
+    const comp = active.compositions.find(c => c.id === compId);
     updateAdditive(a => ({ ...a, compositions: a.compositions.filter(c => c.id !== compId) }));
+    if (comp?.isNewService) {
+      logAdd(active.id, {
+        action: 'deleted',
+        title: 'Novo serviço excluído do aditivo',
+        metadata: {
+          item: comp.item || comp.itemNumber,
+          code: comp.code,
+          description: comp.description,
+        },
+      });
+    }
   };
 
   const handleContractAdditive = () => {
@@ -459,7 +668,21 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       toast.error('O aditivo precisa estar Aprovado para ser contratado.');
       return;
     }
-    onProjectChange(prev => contractAdditive(prev, active.id));
+    const novosServicos = active.compositions.filter(c => c.isNewService);
+    onProjectChange(prev => {
+      const next = contractAdditive(prev, active.id);
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: active.id,
+        action: 'contracted',
+        title: 'Aditivo contratado e integrado ao projeto',
+        metadata: {
+          novosServicosIntegrados: novosServicos.length,
+          budgetItemsCriados: (next.budgetItems ?? []).filter(b => b.additiveId === active.id).length,
+        },
+      });
+    });
     toast.success('Aditivo contratado — novos serviços integrados ao projeto');
   };
 
@@ -475,25 +698,41 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <p className="text-sm text-muted-foreground mt-0.5">
             Importação de planilhas de aditivo contratual (Sintética + Analítica).
           </p>
-          {active && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className={STATUS_BADGE[status]}>
-                {status === 'aprovado' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                {status === 'em_analise' && <Lock className="w-3 h-3 mr-1" />}
-                {status === 'reprovado' && <XCircle className="w-3 h-3 mr-1" />}
-                {STATUS_LABEL[status]}
-              </Badge>
-              {active.approvedAt && (
-                <span className="text-[11px] text-muted-foreground">
-                  Aprovado em {new Date(active.approvedAt).toLocaleDateString('pt-BR')}
-                  {active.approvedBy ? ` por ${active.approvedBy}` : ''}
-                </span>
-              )}
-              {active.reviewNotes && (
-                <span className="text-[11px] text-muted-foreground italic">"{active.reviewNotes}"</span>
-              )}
-            </div>
-          )}
+          {active && (() => {
+            const lastLog = (project.auditLogs ?? [])
+              .filter(l => l.entityType === 'additive' && l.entityId === active.id)
+              .sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+            return (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={STATUS_BADGE[status]}>
+                  {status === 'aprovado' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                  {status === 'em_analise' && <Lock className="w-3 h-3 mr-1" />}
+                  {status === 'reprovado' && <XCircle className="w-3 h-3 mr-1" />}
+                  {STATUS_LABEL[status]}
+                </Badge>
+                {(active.version ?? 0) > 0 && (
+                  <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-300">
+                    v{active.version}
+                  </Badge>
+                )}
+                {active.approvedAt && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Aprovado em {new Date(active.approvedAt).toLocaleDateString('pt-BR')}
+                    {active.approvedBy ? ` por ${active.approvedBy}` : ''}
+                  </span>
+                )}
+                {lastLog && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Última alteração: {new Date(lastLog.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {lastLog.userName ? ` · ${lastLog.userName}` : ''}
+                  </span>
+                )}
+                {active.reviewNotes && (
+                  <span className="text-[11px] text-muted-foreground italic">"{active.reviewNotes}"</span>
+                )}
+              </div>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {undoButton}
@@ -565,6 +804,9 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           </Button>
           <Button variant="outline" size="sm" disabled={!active} onClick={handleExportPdf}>
             <Printer className="w-4 h-4 mr-1" /> Imprimir / PDF
+          </Button>
+          <Button variant="outline" size="sm" disabled={!active} onClick={() => setHistoryOpen(true)}>
+            <History className="w-4 h-4 mr-1" /> Histórico
           </Button>
         </div>
       </header>
@@ -870,6 +1112,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 value={c.suppressedQuantity ?? 0}
                                 disabled={isLocked || isNew}
                                 onChange={e => updateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
+                                onBlur={e => updateCompositionQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
                                 className="h-7 w-20 text-xs text-right border-rose-200"
                               />
                             </td>
@@ -880,6 +1123,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                                 value={c.addedQuantity ?? 0}
                                 disabled={isLocked}
                                 onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
+                                onBlur={e => updateCompositionQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
                                 className="h-7 w-20 text-xs text-right border-emerald-200"
                               />
                             </td>
@@ -1317,6 +1561,16 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {active && (
+        <AuditHistoryPanel
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          project={project}
+          entityType="additive"
+          entityId={active.id}
+          title={active.name}
+        />
+      )}
     </div>
   );
 }
