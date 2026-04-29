@@ -685,29 +685,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                             <td className="px-2 py-2 text-right">
                               <Input
                                 type="number" step="0.0001" min={0}
-                                value={c.addedQuantity ?? c.quantity}
+                                value={c.addedQuantity ?? 0}
                                 disabled={isLocked}
                                 onChange={e => updateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
                                 className="h-7 w-20 text-xs text-right border-emerald-200"
                               />
                             </td>
                             <td className="px-2 py-2 text-right font-medium">{fmtNum(totalAfterAdditive(c))}</td>
-                            <td className="px-2 py-2">
-                              <Select
-                                value={kind}
-                                disabled={isLocked}
-                                onValueChange={v => updateComposition(c.id, { changeKind: v as AdditiveChangeKind })}
-                              >
-                                <SelectTrigger className="h-7 text-[11px] w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="acrescido">Acrescido</SelectItem>
-                                  <SelectItem value="suprimido">Suprimido</SelectItem>
-                                  <SelectItem value="sem_alteracao">Sem alteração</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </td>
                             <td className="px-2 py-2 text-right">{fmtBRL(c.unitPriceNoBDI)}</td>
                             <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
                             <td className={`px-2 py-2 text-right font-medium ${r.impactoComBDI < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
