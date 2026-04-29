@@ -77,6 +77,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const [bankFilter, setBankFilter] = useState<string>('all');
   const [showAnalytic, setShowAnalytic] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importName, setImportName] = useState('SINTÉTICA CORREÇÃO 02');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -188,6 +189,15 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
       const n = new Set(prev);
       if (n.has(id)) n.delete(id); else n.add(id);
       return n;
+    });
+  };
+
+  const toggleCollapsed = (id: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
@@ -777,17 +787,28 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
                     const renderGroup = (g: CompGroup): JSX.Element => {
                       const indent = g.depth * 14;
+                      const isCollapsed = collapsed.has(g.phaseId);
                       return (
                         <Fragment key={g.phaseId}>
                           <tr className="bg-primary/5 border-b border-primary/20 font-semibold">
                             <td colSpan={COL_COUNT} className="px-2 py-1.5">
                               <div className="flex items-center gap-2" style={{ paddingLeft: indent }}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCollapsed(g.phaseId)}
+                                  className="inline-flex items-center justify-center w-4 h-4 hover:bg-primary/10 rounded"
+                                  aria-label={isCollapsed ? 'Expandir' : 'Recolher'}
+                                >
+                                  {isCollapsed
+                                    ? <ChevronRight className="w-3.5 h-3.5" />
+                                    : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
                                 <span className="text-[12px]">{g.number} {g.name}</span>
                               </div>
                             </td>
                           </tr>
-                          {g.rows.map(c => renderCompRow(c))}
-                          {g.children.map(child => renderGroup(child))}
+                          {!isCollapsed && g.rows.map(c => renderCompRow(c))}
+                          {!isCollapsed && g.children.map(child => renderGroup(child))}
                           <tr className="border-b bg-muted/30 font-medium">
                             <td colSpan={13} className="px-2 py-1 text-right text-[11px]" style={{ paddingLeft: indent }}>
                               Subtotal {g.number} {g.name}
