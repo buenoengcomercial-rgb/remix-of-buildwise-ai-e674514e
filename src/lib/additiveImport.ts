@@ -271,6 +271,7 @@ function parseAnalyticSheet(
       current = {
         normCode: normalizeCode(codeRaw),
         code: codeRaw,
+        item: aRaw.replace(',', '.'),
         inputs: [],
         parentTotalNoBDI: total > 0 ? total : undefined,
         startRow: i + 1,
