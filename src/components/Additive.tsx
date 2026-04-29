@@ -768,7 +768,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
                 </thead>
                 <tbody>
                   {(() => {
-                    const COL_COUNT = 20; // expander + 19 colunas
+                    const COL_COUNT = 19; // expander + 18 colunas
                     const renderCompRow = (c: AdditiveComposition) => {
                       const isOpen = expanded.has(c.id);
                       const r = computeAdditiveRow(c, bdi, globalDiscount);
