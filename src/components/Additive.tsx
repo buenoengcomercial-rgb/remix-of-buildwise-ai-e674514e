@@ -29,7 +29,7 @@ import {
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
   totalAfterAdditive, getApprovedAdditiveBudgetItems,
   buildAdditiveFromSyntheticBudgetItems, computeAdditiveRow,
-  createNewServiceComposition, contractAdditive,
+  createNewServiceComposition, contractAdditive, money2, truncar2,
 } from '@/lib/additiveImport';
 
 interface Props {
