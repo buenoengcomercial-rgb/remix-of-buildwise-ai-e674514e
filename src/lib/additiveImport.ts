@@ -1350,7 +1350,8 @@ export function contractAdditive(project: Project, additiveId: string): Project 
     const novosDaFase = novos.filter(n => n.phaseId === phase.id);
     if (novosDaFase.length === 0) return phase;
     const newTasks: Task[] = novosDaFase.map(n => {
-      const baseUnitNoBDI = money2((n.unitPriceNoBDIInformed ?? n.unitPriceNoBDI ?? 0) * (1 - discount / 100));
+      const referenceUnit = referenceUnitNoBDIForNewService(n);
+      const baseUnitNoBDI = money2(referenceUnit * (1 - discount / 100));
       const upWithBDI = truncar2(baseUnitNoBDI * fator);
       const qty = n.addedQuantity ?? 0;
       const taskId = `add-${add.id}-${n.id}`;
