@@ -131,13 +131,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   );
   const hasSyntheticBudget = syntheticBudgetItems.length > 0;
 
-  const persistContractInfo = (next: Partial<ContractInfo>) => {
-    const latestProject = projectRef.current;
-    onProjectChange({
-      ...latestProject,
-      contractInfo: { ...(latestProject.contractInfo || {}), ...next },
-    });
-  };
 
   const numbering = useMemo(() => getChapterNumbering(project), [project]);
   const orderedTasks = useMemo(() => buildOrderedTasks(project), [project]);
