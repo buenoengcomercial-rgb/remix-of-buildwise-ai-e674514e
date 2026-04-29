@@ -77,6 +77,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const [bankFilter, setBankFilter] = useState<string>('all');
   const [showAnalytic, setShowAnalytic] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importName, setImportName] = useState('SINTÉTICA CORREÇÃO 02');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
