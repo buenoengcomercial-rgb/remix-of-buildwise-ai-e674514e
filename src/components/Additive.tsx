@@ -94,6 +94,9 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvedBy, setApprovedBy] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { user } = useAuth();
+  const auditUser = useMemo(() => userInfoFromSupabaseUser(user), [user]);
 
   const status: AdditiveStatus = active?.status ?? 'rascunho';
   const isLocked = status === 'em_analise' || status === 'aprovado' || status === 'aditivo_contratado' || !!active?.isContracted;
