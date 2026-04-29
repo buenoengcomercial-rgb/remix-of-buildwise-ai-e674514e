@@ -1561,6 +1561,16 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {active && (
+        <AuditHistoryPanel
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          project={project}
+          entityType="additive"
+          entityId={active.id}
+          title={active.name}
+        />
+      )}
     </div>
   );
 }
