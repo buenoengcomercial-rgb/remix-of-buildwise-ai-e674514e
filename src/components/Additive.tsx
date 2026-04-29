@@ -356,14 +356,20 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const handleExportExcel = async () => {
     if (!active) return;
-    try { await exportAdditiveToExcel(active); toast.success('Excel gerado'); }
-    catch { toast.error('Falha ao gerar Excel'); }
+    try {
+      await exportAdditiveToExcel(active);
+      toast.success('Excel gerado');
+      logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em Excel' });
+    } catch { toast.error('Falha ao gerar Excel'); }
   };
 
   const handleExportPdf = async () => {
     if (!active) return;
-    try { await exportAdditiveToPdf(active, project.name, showAnalytic); toast.success('PDF gerado'); }
-    catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
+    try {
+      await exportAdditiveToPdf(active, project.name, showAnalytic);
+      toast.success('PDF gerado');
+      logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em PDF' });
+    } catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
   };
 
   // ===== Helper de log (Aditivo) =====
