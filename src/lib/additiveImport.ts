@@ -130,10 +130,31 @@ interface AnalyticRow {
 interface AnalyticBlock {
   normCode: string;
   code: string;
+  item: string;
   inputs: AnalyticRow[];
   parentTotalNoBDI?: number;
   analyticUnitPriceWithBDI?: number;
   startRow: number;
+}
+
+/**
+ * Verifica se a planilha tem cabeçalhos compatíveis com Analítica.
+ * Procura nos primeiros 30 linhas por cabeçalhos típicos.
+ */
+function looksLikeAnalyticSheet(rows: unknown[][]): boolean {
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const cells = (rows[i] || []).map(c => norm(asString(c)));
+    const joined = cells.join(' | ');
+    const hasItem = cells.some(c => c === 'item' || c.startsWith('item'));
+    const hasCodigo = joined.includes('codigo') || joined.includes('código');
+    const hasBanco = cells.some(c => c === 'banco' || c.startsWith('banco'));
+    const hasDesc = joined.includes('descricao') || joined.includes('descrição');
+    const hasQuant = cells.some(c => c === 'quant' || c.startsWith('quant') || c === 'coef' || c.startsWith('coef'));
+    const hasUn = cells.some(c => c === 'un' || c === 'und' || c === 'unid' || c.startsWith('unid'));
+    const hits = [hasItem, hasCodigo, hasBanco, hasDesc, hasQuant, hasUn].filter(Boolean).length;
+    if (hits >= 4) return true;
+  }
+  return false;
 }
 
 /**
@@ -250,6 +271,7 @@ function parseAnalyticSheet(
       current = {
         normCode: normalizeCode(codeRaw),
         code: codeRaw,
+        item: aRaw.replace(',', '.'),
         inputs: [],
         parentTotalNoBDI: total > 0 ? total : undefined,
         startRow: i + 1,
@@ -353,21 +375,43 @@ export function mergeAnalyticIntoAdditive(
   blocks: AnalyticBlock[],
 ): { additive: Additive; linked: number; leftover: number; issues: AdditiveImportIssue[] } {
   const issues: AdditiveImportIssue[] = [];
+  // Filas indexadas: (1) por item+code  (2) por code normalizado
+  const queueByItemCode = new Map<string, AnalyticBlock[]>();
   const queueByCode = new Map<string, AnalyticBlock[]>();
+  const consumed = new Set<AnalyticBlock>();
   for (const b of blocks) {
-    const key = b.normCode;
-    if (!queueByCode.has(key)) queueByCode.set(key, []);
-    queueByCode.get(key)!.push(b);
+    const itemKey = `${(b.item || '').trim()}|${b.normCode}`;
+    if (!queueByItemCode.has(itemKey)) queueByItemCode.set(itemKey, []);
+    queueByItemCode.get(itemKey)!.push(b);
+    const cKey = b.normCode;
+    if (!queueByCode.has(cKey)) queueByCode.set(cKey, []);
+    queueByCode.get(cKey)!.push(b);
   }
   let linked = 0;
 
-  // Primeira passada: vincular composições SEM inputs (inclui novos serviços manuais com isNewService).
-  // Segunda passada (fallback): caso ainda haja blocos sobrando para um código já vinculado, ignorar.
+  const takeBlock = (item: string, code: string): AnalyticBlock | undefined => {
+    const itemKey = `${(item || '').trim()}|${normalizeCode(code)}`;
+    const qIc = queueByItemCode.get(itemKey);
+    if (qIc) {
+      while (qIc.length > 0) {
+        const b = qIc.shift()!;
+        if (!consumed.has(b)) { consumed.add(b); return b; }
+      }
+    }
+    const qC = queueByCode.get(normalizeCode(code));
+    if (qC) {
+      while (qC.length > 0) {
+        const b = qC.shift()!;
+        if (!consumed.has(b)) { consumed.add(b); return b; }
+      }
+    }
+    return undefined;
+  };
+
+  // Vincula composições SEM inputs (inclui novos serviços manuais com isNewService).
   const compositions = additive.compositions.map(c => {
     if (c.inputs && c.inputs.length > 0) return c; // já vinculado, preserva
-    const key = normalizeCode(c.code);
-    const queue = queueByCode.get(key);
-    const block = queue && queue.length > 0 ? queue.shift()! : undefined;
+    const block = takeBlock(c.item ?? '', c.code);
     if (!block) return c;
     linked++;
     const inputs: AdditiveInput[] = block.inputs.map(r => ({
@@ -380,6 +424,8 @@ export function mergeAnalyticIntoAdditive(
       unitPrice: r.unitPrice,
       total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
     }));
+    // Preserva todos os campos da composição (id, item, code, bank, description, unit,
+    // quantity, addedQuantity, phaseId, phaseChain, itemNumber, isNewService, etc.).
     const merged: AdditiveComposition = { ...c, inputs };
     if (block.analyticUnitPriceWithBDI != null) {
       merged.analyticUnitPriceWithBDI = money2(block.analyticUnitPriceWithBDI);
@@ -388,10 +434,9 @@ export function mergeAnalyticIntoAdditive(
     }
     return merged;
   });
-  let leftover = 0;
-  for (const q of queueByCode.values()) leftover += q.length;
+  const leftover = blocks.filter(b => !consumed.has(b)).length;
   if (leftover > 0) {
-    issues.push({ level: 'warning', message: `${leftover} bloco(s) analítico(s) sem composição sintética correspondente foram ignorados.` });
+    issues.push({ level: 'warning', message: `${leftover} bloco(s) analítico(s) sem composição correspondente foram ignorados.` });
   }
   return {
     additive: { ...additive, compositions, issues: [...(additive.issues ?? []), ...issues] },
@@ -416,8 +461,24 @@ export async function importAdditiveFromExcel(
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
 
-  const synthName = findSheetName(wb.SheetNames, 'Sintetica') || findSheetName(wb.SheetNames, 'sintética');
-  const analyName = findSheetName(wb.SheetNames, 'Analitica') || findSheetName(wb.SheetNames, 'analítica');
+  let synthName = findSheetName(wb.SheetNames, 'Sintetica') || findSheetName(wb.SheetNames, 'sintética');
+  let analyName = findSheetName(wb.SheetNames, 'Analitica') || findSheetName(wb.SheetNames, 'analítica');
+
+  // Fallback por conteúdo: se não há aba ANALITICA pelo nome, procura por cabeçalhos compatíveis
+  // em qualquer aba (exceto a Sintética). Aceita arquivos como "Folha 1" / "Planilha1".
+  if (!analyName) {
+    for (const name of wb.SheetNames) {
+      if (synthName && name === synthName) continue;
+      const rows = sheetToRows(wb.Sheets[name], XLSX);
+      if (looksLikeAnalyticSheet(rows)) {
+        analyName = name;
+        break;
+      }
+    }
+  }
+  // Fallback por conteúdo para Sintética: cabeçalho com "Total" ou "BDI" em A..J.
+  // (Mantemos detecção apenas por nome; conteúdo via looksLikeAnalyticSheet não deve confundir
+  // pois a Sintética foi descartada acima.)
   const hasSynthetic = !!synthName;
   const hasAnalytic = !!analyName;
 
