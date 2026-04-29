@@ -379,6 +379,35 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     toast.success(`Sintética da Medição reaproveitada (${built.compositions.length} composições).`);
   };
 
+  const handleChangeGlobalDiscount = (value: string) => {
+    if (!active || isLocked) return;
+    const num = Number(value.replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) return;
+    updateAdditive(a => ({ ...a, globalDiscountPercent: num }));
+  };
+
+  const handleAddNewService = (phaseId: string, phaseChain: string, parentNumber: string) => {
+    if (!active || isLocked) return;
+    const novo = createNewServiceComposition(active, phaseId, phaseChain, parentNumber);
+    updateAdditive(a => ({ ...a, compositions: [...a.compositions, novo] }));
+    toast.success(`Novo serviço ${novo.itemNumber} adicionado`);
+  };
+
+  const handleRemoveComposition = (compId: string) => {
+    if (!active || isLocked) return;
+    updateAdditive(a => ({ ...a, compositions: a.compositions.filter(c => c.id !== compId) }));
+  };
+
+  const handleContractAdditive = () => {
+    if (!active) return;
+    if (active.status !== 'aprovado' && !active.isContracted) {
+      toast.error('O aditivo precisa estar Aprovado para ser contratado.');
+      return;
+    }
+    onProjectChange(prev => contractAdditive(prev, active.id));
+    toast.success('Aditivo contratado — novos serviços integrados ao projeto');
+  };
+
   const bdi = active?.bdiPercent ?? 0;
 
   return (
