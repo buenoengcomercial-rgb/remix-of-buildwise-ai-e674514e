@@ -1158,6 +1158,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   const setStatus = (next: MeasurementStatus) => {
     if (!activeMeasurement) return;
+    const previous = activeMeasurement.status;
     updateMeasurement(activeMeasurement.id, m => ({
       ...m,
       status: next,
@@ -1166,6 +1167,28 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         { at: new Date().toISOString(), field: 'status', previous: m.status, next },
       ],
     }));
+    const actionMap: Record<MeasurementStatus, { action: Parameters<typeof logToProject>[1]['action']; title: string } | null> = {
+      draft: null,
+      generated: { action: 'created', title: 'Medição gerada' },
+      in_review: { action: 'submitted_for_review', title: 'Medição enviada para análise fiscal' },
+      approved: { action: 'approved', title: 'Medição aprovada' },
+      rejected: { action: 'rejected', title: 'Medição reprovada — liberada para ajuste' },
+    };
+    const cfg = actionMap[next];
+    if (cfg) {
+      onProjectChange(prev => logToProject(prev, {
+        ...auditUser,
+        entityType: 'measurement',
+        entityId: activeMeasurement.id,
+        action: cfg.action,
+        title: cfg.title,
+        metadata: {
+          number: activeMeasurement.number,
+          previousStatus: previous,
+          nextStatus: next,
+        },
+      }));
+    }
   };
 
   const deleteMeasurement = () => {
