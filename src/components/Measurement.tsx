@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   Project,
   Task,
@@ -55,6 +55,7 @@ import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import { useMeasurementExports } from '@/hooks/useMeasurementExports';
 import { useMeasurementState } from '@/hooks/useMeasurementState';
+import { useMeasurementActions } from '@/hooks/useMeasurementActions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -130,13 +131,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   );
   const hasSyntheticBudget = syntheticBudgetItems.length > 0;
 
-  const persistContractInfo = (next: Partial<ContractInfo>) => {
-    const latestProject = projectRef.current;
-    onProjectChange({
-      ...latestProject,
-      contractInfo: { ...(latestProject.contractInfo || {}), ...next },
-    });
-  };
 
   const numbering = useMemo(() => getChapterNumbering(project), [project]);
   const orderedTasks = useMemo(() => buildOrderedTasks(project), [project]);
@@ -645,269 +639,59 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     return { ...t, pctPeriod, pctAccum, pctBalance };
   }, [filteredRows]);
 
-  // ───────── Persistência ─────────
-  const updateTaskField = (taskId: string, patch: Partial<Task>) => {
-    if (isLocked) return;
-    onProjectChange({
-      ...project,
-      phases: project.phases.map(p => ({
-        ...p,
-        tasks: p.tasks.map(t => (t.id === taskId ? { ...t, ...patch } : t)),
-      })),
-    });
-  };
-  const updateUnitPriceNoBDI = (taskId: string, value: number) => {
-    const noBDI = trunc2(value);
-    if (isSnapshotMode) {
-      patchSnapshotItem(taskId, { unitPriceNoBDI: noBDI, unitPriceWithBDI: calculateUnitPriceWithBDI(noBDI, effBdi) }, 'Valor unit. s/ BDI');
-    } else {
-      updateTaskField(taskId, { unitPriceNoBDI: noBDI, unitPrice: calculateUnitPriceWithBDI(noBDI, bdiPercent) });
-    }
-  };
-  const updateUnitPriceWithBDI = (taskId: string, value: number) => {
-    if (isSnapshotMode) {
-      patchSnapshotItem(taskId, { unitPriceWithBDI: value, unitPriceNoBDI: value / effBdiFactor }, 'Valor unit. c/ BDI');
-    } else {
-      updateTaskField(taskId, { unitPrice: value, unitPriceNoBDI: value / bdiFactor });
-    }
-  };
-
-  const setManualPeriodQuantity = (taskId: string, value: number) => {
-    if (isSnapshotMode) return; // snapshot usa proposta/aprovada
-    const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
-    const manualId = `manual-measurement-${effStart}-${effEnd}`;
-    onProjectChange({
-      ...project,
-      phases: project.phases.map(p => ({
-        ...p,
-        tasks: p.tasks.map(t => {
-          if (t.id !== taskId) return t;
-          const others = (t.dailyLogs || []).filter(l => l.id !== manualId);
-          if (safeValue <= 0) return { ...t, dailyLogs: others };
-          return {
-            ...t,
-            dailyLogs: [
-              ...others,
-              {
-                id: manualId, date: effEnd, plannedQuantity: 0,
-                actualQuantity: safeValue,
-                notes: 'Lançamento manual via Planilha de Medição',
-              },
-            ],
-          };
-        }),
-      })),
-    });
-  };
-
-  // ───────── Snapshot (medição salva) ─────────
-  const updateMeasurement = useCallback((id: string, patch: (m: SavedMeasurement) => SavedMeasurement) => {
-    onProjectChange({
-      ...project,
-      measurements: (project.measurements || []).map(m => (m.id === id ? patch(m) : m)),
-    });
-  }, [project, onProjectChange]);
-
-  const patchSnapshotItem = (taskId: string, patch: Partial<MeasurementSnapshotItem>, fieldLabel: string) => {
-    if (!activeMeasurement) return;
-    if (isLocked) return;
-    const existing = activeMeasurement.items.find(i => i.taskId === taskId);
-    const log: MeasurementChangeLog = {
-      at: new Date().toISOString(),
-      field: fieldLabel,
-      itemId: taskId,
-      previous: existing ? JSON.stringify(extractLogValues(existing, patch)) : '',
-      next: JSON.stringify(patch),
-      reason: editReason || undefined,
-    };
-    updateMeasurement(activeMeasurement.id, m => ({
-      ...m,
-      items: m.items.map(i => (i.taskId === taskId ? { ...i, ...patch } : i)),
-      history: [...(m.history || []), log],
-    }));
-  };
-
-  const extractLogValues = (item: MeasurementSnapshotItem, patch: Partial<MeasurementSnapshotItem>) => {
-    const out: Record<string, unknown> = {};
-    Object.keys(patch).forEach(k => {
-      const key = k as keyof MeasurementSnapshotItem;
-      out[k] = item[key];
-    });
-    return out;
-  };
-
-  // Gerar nova medição (snapshot a partir do live)
-  const generateMeasurement = () => {
-    // Defesa: nunca gerar se houver erros bloqueantes
-    if (validationSummary.hasBlocking) {
-      toast({
-        title: 'Não é possível gerar a medição',
-        description: 'Corrija os erros listados no painel de validação antes de prosseguir.',
-        variant: 'destructive',
-      });
-      setConfirmGenerate(false);
-      return;
-    }
-    const number = Number(measurementNumber) || (measurements[measurements.length - 1]?.number || 0) + 1;
-    const items: MeasurementSnapshotItem[] = rows.map(r => ({
-      item: r.item,
-      phaseId: r.phaseId,
-      phaseChain: r.phaseChain,
-      taskId: r.taskId,
-      description: r.description,
-      unit: r.unit,
-      itemCode: r.itemCode,
-      priceBank: r.priceBank,
-      qtyContracted: r.qtyContracted,
-      unitPriceNoBDI: r.unitPriceNoBDI,
-      unitPriceWithBDI: r.unitPriceWithBDI,
-      qtyProposed: r.qtyPeriod,
-      qtyPriorAccum: r.qtyPriorAccum,
-    }));
-
-    const snapshot: SavedMeasurement = {
-      id: `meas-${Date.now()}`,
-      number,
-      startDate, endDate,
-      issueDate: today,
-      status: 'generated',
-      bdiPercent,
-      items,
-      generatedAt: new Date().toISOString(),
-      contractSnapshot: {
-        contractor, contracted, contractNumber, contractObject, location,
-        budgetSource, bdiPercent,
-        nextMeasurementNumber: number + 1,
-      },
-      history: [],
-      dailyReportSnapshot: buildDailyReportSnapshot(dailyReportsSummary),
-    };
-
-    const nextStartIso = isoAddDays(endDate, 1);
-    const nextEndIso = isoAddDays(nextStartIso, 30);
-    const nextNumber = number + 1;
-    const latestProject = projectRef.current;
-    const nextProject: Project = {
-      ...latestProject,
-      contractInfo: {
-        ...(latestProject.contractInfo || {}),
-        nextMeasurementNumber: nextNumber,
-      },
-      measurements: [...(latestProject.measurements || []), snapshot],
-      measurementDraft: {
-        number: nextNumber,
-        startDate: nextStartIso,
-        endDate: nextEndIso,
-        chapterFilter: 'all',
-        search: '',
-      },
-    };
-    const nextProjectWithLog = logToProject(nextProject, {
-      ...auditUser,
-      entityType: 'measurement',
-      entityId: snapshot.id,
-      action: 'created',
-      title: `Medição nº ${number} gerada`,
-      metadata: {
-        number,
-        startDate,
-        endDate,
-        bdiPercent,
-        itemsCount: items.length,
-      },
-    });
-    projectRef.current = nextProjectWithLog;
-    onProjectChange(nextProjectWithLog);
-    // Prepara automaticamente a próxima medição (volta ao modo "live")
-    setStartDate(nextStartIso);
-    setEndDate(nextEndIso);
-    setChapterFilter('all');
-    setSearch('');
-    setMeasurementNumber(String(nextNumber));
-    setActiveId('live');
-    setConfirmGenerate(false);
-    toast({
-      title: `Medição nº ${number} gerada`,
-      description: `Snapshot bloqueado. Preparando ${nextNumber}ª Medição.`,
-    });
-  };
-
-  // Editar medição gerada (destrava parcialmente)
-  const unlockForEdit = () => {
-    if (!activeMeasurement) return;
-    updateMeasurement(activeMeasurement.id, m => ({
-      ...m,
-      status: 'rejected',
-      history: [
-        ...(m.history || []),
-        {
-          at: new Date().toISOString(),
-          field: 'status',
-          previous: m.status,
-          next: 'rejected',
-          reason: editReason || 'Liberada para ajustes',
-        },
-      ],
-    }));
-    setConfirmEdit(false);
-    setEditReason('');
-    toast({ title: 'Medição aberta para ajustes', description: 'Edite os campos liberados e refaça a aprovação.' });
-  };
-
-  const setStatus = (next: MeasurementStatus) => {
-    if (!activeMeasurement) return;
-    const previous = activeMeasurement.status;
-    updateMeasurement(activeMeasurement.id, m => ({
-      ...m,
-      status: next,
-      history: [
-        ...(m.history || []),
-        { at: new Date().toISOString(), field: 'status', previous: m.status, next },
-      ],
-    }));
-    const actionMap: Record<MeasurementStatus, { action: Parameters<typeof logToProject>[1]['action']; title: string } | null> = {
-      draft: null,
-      generated: { action: 'created', title: 'Medição gerada' },
-      in_review: { action: 'submitted_for_review', title: 'Medição enviada para análise fiscal' },
-      approved: { action: 'approved', title: 'Medição aprovada' },
-      rejected: { action: 'rejected', title: 'Medição reprovada — liberada para ajuste' },
-    };
-    const cfg = actionMap[next];
-    if (cfg) {
-      onProjectChange(logToProject(projectRef.current, {
-        ...auditUser,
-        entityType: 'measurement',
-        entityId: activeMeasurement.id,
-        action: cfg.action,
-        title: cfg.title,
-        metadata: {
-          number: activeMeasurement.number,
-          previousStatus: previous,
-          nextStatus: next,
-        },
-      }));
-    }
-  };
-
-  const deleteMeasurement = () => {
-    if (!activeMeasurement) return;
-    onProjectChange({
-      ...project,
-      measurements: (project.measurements || []).filter(m => m.id !== activeMeasurement.id),
-    });
-    setActiveId('live');
-    setConfirmDelete(false);
-    toast({ title: 'Medição excluída' });
-  };
-
-  const newMeasurementDraft = () => {
-    const last = measurements[measurements.length - 1];
-    const suggested = suggestPeriodForNext(measurements, today, monthAgo);
-    setStartDate(suggested.startDate);
-    setEndDate(suggested.endDate);
-    setMeasurementNumber(String((last?.number || 0) + 1));
-    setActiveId('live');
-  };
+  // ───────── Ações (extraídas para useMeasurementActions) ─────────
+  const {
+    persistContractInfo,
+    updateTaskField,
+    updateUnitPriceNoBDI,
+    setManualPeriodQuantity,
+    patchSnapshotItem,
+    generateMeasurement,
+    unlockForEdit,
+    setStatus,
+    deleteMeasurement,
+    newMeasurementDraft,
+  } = useMeasurementActions({
+    project,
+    projectRef,
+    onProjectChange,
+    auditUser,
+    activeMeasurement,
+    isLocked,
+    isSnapshotMode,
+    setActiveId,
+    rows,
+    measurements,
+    dailyReportsSummary,
+    validationSummary,
+    effStart,
+    effEnd,
+    effBdi,
+    effBdiFactor,
+    startDate,
+    endDate,
+    today,
+    monthAgo,
+    bdiPercent,
+    bdiFactor,
+    contractor,
+    contracted,
+    contractNumber,
+    contractObject,
+    location,
+    budgetSource,
+    measurementNumber,
+    editReason,
+    setStartDate,
+    setEndDate,
+    setChapterFilter,
+    setSearch,
+    setMeasurementNumber,
+    setConfirmGenerate,
+    setConfirmEdit,
+    setConfirmDelete,
+    setEditReason,
+  });
 
   // ───────── Collapse helpers ─────────
   const toggleCollapsed = (id: string) => {
