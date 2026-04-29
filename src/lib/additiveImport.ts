@@ -225,13 +225,19 @@ function parseAnalyticSheet(
     const aLow = norm(aRaw);
     const dLow = norm(description);
 
-    // Linha "Valor com BDI =" → ignora completamente como insumo
+    // Linha "Valor com BDI =" → captura como analyticUnitPriceWithBDI do bloco atual e ignora como insumo
     if (
       dLow.includes('valor com bdi') ||
       aLow.includes('valor com bdi') ||
       norm(asString(r[6])).includes('valor com bdi') ||
       norm(asString(r[5])).includes('valor com bdi')
     ) {
+      if (current) {
+        const valWithBDI = toNumber(r[7]);
+        if (valWithBDI > 0) {
+          current.analyticUnitPriceWithBDI = valWithBDI;
+        }
+      }
       continue;
     }
 
