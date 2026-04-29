@@ -132,6 +132,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     const empty = { groupTree: [] as CompGroup[], orphanRows: [] as AdditiveComposition[], hasEapLink: false };
     if (!active) return empty;
     const bdi = active.bdiPercent ?? 0;
+    void globalDiscount; // captured pra recalcular grupos quando muda
     const compsByPhase = new Map<string, AdditiveComposition[]>();
     const orphans: AdditiveComposition[] = [];
     let anyLinked = false;
