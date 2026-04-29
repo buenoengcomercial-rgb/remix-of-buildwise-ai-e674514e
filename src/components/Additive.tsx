@@ -805,6 +805,9 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
           <Button variant="outline" size="sm" disabled={!active} onClick={handleExportPdf}>
             <Printer className="w-4 h-4 mr-1" /> Imprimir / PDF
           </Button>
+          <Button variant="outline" size="sm" disabled={!active} onClick={() => setHistoryOpen(true)}>
+            <History className="w-4 h-4 mr-1" /> Histórico
+          </Button>
         </div>
       </header>
 
