@@ -456,7 +456,23 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
               />
             </div>
           )}
-          <input
+          {active && (
+            <div
+              className="flex items-center gap-1.5 px-2 py-1 rounded border bg-card"
+              title="Desconto global aplicado APENAS aos novos serviços (estudo do aditivo)."
+            >
+              <span className="text-xs text-muted-foreground">Desconto Licit. (%):</span>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={globalDiscount}
+                disabled={isLocked}
+                onChange={e => handleChangeGlobalDiscount(e.target.value)}
+                className="h-7 w-20 text-xs"
+              />
+            </div>
+          )}
             ref={fileRef} type="file" accept=".xlsx,.xls"
             className="hidden"
             onChange={e => handleFileSelected(e.target.files?.[0] ?? null)}
