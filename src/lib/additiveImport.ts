@@ -360,6 +360,9 @@ export function mergeAnalyticIntoAdditive(
     queueByCode.get(key)!.push(b);
   }
   let linked = 0;
+
+  // Primeira passada: vincular composições SEM inputs (inclui novos serviços manuais com isNewService).
+  // Segunda passada (fallback): caso ainda haja blocos sobrando para um código já vinculado, ignorar.
   const compositions = additive.compositions.map(c => {
     if (c.inputs && c.inputs.length > 0) return c; // já vinculado, preserva
     const key = normalizeCode(c.code);
