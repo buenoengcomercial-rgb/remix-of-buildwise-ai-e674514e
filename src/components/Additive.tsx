@@ -99,17 +99,13 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     const term = search.trim().toLowerCase();
     return active.compositions.filter(c => {
       if (bankFilter !== 'all' && c.bank !== bankFilter) return false;
-      if (changeFilter !== 'all') {
-        const kind = c.changeKind ?? 'acrescido';
-        if (kind !== changeFilter) return false;
-      }
       if (term) {
         const hay = `${c.item} ${c.code} ${c.description}`.toLowerCase();
         if (!hay.includes(term)) return false;
       }
       return true;
     });
-  }, [active, search, bankFilter, changeFilter]);
+  }, [active, search, bankFilter]);
 
   const totals = active ? additiveTotals(active) : null;
 
