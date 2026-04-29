@@ -377,7 +377,13 @@ export function mergeAnalyticIntoAdditive(
       unitPrice: r.unitPrice,
       total: r.total || +(r.coefficient * r.unitPrice).toFixed(2),
     }));
-    return { ...c, inputs };
+    const merged: AdditiveComposition = { ...c, inputs };
+    if (block.analyticUnitPriceWithBDI != null) {
+      merged.analyticUnitPriceWithBDI = money2(block.analyticUnitPriceWithBDI);
+      const q = money2(c.quantity ?? 0);
+      merged.analyticTotalWithBDI = truncar2(money2(block.analyticUnitPriceWithBDI) * q);
+    }
+    return merged;
   });
   let leftover = 0;
   for (const q of queueByCode.values()) leftover += q.length;
