@@ -443,6 +443,20 @@ export interface AdditiveImportIssue {
 /** Estados do fluxo de aprovação do aditivo. */
 export type AdditiveStatus = 'rascunho' | 'em_analise' | 'reprovado' | 'aprovado' | 'aditivo_contratado';
 
+/** Snapshot congelado do aditivo no momento da aprovação (versionado). */
+export interface AdditiveApprovalSnapshot {
+  version: number;
+  approvedAt: string;
+  approvedBy?: string;
+  reviewNotes?: string;
+  bdiPercent: number;
+  globalDiscountPercent: number;
+  /** Totais agregados calculados na aprovação (estrutura aberta). */
+  totals: unknown;
+  compositions: AdditiveComposition[];
+  issues: AdditiveImportIssue[];
+}
+
 export interface Additive {
   id: string;
   name: string;
@@ -464,6 +478,48 @@ export interface Additive {
   isContracted?: boolean;
   /** Carimbo de quando o aditivo foi marcado como contratado. */
   contractedAt?: string;
+  /** Versão atual do aditivo (incrementa a cada aprovação). */
+  version?: number;
+  /** Histórico de snapshots aprovados (congelados). */
+  approvalSnapshots?: AdditiveApprovalSnapshot[];
+}
+
+// =================== AUDITORIA ===================
+
+export type AuditEntityType =
+  | 'measurement'
+  | 'additive'
+  | 'daily_report'
+  | 'task'
+  | 'project';
+
+export type AuditAction =
+  | 'created'
+  | 'updated'
+  | 'submitted_for_review'
+  | 'approved'
+  | 'rejected'
+  | 'contracted'
+  | 'unlocked'
+  | 'deleted'
+  | 'imported'
+  | 'exported';
+
+export interface AuditLog {
+  id: string;
+  entityType: AuditEntityType;
+  entityId: string;
+  action: AuditAction;
+  title: string;
+  description?: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  /** ISO timestamp. */
+  at: string;
+  before?: unknown;
+  after?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
