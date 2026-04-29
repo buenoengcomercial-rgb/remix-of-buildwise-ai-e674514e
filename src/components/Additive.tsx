@@ -43,12 +43,14 @@ const STATUS_LABEL: Record<AdditiveStatus, string> = {
   em_analise: 'Em análise fiscal',
   reprovado: 'Reprovado',
   aprovado: 'Aprovado',
+  aditivo_contratado: 'Aditivo Contratado',
 };
 const STATUS_BADGE: Record<AdditiveStatus, string> = {
   rascunho: 'bg-slate-100 text-slate-700 border-slate-300',
   em_analise: 'bg-amber-100 text-amber-800 border-amber-300',
   reprovado: 'bg-rose-100 text-rose-800 border-rose-300',
   aprovado: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  aditivo_contratado: 'bg-primary/15 text-primary border-primary/40',
 };
 
 const CHANGE_LABEL: Record<AdditiveChangeKind, string> = {
