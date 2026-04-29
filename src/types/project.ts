@@ -441,7 +441,7 @@ export interface AdditiveImportIssue {
 }
 
 /** Estados do fluxo de aprovação do aditivo. */
-export type AdditiveStatus = 'rascunho' | 'em_analise' | 'reprovado' | 'aprovado';
+export type AdditiveStatus = 'rascunho' | 'em_analise' | 'reprovado' | 'aprovado' | 'aditivo_contratado';
 
 export interface Additive {
   id: string;
@@ -458,6 +458,12 @@ export interface Additive {
   reviewNotes?: string;
   /** Limite de aditivo da licitação em % (padrão 50%). Usado para indicar status OK/Revisar. */
   aditivoLimitPercent?: number;
+  /** Desconto global da licitação (%). Aplicado APENAS aos novos serviços (isNewService). */
+  globalDiscountPercent?: number;
+  /** True quando o usuário clicou em "Aditivo Contratado" — integra novos serviços ao projeto. */
+  isContracted?: boolean;
+  /** Carimbo de quando o aditivo foi marcado como contratado. */
+  contractedAt?: string;
 }
 
 export type ViewMode = 'days' | 'weeks' | 'months';
