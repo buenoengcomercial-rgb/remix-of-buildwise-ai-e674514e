@@ -28,7 +28,7 @@ import {
   importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
   additiveTotals, sumAnalyticTotalNoBDI, computeCompositionWithBDI,
   totalAfterAdditive, getApprovedAdditiveBudgetItems,
-  buildAdditiveFromSyntheticBudgetItems,
+  buildAdditiveFromSyntheticBudgetItems, computeAdditiveRow,
 } from '@/lib/additiveImport';
 
 interface Props {
