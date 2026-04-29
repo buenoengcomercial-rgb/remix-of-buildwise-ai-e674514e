@@ -120,8 +120,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     depth: number;
     rows: AdditiveComposition[];
     children: CompGroup[];
-    subtotalComBDI: number;
-    subtotalSemBDI: number;
+    subtotalContratado: number;
+    subtotalFinal: number;
   };
   const { groupTree, orphanRows, hasEapLink } = useMemo(() => {
     const empty = { groupTree: [] as CompGroup[], orphanRows: [] as AdditiveComposition[], hasEapLink: false };
@@ -152,16 +152,16 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
         .filter((g): g is CompGroup => g !== null);
       if (directRows.length === 0 && childGroups.length === 0) return null;
 
-      let subtotalComBDI = 0;
-      let subtotalSemBDI = 0;
+      let subtotalContratado = 0;
+      let subtotalFinal = 0;
       directRows.forEach(c => {
-        const r = computeCompositionWithBDI(c, bdi);
-        subtotalComBDI += r.impactoComBDI;
-        subtotalSemBDI += r.impactoSemBDI;
+        const r = computeAdditiveRow(c, bdi);
+        subtotalContratado += r.valorContratadoCalc;
+        subtotalFinal += r.valorFinal;
       });
       childGroups.forEach(c => {
-        subtotalComBDI += c.subtotalComBDI;
-        subtotalSemBDI += c.subtotalSemBDI;
+        subtotalContratado += c.subtotalContratado;
+        subtotalFinal += c.subtotalFinal;
       });
       return {
         phaseId: chapterNode.phase.id,
@@ -170,8 +170,8 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
         depth,
         rows: directRows,
         children: childGroups,
-        subtotalComBDI,
-        subtotalSemBDI,
+        subtotalContratado,
+        subtotalFinal,
       };
     };
 
