@@ -929,15 +929,7 @@ export interface ParsedSynthetic {
   warnings: string[];
 }
 
-function _trunc2(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  return Math.trunc(v * 100) / 100;
-}
-
-function _money2(v: number): number {
-  if (!Number.isFinite(v)) return 0;
-  return Math.round((Number(v) + Number.EPSILON) * 100) / 100;
-}
+import { trunc2 as _trunc2, money2 as _money2, calculateUnitPriceWithBDI as _calcUnitWithBDI, calculateLineTotal as _calcLineTotal } from './financialEngine';
 
 function _toNumSyn(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
@@ -1030,9 +1022,9 @@ export function parseSyntheticBudget(data: ArrayBuffer): ParsedSynthetic {
     // Valores que JÁ vêm prontos do Excel: normalizar com money2 (arredondamento seguro).
     // Valores CALCULADOS pelo sistema (quando a coluna está vazia): usar trunc2.
     const finalUpNoBDI = _money2(upNoBDI);
-    const finalUpWithBDI = upWithBDI > 0 ? _money2(upWithBDI) : _trunc2(finalUpNoBDI * fator);
-    const finalTotalNoBDI = totalNoBDI > 0 ? _money2(totalNoBDI) : _trunc2(finalUpNoBDI * quantity);
-    const finalTotalWithBDI = totalWithBDI > 0 ? _money2(totalWithBDI) : _trunc2(finalUpWithBDI * quantity);
+    const finalUpWithBDI = upWithBDI > 0 ? _money2(upWithBDI) : _calcUnitWithBDI(finalUpNoBDI, bdiPercent ?? 0);
+    const finalTotalNoBDI = totalNoBDI > 0 ? _money2(totalNoBDI) : _calcLineTotal(finalUpNoBDI, quantity);
+    const finalTotalWithBDI = totalWithBDI > 0 ? _money2(totalWithBDI) : _calcLineTotal(finalUpWithBDI, quantity);
 
     if (quantity <= 0) warnings.push(`Linha ${i + 1} (${code}): quantidade zero/inválida.`);
     if (upNoBDI <= 0) warnings.push(`Linha ${i + 1} (${code}): valor unitário s/ BDI zero/inválido.`);

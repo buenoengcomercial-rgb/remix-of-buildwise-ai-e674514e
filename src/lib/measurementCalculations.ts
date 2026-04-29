@@ -6,35 +6,10 @@
  * de somar totais gerais.
  */
 
-/** Trunca um número em 2 casas decimais (sem arredondar). */
-export function trunc2(value: number | null | undefined): number {
-  if (value === null || value === undefined) return 0;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.trunc(n * 100) / 100;
-}
-
-/**
- * Normaliza um número monetário com arredondamento seguro em 2 casas.
- * Use para preservar valores que JÁ vêm prontos da planilha (Sintética),
- * sem distorcer o que o Excel já calculou.
- */
-export function money2(value: number | null | undefined): number {
-  if (value === null || value === undefined) return 0;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-/**
- * Calcula o preço unitário c/ BDI a partir do preço s/ BDI e do percentual de BDI.
- * Resultado já truncado em 2 casas.
- */
-export function calculateUnitPriceWithBDI(unitPriceNoBDI: number, bdiPercent: number): number {
-  const safeNo = Number(unitPriceNoBDI) || 0;
-  const safeBdi = Number.isFinite(bdiPercent) ? Math.max(0, bdiPercent) : 0;
-  return trunc2(safeNo * (1 + safeBdi / 100));
-}
+// Reexporta do motor financeiro único (src/lib/financialEngine.ts).
+// Não duplicar regras de truncamento/BDI aqui.
+export { trunc2, money2, calculateUnitPriceWithBDI } from './financialEngine';
+import { trunc2, calculateUnitPriceWithBDI } from './financialEngine';
 
 export interface MeasurementLineInput {
   quantityContracted: number;
