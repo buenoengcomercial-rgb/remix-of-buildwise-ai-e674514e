@@ -491,6 +491,20 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
               <Upload className="w-4 h-4 mr-1" /> Usar Sintética da Medição
             </Button>
           )}
+          {active && (active.status === 'aprovado' || active.isContracted) && (
+            <Button
+              size="sm"
+              className="bg-primary hover:bg-primary/90"
+              onClick={handleContractAdditive}
+              disabled={!!active.isContracted}
+              title={active.isContracted
+                ? 'Aditivo já contratado — novos serviços integrados ao projeto.'
+                : 'Marca o aditivo como contratado e integra os novos serviços à EAP/Medição.'}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1" />
+              {active.isContracted ? 'Aditivo Contratado' : 'Marcar como Contratado'}
+            </Button>
+          )}
           <Button variant="outline" size="sm" disabled={!active} onClick={handleExportExcel}>
             <Download className="w-4 h-4 mr-1" /> Exportar Excel
           </Button>
