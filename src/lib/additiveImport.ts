@@ -524,15 +524,23 @@ export function sumAnalyticTotalNoBDI(comp: AdditiveComposition): number {
 }
 
 /**
- * Quantidade efetiva da composição considerando supressão e acréscimo.
- * Se changeKind for 'suprimido', a quantidade efetiva é negativa para fins de impacto financeiro.
+ * Quantidade efetiva da composição para fins de impacto financeiro do aditivo.
+ * Definida pelas quantidades preenchidas: addedQuantity − suppressedQuantity.
+ * Se ambas forem 0, o impacto é 0 (item sem alteração).
+ * Para compatibilidade com aditivos antigos que só preenchiam quantity/changeKind,
+ * mantém-se o fallback baseado em changeKind.
  */
 export function effectiveQuantity(c: AdditiveComposition): number {
-  if (c.changeKind === 'suprimido') {
-    return -(c.suppressedQuantity ?? c.quantity ?? 0);
+  const hasNewFields =
+    c.addedQuantity != null || c.suppressedQuantity != null || c.originalQuantity != null;
+  if (hasNewFields) {
+    const add = c.addedQuantity ?? 0;
+    const sup = c.suppressedQuantity ?? 0;
+    return add - sup;
   }
+  if (c.changeKind === 'suprimido') return -(c.quantity ?? 0);
   if (c.changeKind === 'sem_alteracao') return 0;
-  return c.addedQuantity ?? c.quantity ?? 0;
+  return c.quantity ?? 0;
 }
 
 /** Quantidade total após o aditivo (originalQuantity + addedQuantity − suppressedQuantity). */
@@ -560,18 +568,10 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
   const sumAnalyticNoBDI = sumAnalyticTotalNoBDI(comp);
   const totalAnalyticWithBDI = money2(truncar2(sumAnalyticNoBDI * fator * qty));
   const diff = money2(totalAnalyticWithBDI - totalSyntheticWithBDI);
-  // Impacto financeiro considerando acréscimo/supressão.
+  // Impacto financeiro = (added − suppressed) × preço unitário.
   const effQty = money2(effectiveQuantity(comp));
-  const isFullImportedAddition =
-    comp.source === 'sintetica_medicao' &&
-    (comp.changeKind ?? 'acrescido') === 'acrescido' &&
-    money2(comp.addedQuantity ?? comp.quantity) === qty;
-  const impactoSemBDI = isFullImportedAddition
-    ? money2(comp.totalNoBDI)
-    : money2(truncar2(unitPriceNoBDI * effQty));
-  const impactoComBDI = isFullImportedAddition
-    ? money2(comp.totalWithBDI)
-    : money2(truncar2(unitPriceWithBDI * effQty));
+  const impactoSemBDI = money2(truncar2(unitPriceNoBDI * effQty));
+  const impactoComBDI = money2(truncar2(unitPriceWithBDI * effQty));
   return {
     unitPriceWithBDI, totalSyntheticWithBDI, sumAnalyticNoBDI, totalAnalyticWithBDI, diff,
     impactoSemBDI, impactoComBDI,
