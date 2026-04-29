@@ -608,24 +608,38 @@ export function computeCompositionWithBDI(comp: AdditiveComposition, bdiPercent:
  *   Diferença             = Valor Final − Valor Contratado Calc.
  *   % Var.                = Diferença / Valor Contratado Calc.
  */
-export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number) {
+export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number, globalDiscountPercent = 0) {
   const fator = 1 + (bdiPercent || 0) / 100;
-  const unitPriceNoBDI = money2(comp.unitPriceNoBDI);
-  const unitPriceWithBDI = money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
+  const isNew = !!comp.isNewService;
+  // Para novos serviços: aplica desconto global sobre o valor unitário s/ BDI informado.
+  const discountFactor = isNew ? (1 - (globalDiscountPercent || 0) / 100) : 1;
+  const baseUnitNoBDI = isNew
+    ? money2((comp.unitPriceNoBDIInformed ?? comp.unitPriceNoBDI ?? 0))
+    : money2(comp.unitPriceNoBDI);
+  const unitPriceNoBDI = isNew
+    ? money2(baseUnitNoBDI * discountFactor)
+    : baseUnitNoBDI;
+  const unitPriceWithBDI = isNew
+    ? truncar2(unitPriceNoBDI * fator)
+    : money2(comp.unitPriceWithBDI ?? truncar2(unitPriceNoBDI * fator));
   const qtdContratada = comp.originalQuantity ?? comp.quantity ?? 0;
   const qtdSuprimida = comp.suppressedQuantity ?? 0;
   const qtdAcrescida = comp.addedQuantity ?? 0;
   const qtdFinal = qtdContratada - qtdSuprimida + qtdAcrescida;
-  // Total Fonte preserva o valor original da Sintética/Medição (não recalcula).
-  const totalFonte = comp.totalWithBDI != null
-    ? money2(comp.totalWithBDI)
-    : money2(comp.total ?? truncar2(unitPriceWithBDI * (comp.quantity ?? qtdContratada)));
-  // Valor contratado original PRESERVADO (fonte). Usado no rodapé "Total contratado original".
-  const valorContratadoOriginalPreservado = comp.totalWithBDI != null
-    ? money2(comp.totalWithBDI)
-    : comp.total != null
-      ? money2(comp.total)
-      : money2(unitPriceWithBDI * qtdContratada);
+  // Total Fonte preserva o valor original da Sintética/Medição (não recalcula). Para novos serviços é 0.
+  const totalFonte = isNew
+    ? 0
+    : (comp.totalWithBDI != null
+        ? money2(comp.totalWithBDI)
+        : money2(comp.total ?? truncar2(unitPriceWithBDI * (comp.quantity ?? qtdContratada))));
+  // Valor contratado original PRESERVADO (fonte). Para novos serviços = 0 (não havia contrato original).
+  const valorContratadoOriginalPreservado = isNew
+    ? 0
+    : (comp.totalWithBDI != null
+        ? money2(comp.totalWithBDI)
+        : comp.total != null
+          ? money2(comp.total)
+          : money2(unitPriceWithBDI * qtdContratada));
   const valorContratadoCalc = money2(unitPriceWithBDI * qtdContratada);
   const valorSuprimido = money2(unitPriceWithBDI * qtdSuprimida);
   const valorAcrescido = money2(unitPriceWithBDI * qtdAcrescida);
@@ -639,6 +653,7 @@ export function computeAdditiveRow(comp: AdditiveComposition, bdiPercent: number
     totalFonte, valorContratadoCalc, valorContratadoOriginalPreservado,
     valorSuprimido, valorAcrescido, valorFinal,
     diferenca, percentVar,
+    isNewService: isNew,
   };
 }
 
