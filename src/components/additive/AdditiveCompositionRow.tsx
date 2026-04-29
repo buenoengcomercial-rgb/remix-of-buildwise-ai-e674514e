@@ -1,0 +1,192 @@
+import { Fragment } from 'react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
+import type { AdditiveComposition } from '@/types/project';
+import { computeAdditiveRow, computeCompositionWithBDI } from '@/lib/additiveImport';
+import { fmtBRL, fmtNum, fmtPct, COL_COUNT } from './types';
+import AdditiveAnalyticRows from './AdditiveAnalyticRows';
+
+interface Props {
+  c: AdditiveComposition;
+  bdi: number;
+  globalDiscount: number;
+  isLocked: boolean;
+  isOpen: boolean;
+  showAnalytic: boolean;
+  onToggleExpand: (id: string) => void;
+  onUpdateComposition: (id: string, patch: Partial<AdditiveComposition>) => void;
+  onUpdateQuantity: (id: string, field: 'addedQuantity' | 'suppressedQuantity', v: number) => void;
+  onRemoveComposition: (id: string) => void;
+}
+
+export default function AdditiveCompositionRow({
+  c, bdi, globalDiscount, isLocked, isOpen, showAnalytic,
+  onToggleExpand, onUpdateComposition, onUpdateQuantity, onRemoveComposition,
+}: Props) {
+  const r = computeAdditiveRow(c, bdi, globalDiscount);
+  const cb = computeCompositionWithBDI(c, bdi);
+  const hasInputs = c.inputs.length > 0;
+  const diff = hasInputs ? cb.diff : 0;
+  const hasDiff = hasInputs && Math.abs(diff) > 0.05;
+  const noAnalytic = !hasInputs && !c.isNewService;
+  const isNew = !!c.isNewService;
+
+  return (
+    <Fragment>
+      <tr className={`border-b hover:bg-muted/30 align-top ${isNew ? 'bg-sky-50/40' : ''}`}>
+        <td className="px-1 py-2 text-center">
+          <button
+            onClick={() => onToggleExpand(c.id)}
+            className="p-1 rounded hover:bg-muted"
+            disabled={c.inputs.length === 0}
+            title={c.inputs.length === 0 ? 'Sem analítico' : 'Expandir'}
+          >
+            {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </button>
+        </td>
+        <td className="px-2 py-2">{c.itemNumber || c.item}</td>
+        <td className="px-2 py-2 font-mono text-[11px]">
+          {isNew && !isLocked ? (
+            <Input
+              value={c.code}
+              onChange={e => onUpdateComposition(c.id, { code: e.target.value })}
+              className="h-7 w-20 text-[11px] font-mono"
+            />
+          ) : c.code}
+        </td>
+        <td className="px-2 py-2">
+          {isNew && !isLocked ? (
+            <Input
+              value={c.bank}
+              onChange={e => onUpdateComposition(c.id, { bank: e.target.value })}
+              className="h-7 w-20 text-xs"
+            />
+          ) : c.bank}
+        </td>
+        <td className="px-2 py-2 max-w-[320px]">
+          {isNew && !isLocked ? (
+            <Input
+              value={c.description}
+              onChange={e => onUpdateComposition(c.id, { description: e.target.value })}
+              className="h-7 text-xs"
+            />
+          ) : (
+            <div>{c.description}</div>
+          )}
+          <div className="flex flex-wrap gap-1 mt-1 items-center">
+            {isNew && (
+              <Badge variant="outline" className="text-[9px] text-sky-700 border-sky-400 bg-sky-50">
+                Novo serviço
+              </Badge>
+            )}
+            {noAnalytic && <Badge variant="outline" className="text-[9px] text-amber-700 border-amber-400">Sem analítico</Badge>}
+            {hasDiff && (
+              <Badge variant="outline" className="text-[9px] text-rose-700 border-rose-400">
+                Dif. analítica c/ BDI: {fmtBRL(diff)}
+              </Badge>
+            )}
+            {isNew && !isLocked && (
+              <button
+                onClick={() => onRemoveComposition(c.id)}
+                className="text-[10px] text-rose-600 hover:underline ml-1"
+                title="Remover novo serviço"
+              >
+                <Trash2 className="w-3 h-3 inline" />
+              </button>
+            )}
+          </div>
+        </td>
+        <td className="px-2 py-2">
+          {isNew && !isLocked ? (
+            <Input
+              value={c.unit}
+              onChange={e => onUpdateComposition(c.id, { unit: e.target.value })}
+              className="h-7 w-14 text-xs"
+            />
+          ) : c.unit}
+        </td>
+        {/* F — Qtd Contratada */}
+        <td className="px-2 py-2 text-right">
+          <Input
+            type="number" step="0.0001" min={0}
+            value={c.originalQuantity ?? 0}
+            disabled={isLocked || isNew}
+            onChange={e => onUpdateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
+            className="h-7 w-20 text-xs text-right"
+          />
+        </td>
+        {/* G — Qtd Suprimida */}
+        <td className="px-2 py-2 text-right">
+          <Input
+            type="number" step="0.0001" min={0}
+            value={c.suppressedQuantity ?? 0}
+            disabled={isLocked || isNew}
+            onChange={e => onUpdateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
+            onBlur={e => onUpdateQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
+            className="h-7 w-20 text-xs text-right border-rose-200"
+          />
+        </td>
+        {/* H — Qtd Acrescida */}
+        <td className="px-2 py-2 text-right">
+          <Input
+            type="number" step="0.0001" min={0}
+            value={c.addedQuantity ?? 0}
+            disabled={isLocked}
+            onChange={e => onUpdateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
+            onBlur={e => onUpdateQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
+            className="h-7 w-20 text-xs text-right border-emerald-200"
+          />
+        </td>
+        {/* I — Qtd Final */}
+        <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
+        {/* J — Valor Unit (s/ BDI). Para novos serviços, exibe valor JÁ COM desconto. */}
+        <td className="px-2 py-2 text-right">
+          {isNew && !isLocked && c.inputs.length === 0 ? (
+            <Input
+              type="number" step="0.01" min={0}
+              value={c.unitPriceNoBDIInformed ?? 0}
+              onChange={e => onUpdateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
+              className="h-7 w-24 text-xs text-right"
+              title={globalDiscount > 0 ? `Informe a referência s/ BDI. Desconto licit. ${globalDiscount}% será aplicado.` : 'Valor s/ BDI'}
+            />
+          ) : (
+            <span title={isNew && globalDiscount > 0 ? `Já com desconto de ${globalDiscount}% (referência: ${fmtBRL(r.referenceUnitNoBDI)})` : undefined}>
+              {fmtBRL(isNew ? r.unitPriceNoBDIWithDiscount : r.unitPriceNoBDI)}
+            </span>
+          )}
+        </td>
+        {/* K — Valor Unit c/ BDI */}
+        <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
+        {/* L — Total Fonte */}
+        <td className="px-2 py-2 text-right text-muted-foreground">{fmtBRL(r.totalFonte)}</td>
+        {/* M — Valor Contratado Calc. */}
+        <td className="px-2 py-2 text-right">{fmtBRL(r.valorContratadoCalc)}</td>
+        {/* N — Valor Suprimido */}
+        <td className="px-2 py-2 text-right text-rose-700">
+          {r.valorSuprimido > 0 ? fmtBRL(-r.valorSuprimido) : fmtBRL(0)}
+        </td>
+        {/* O — Valor Acrescido */}
+        <td className="px-2 py-2 text-right text-emerald-700">{fmtBRL(r.valorAcrescido)}</td>
+        {/* P — Valor Final */}
+        <td className="px-2 py-2 text-right font-medium">{fmtBRL(r.valorFinal)}</td>
+        {/* Q — Diferença */}
+        <td className={`px-2 py-2 text-right font-medium ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : ''}`}>
+          {fmtBRL(r.diferenca)}
+        </td>
+        {/* R — % Var. */}
+        <td className={`px-2 py-2 text-right ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : ''}`}>
+          {fmtPct(r.percentVar)}
+        </td>
+      </tr>
+      {isOpen && showAnalytic && c.inputs.length > 0 && (
+        <tr className="bg-muted/20 border-b">
+          <td />
+          <td colSpan={COL_COUNT - 1} className="px-3 py-2">
+            <AdditiveAnalyticRows c={c} bdi={bdi} globalDiscount={globalDiscount} cb={cb} />
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+}

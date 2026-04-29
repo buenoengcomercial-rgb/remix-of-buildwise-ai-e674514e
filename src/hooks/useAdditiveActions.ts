@@ -1,0 +1,523 @@
+import { useMemo } from 'react';
+import { toast } from 'sonner';
+import type {
+  Project, Additive as AdditiveModel, AdditiveComposition,
+  AdditiveStatus, AdditiveApprovalSnapshot,
+} from '@/types/project';
+import {
+  importAdditiveFromExcel, exportAdditiveToExcel, exportAdditiveToPdf,
+  additiveTotals, getApprovedAdditiveBudgetItems,
+  buildAdditiveFromSyntheticBudgetItems,
+  createNewServiceComposition, contractAdditive,
+} from '@/lib/additiveImport';
+import { useAuth } from '@/hooks/useAuth';
+import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
+import type { AdditiveStateApi } from '@/hooks/useAdditiveState';
+
+interface Params {
+  project: Project;
+  onProjectChange: (next: Project | ((prev: Project) => Project)) => void;
+  state: AdditiveStateApi;
+}
+
+export function useAdditiveActions({ project, onProjectChange, state }: Params) {
+  const { user } = useAuth();
+  const auditUser = useMemo(() => userInfoFromSupabaseUser(user), [user]);
+  const {
+    active, isLocked,
+    setActiveId,
+    importName, setImportDialogOpen, setImportName,
+    pendingFile, setPendingFile, fileRef,
+    setIssuesOpen,
+    reviewNotes, setReviewNotes, approvedBy, setApprovedBy,
+    setReviewDialogOpen, setConfirmDeleteId, activeId,
+  } = state;
+
+  const logAdd = (
+    additiveId: string,
+    params: Omit<Parameters<typeof logToProject>[1], 'entityType' | 'entityId'>,
+  ) => {
+    onProjectChange(prev => logToProject(prev, {
+      ...params,
+      ...auditUser,
+      entityType: 'additive',
+      entityId: additiveId,
+    }));
+  };
+
+  const updateAdditive = (mutator: (a: AdditiveModel) => AdditiveModel) => {
+    if (!active) return;
+    onProjectChange(prev => ({
+      ...prev,
+      additives: (prev.additives ?? []).map(a => a.id === active.id ? mutator(a) : a),
+    }));
+  };
+
+  const updateComposition = (compId: string, patch: Partial<AdditiveComposition>) => {
+    updateAdditive(a => ({
+      ...a,
+      compositions: a.compositions.map(c => c.id === compId ? { ...c, ...patch } : c),
+    }));
+  };
+
+  const updateCompositionQuantity = (
+    compId: string,
+    field: 'addedQuantity' | 'suppressedQuantity',
+    nextValue: number,
+  ) => {
+    if (!active) return;
+    const comp = active.compositions.find(c => c.id === compId);
+    if (!comp) return;
+    const before = comp[field] ?? 0;
+    if (before === nextValue) return;
+    updateComposition(compId, { [field]: nextValue });
+    logAdd(active.id, {
+      action: 'updated',
+      title: field === 'addedQuantity'
+        ? 'Quantidade acrescida alterada'
+        : 'Quantidade suprimida alterada',
+      metadata: {
+        item: comp.item || comp.itemNumber,
+        code: comp.code,
+        description: comp.description,
+        before,
+        after: nextValue,
+      },
+      before,
+      after: nextValue,
+    });
+  };
+
+  const handleFileSelected = (f: File | null) => {
+    if (!f) return;
+    setPendingFile(f);
+    const base = f.name.replace(/\.(xlsx|xls)$/i, '');
+    setImportName(base || 'Aditivo');
+    setImportDialogOpen(true);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingFile) return;
+    try {
+      const XLSX = await import('xlsx');
+      const buf = await pendingFile.arrayBuffer();
+      const peek = XLSX.read(buf, { type: 'array' });
+      const normName = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const lower = peek.SheetNames.map(normName);
+      let hasSynth = lower.some(n => n.includes('sintetica'));
+      let hasAnaly = lower.some(n => n.includes('analitica'));
+
+      if (!hasAnaly) {
+        for (let i = 0; i < peek.SheetNames.length; i++) {
+          const name = peek.SheetNames[i];
+          if (hasSynth && normName(name).includes('sintetica')) continue;
+          const ws = peek.Sheets[name];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as unknown[][];
+          const norm = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          for (let r = 0; r < Math.min(rows.length, 30); r++) {
+            const cells = (rows[r] || []).map(norm);
+            const joined = cells.join(' | ');
+            const hits = [
+              cells.some(c => c === 'item' || c.startsWith('item')),
+              joined.includes('codigo'),
+              cells.some(c => c === 'banco' || c.startsWith('banco')),
+              joined.includes('descricao'),
+              cells.some(c => c === 'quant' || c.startsWith('quant') || c === 'coef' || c.startsWith('coef')),
+              cells.some(c => c === 'un' || c === 'und' || c === 'unid' || c.startsWith('unid')),
+            ].filter(Boolean).length;
+            if (hits >= 4) { hasAnaly = true; break; }
+          }
+          if (hasAnaly) break;
+        }
+      }
+
+      const draftCandidate = active && (active.status ?? 'rascunho') === 'rascunho' && !active.isContracted ? active : null;
+
+      if (!hasSynth && !hasAnaly) {
+        toast.error('Nenhuma aba reconhecida (esperado SINTETICA e/ou ANALITICA, ou planilha com cabeçalhos compatíveis).');
+        return;
+      }
+
+      if (!hasSynth && hasAnaly && !draftCandidate) {
+        toast.error('Importe ou selecione um aditivo em rascunho antes de vincular a Analítica.');
+        return;
+      }
+
+      toast.loading('Importando aditivo...', { id: 'imp-add' });
+      const result = await importAdditiveFromExcel(
+        pendingFile,
+        importName.trim() || 'Aditivo',
+        draftCandidate,
+      );
+
+      const hasFatalError = (result.additive.issues ?? []).some(
+        i => i.level === 'error' && /nenhuma aba reconhecida/i.test(i.message),
+      );
+      if (hasFatalError && result.additive.compositions.length === 0) {
+        toast.error('Nenhuma aba reconhecida na planilha. Nada foi adicionado.', { id: 'imp-add' });
+        return;
+      }
+
+      const inputsCount = result.additive.compositions.reduce((a, c) => a + (c.inputs?.length ?? 0), 0);
+      const importMeta = {
+        fileName: pendingFile.name,
+        mode: result.mode,
+        hasSynthetic: hasSynth,
+        hasAnalytic: hasAnaly,
+        compositionsCount: result.additive.compositions.length,
+        inputsCount,
+      };
+
+      if (result.mode === 'analytic_only' && draftCandidate) {
+        const merged = result.additive;
+        onProjectChange(prev => {
+          const next = {
+            ...prev,
+            additives: (prev.additives ?? []).map(a =>
+              a.id === draftCandidate.id
+                ? { ...merged, id: draftCandidate.id, name: draftCandidate.name, status: draftCandidate.status ?? 'rascunho' }
+                : a,
+            ),
+          };
+          return logToProject(next, {
+            ...auditUser,
+            entityType: 'additive',
+            entityId: draftCandidate.id,
+            action: 'imported',
+            title: 'Planilha importada no Aditivo',
+            metadata: importMeta,
+          });
+        });
+        setActiveId(draftCandidate.id);
+      } else {
+        onProjectChange(prev => {
+          const next = {
+            ...prev,
+            additives: [...(prev.additives ?? []), result.additive],
+          };
+          return logToProject(next, {
+            ...auditUser,
+            entityType: 'additive',
+            entityId: result.additive.id,
+            action: 'imported',
+            title: 'Planilha importada no Aditivo',
+            metadata: importMeta,
+          });
+        });
+        setActiveId(result.additive.id);
+      }
+
+      const errCount = result.additive.issues?.filter(i => i.level === 'error').length ?? 0;
+      const warnCount = result.additive.issues?.filter(i => i.level === 'warning').length ?? 0;
+      toast.success(
+        `${result.message}${errCount ? ` (${errCount} erros)` : ''}${warnCount ? ` (${warnCount} avisos)` : ''}`,
+        { id: 'imp-add' },
+      );
+      if (errCount + warnCount > 0) setIssuesOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error('Falha ao importar a planilha do aditivo.', { id: 'imp-add' });
+    } finally {
+      setImportDialogOpen(false);
+      setPendingFile(null);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (!active) return;
+    try {
+      await exportAdditiveToExcel(active);
+      toast.success('Excel gerado');
+      logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em Excel' });
+    } catch { toast.error('Falha ao gerar Excel'); }
+  };
+
+  const handleExportPdf = async (showAnalytic: boolean) => {
+    if (!active) return;
+    try {
+      await exportAdditiveToPdf(active, project.name, showAnalytic);
+      toast.success('PDF gerado');
+      logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em PDF' });
+    } catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
+  };
+
+  const handleDeleteAdditive = (id: string) => {
+    const target = (project.additives ?? []).find(a => a.id === id);
+    onProjectChange(prev => {
+      const next = {
+        ...prev,
+        additives: (prev.additives ?? []).filter(a => a.id !== id),
+      };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: id,
+        action: 'deleted',
+        title: 'Aditivo excluído',
+        description: target?.name,
+      });
+    });
+    if (activeId === id) {
+      const remaining = (project.additives ?? []).filter(a => a.id !== id);
+      setActiveId(remaining[0]?.id ?? null);
+    }
+    setConfirmDeleteId(null);
+    toast.success('Aditivo excluído');
+  };
+
+  const handleChangeBdi = (value: string) => {
+    if (!active || isLocked) return;
+    const num = Number(value.replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) return;
+    const before = active.bdiPercent ?? 0;
+    if (before === num) return;
+    updateAdditive(a => ({ ...a, bdiPercent: num }));
+    logAdd(active.id, {
+      action: 'updated',
+      title: 'BDI do aditivo alterado',
+      before,
+      after: num,
+    });
+  };
+
+  const setStatus = (next: AdditiveStatus, extra?: Partial<AdditiveModel>) => {
+    updateAdditive(a => ({ ...a, status: next, ...(extra ?? {}) }));
+  };
+
+  const handleSendForReview = () => {
+    if (!active) return;
+    setStatus('em_analise');
+    const t = additiveTotals(active);
+    const errCount = (active.issues ?? []).filter(i => i.level === 'error').length;
+    const warnCount = (active.issues ?? []).filter(i => i.level === 'warning').length;
+    logAdd(active.id, {
+      action: 'submitted_for_review',
+      title: 'Aditivo enviado para análise fiscal',
+      metadata: {
+        totalContratadoOriginal: t.totalContratadoOriginal,
+        totalSuprimido: t.totalSuprimido,
+        totalAcrescido: t.totalAcrescido,
+        valorFinal: t.valorFinal,
+        diferencaLiquida: t.diferencaLiquida,
+        percentImpactoLiquido: t.percentImpactoLiquido,
+        errorsCount: errCount,
+        warningsCount: warnCount,
+      },
+    });
+    toast.success('Aditivo enviado para análise fiscal');
+  };
+
+  const handleReject = () => {
+    if (!active) return;
+    setStatus('reprovado', { reviewNotes: reviewNotes || undefined });
+    logAdd(active.id, {
+      action: 'rejected',
+      title: 'Aditivo reprovado',
+      description: reviewNotes || undefined,
+    });
+    toast.success('Aditivo reprovado — voltou para ajuste');
+    setReviewDialogOpen(false);
+    setReviewNotes('');
+  };
+
+  const handleApprove = () => {
+    if (!active) return;
+    const totals = additiveTotals(active);
+    const nextVersion = (active.version ?? 0) + 1;
+    const approvedAt = new Date().toISOString();
+    const snapshot: AdditiveApprovalSnapshot = {
+      version: nextVersion,
+      approvedAt,
+      approvedBy: approvedBy || undefined,
+      reviewNotes: reviewNotes || undefined,
+      bdiPercent: active.bdiPercent ?? 0,
+      globalDiscountPercent: active.globalDiscountPercent ?? 0,
+      totals,
+      compositions: JSON.parse(JSON.stringify(active.compositions)),
+      issues: JSON.parse(JSON.stringify(active.issues ?? [])),
+    };
+    const approvedAdditive: AdditiveModel = {
+      ...active,
+      status: 'aprovado',
+      approvedAt,
+      approvedBy: approvedBy || undefined,
+      reviewNotes: reviewNotes || undefined,
+      version: nextVersion,
+      approvalSnapshots: [...(active.approvalSnapshots ?? []), snapshot],
+    };
+    onProjectChange(prev => {
+      const nextAdditives = (prev.additives ?? []).map(a =>
+        a.id === active.id ? approvedAdditive : a,
+      );
+      const projWithApproved: Project = { ...prev, additives: nextAdditives };
+      const approvedBudget = getApprovedAdditiveBudgetItems(projWithApproved);
+      const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+      const next = {
+        ...projWithApproved,
+        budgetItems: [...keep, ...approvedBudget],
+      };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: active.id,
+        action: 'approved',
+        title: 'Aditivo aprovado',
+        description: approvedBy ? `Por ${approvedBy}` : undefined,
+        metadata: {
+          version: nextVersion,
+          totalContratadoOriginal: totals.totalContratadoOriginal,
+          totalSuprimido: totals.totalSuprimido,
+          totalAcrescido: totals.totalAcrescido,
+          valorFinal: totals.valorFinal,
+          percentImpactoLiquido: totals.percentImpactoLiquido,
+        },
+      });
+    });
+    toast.success('Aditivo aprovado e integrado à Medição');
+    setReviewDialogOpen(false);
+    setApprovedBy('');
+    setReviewNotes('');
+  };
+
+  const handleBackToDraft = () => {
+    if (!active) return;
+    onProjectChange(prev => {
+      const nextAdditives = (prev.additives ?? []).map(a =>
+        a.id === active.id ? { ...a, status: 'rascunho' as AdditiveStatus } : a,
+      );
+      const projWithChange: Project = { ...prev, additives: nextAdditives };
+      const approvedBudget = getApprovedAdditiveBudgetItems(projWithChange);
+      const keep = (prev.budgetItems ?? []).filter(b => b.source !== 'aditivo');
+      const next = { ...projWithChange, budgetItems: [...keep, ...approvedBudget] };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: active.id,
+        action: 'unlocked',
+        title: 'Aditivo voltou para rascunho',
+      });
+    });
+    toast.success('Aditivo voltou para rascunho — itens removidos da Medição');
+  };
+
+  const handleUseSyntheticFromMeasurement = () => {
+    const built = buildAdditiveFromSyntheticBudgetItems(project, 'Aditivo (a partir da Sintética da Medição)');
+    if (!built) {
+      toast.error('Nenhuma Sintética encontrada na Medição. Importe a Sintética primeiro na aba Tarefas/EAP.');
+      return;
+    }
+    onProjectChange(prev => {
+      const next = { ...prev, additives: [...(prev.additives ?? []), built] };
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: built.id,
+        action: 'imported',
+        title: 'Aditivo criado a partir da Sintética da Medição',
+        metadata: {
+          compositionsCount: built.compositions.length,
+          source: 'sintetica_medicao',
+        },
+      });
+    });
+    setActiveId(built.id);
+    toast.success(`Sintética da Medição reaproveitada (${built.compositions.length} composições).`);
+  };
+
+  const handleChangeGlobalDiscount = (value: string) => {
+    if (!active || isLocked) return;
+    const num = Number(value.replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) return;
+    const before = active.globalDiscountPercent ?? 0;
+    if (before === num) return;
+    updateAdditive(a => ({ ...a, globalDiscountPercent: num }));
+    logAdd(active.id, {
+      action: 'updated',
+      title: 'Desconto licitatório do aditivo alterado',
+      before,
+      after: num,
+    });
+  };
+
+  const handleAddNewService = (phaseId: string, phaseChain: string, parentNumber: string) => {
+    if (!active || isLocked) return;
+    const novo = createNewServiceComposition(active, phaseId, phaseChain, parentNumber);
+    updateAdditive(a => ({ ...a, compositions: [...a.compositions, novo] }));
+    logAdd(active.id, {
+      action: 'created',
+      title: 'Novo serviço criado no aditivo',
+      metadata: {
+        item: novo.itemNumber,
+        code: novo.code,
+        phaseId,
+        phaseChain,
+      },
+    });
+    toast.success(`Novo serviço ${novo.itemNumber} adicionado`);
+  };
+
+  const handleRemoveComposition = (compId: string) => {
+    if (!active || isLocked) return;
+    const comp = active.compositions.find(c => c.id === compId);
+    updateAdditive(a => ({ ...a, compositions: a.compositions.filter(c => c.id !== compId) }));
+    if (comp?.isNewService) {
+      logAdd(active.id, {
+        action: 'deleted',
+        title: 'Novo serviço excluído do aditivo',
+        metadata: {
+          item: comp.item || comp.itemNumber,
+          code: comp.code,
+          description: comp.description,
+        },
+      });
+    }
+  };
+
+  const handleContractAdditive = () => {
+    if (!active) return;
+    if (active.status !== 'aprovado' && !active.isContracted) {
+      toast.error('O aditivo precisa estar Aprovado para ser contratado.');
+      return;
+    }
+    const novosServicos = active.compositions.filter(c => c.isNewService);
+    onProjectChange(prev => {
+      const next = contractAdditive(prev, active.id);
+      return logToProject(next, {
+        ...auditUser,
+        entityType: 'additive',
+        entityId: active.id,
+        action: 'contracted',
+        title: 'Aditivo contratado e integrado ao projeto',
+        metadata: {
+          novosServicosIntegrados: novosServicos.length,
+          budgetItemsCriados: (next.budgetItems ?? []).filter(b => b.additiveId === active.id).length,
+        },
+      });
+    });
+    toast.success('Aditivo contratado — novos serviços integrados ao projeto');
+  };
+
+  return {
+    updateAdditive,
+    updateComposition,
+    updateCompositionQuantity,
+    handleFileSelected,
+    handleConfirmImport,
+    handleExportExcel,
+    handleExportPdf,
+    handleDeleteAdditive,
+    handleChangeBdi,
+    handleSendForReview,
+    handleReject,
+    handleApprove,
+    handleBackToDraft,
+    handleUseSyntheticFromMeasurement,
+    handleChangeGlobalDiscount,
+    handleAddNewService,
+    handleRemoveComposition,
+    handleContractAdditive,
+  };
+}
+
+export type AdditiveActionsApi = ReturnType<typeof useAdditiveActions>;

@@ -1,0 +1,119 @@
+import { Card } from '@/components/ui/card';
+import type { AdditiveComposition } from '@/types/project';
+import type { CompGroup } from './types';
+import { COL_COUNT } from './types';
+import AdditiveGroupRow from './AdditiveGroupRow';
+import AdditiveCompositionRow from './AdditiveCompositionRow';
+
+interface Props {
+  bdi: number;
+  globalDiscount: number;
+  isLocked: boolean;
+  showAnalytic: boolean;
+  expanded: Set<string>;
+  collapsed: Set<string>;
+  filteredComps: AdditiveComposition[];
+  groupTree: CompGroup[];
+  orphanRows: AdditiveComposition[];
+  hasEapLink: boolean;
+  onToggleExpand: (id: string) => void;
+  onToggleCollapsed: (id: string) => void;
+  onUpdateComposition: (id: string, patch: Partial<AdditiveComposition>) => void;
+  onUpdateQuantity: (id: string, field: 'addedQuantity' | 'suppressedQuantity', v: number) => void;
+  onRemoveComposition: (id: string) => void;
+  onAddNewService: (phaseId: string, phaseChain: string, parentNumber: string) => void;
+}
+
+export default function AdditiveTable(props: Props) {
+  const { filteredComps, groupTree, orphanRows, hasEapLink } = props;
+
+  const renderRow = (c: AdditiveComposition) => (
+    <AdditiveCompositionRow
+      key={c.id}
+      c={c}
+      bdi={props.bdi}
+      globalDiscount={props.globalDiscount}
+      isLocked={props.isLocked}
+      isOpen={props.expanded.has(c.id)}
+      showAnalytic={props.showAnalytic}
+      onToggleExpand={props.onToggleExpand}
+      onUpdateComposition={props.onUpdateComposition}
+      onUpdateQuantity={props.onUpdateQuantity}
+      onRemoveComposition={props.onRemoveComposition}
+    />
+  );
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/60 sticky top-0">
+            <tr className="border-b">
+              <th className="w-8" />
+              <th className="px-2 py-2 text-left font-semibold">Item</th>
+              <th className="px-2 py-2 text-left font-semibold">Código</th>
+              <th className="px-2 py-2 text-left font-semibold">Banco</th>
+              <th className="px-2 py-2 text-left font-semibold">Descrição</th>
+              <th className="px-2 py-2 text-left font-semibold">Und</th>
+              <th className="px-2 py-2 text-right font-semibold">Qtd Contratada</th>
+              <th className="px-2 py-2 text-right font-semibold text-rose-700">Qtd Suprimida</th>
+              <th className="px-2 py-2 text-right font-semibold text-emerald-700">Qtd Acrescida</th>
+              <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
+              <th className="px-2 py-2 text-right font-semibold">Valor Unit</th>
+              <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
+              <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
+              <th className="px-2 py-2 text-right font-semibold">Valor Contratado Calc.</th>
+              <th className="px-2 py-2 text-right font-semibold text-rose-700">Valor Suprimido</th>
+              <th className="px-2 py-2 text-right font-semibold text-emerald-700">Valor Acrescido</th>
+              <th className="px-2 py-2 text-right font-semibold">Valor Final</th>
+              <th className="px-2 py-2 text-right font-semibold">Diferença</th>
+              <th className="px-2 py-2 text-right font-semibold">% Var.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredComps.length === 0 ? (
+              <tr>
+                <td colSpan={COL_COUNT} className="text-center text-muted-foreground py-8">
+                  Nenhuma composição encontrada com os filtros atuais.
+                </td>
+              </tr>
+            ) : !hasEapLink ? (
+              filteredComps.map(renderRow)
+            ) : (
+              <>
+                {groupTree.map(g => (
+                  <AdditiveGroupRow
+                    key={g.phaseId}
+                    group={g}
+                    bdi={props.bdi}
+                    globalDiscount={props.globalDiscount}
+                    isLocked={props.isLocked}
+                    expanded={props.expanded}
+                    collapsed={props.collapsed}
+                    showAnalytic={props.showAnalytic}
+                    onToggleExpand={props.onToggleExpand}
+                    onToggleCollapsed={props.onToggleCollapsed}
+                    onUpdateComposition={props.onUpdateComposition}
+                    onUpdateQuantity={props.onUpdateQuantity}
+                    onRemoveComposition={props.onRemoveComposition}
+                    onAddNewService={props.onAddNewService}
+                  />
+                ))}
+                {orphanRows.length > 0 && (
+                  <>
+                    <tr className="bg-amber-50 border-b border-amber-200 font-semibold">
+                      <td colSpan={COL_COUNT} className="px-2 py-1.5 text-amber-900 text-[12px]">
+                        Itens da Sintética sem vínculo na EAP
+                      </td>
+                    </tr>
+                    {orphanRows.map(renderRow)}
+                  </>
+                )}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
