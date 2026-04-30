@@ -234,15 +234,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     setEditReason,
   });
 
-  // ───────── Collapse helpers ─────────
-  const toggleCollapsed = (id: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
   // ───────── EXPORT XLSX / PDF (extraído para useMeasurementExports) ─────────
   const { exportXLSX, exportPDF, handlePrint } = useMeasurementExports({
     project,
@@ -262,37 +253,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     dailyReportsSummary,
     auditUser,
   });
-
-  // ───────── RENDER ─────────
-  const COLSPAN = 15;
-
-  // Cores por grupo (tokens semânticos)
-  const G_BG = {
-    id: 'bg-muted/40',                 // Identificação
-    contract: 'bg-info/10',            // Contrato
-    period: 'bg-success/10',           // Medição atual
-    accum: 'bg-warning/10',            // Acumulado
-    balance: 'bg-destructive/10',      // Saldo
-  };
-  const G_HEAD = {
-    id: 'bg-muted text-foreground',
-    contract: 'bg-info/20 text-foreground',
-    period: 'bg-success/20 text-foreground',
-    accum: 'bg-warning/20 text-foreground',
-    balance: 'bg-destructive/15 text-foreground',
-  };
-  const BORDER_L = 'border-l-2 border-border';
-
-  const headerStyleByDepth = (depth: number) => {
-    if (depth === 0) return 'bg-primary/10 text-foreground font-bold border-y-2 border-primary/40';
-    if (depth === 1) return 'bg-muted/70 text-foreground font-semibold border-y border-border';
-    return 'bg-muted/40 text-foreground font-semibold border-y border-border';
-  };
-  const subtotalStyleByDepth = (depth: number) => {
-    if (depth === 0) return 'bg-primary/5 border-y border-primary/30 font-bold';
-    if (depth === 1) return 'bg-muted/50 border-y border-border font-semibold';
-    return 'bg-muted/30 border-y border-border font-semibold';
-  };
 
   return (
     <div className="measurement-print-root p-6 space-y-5 print:p-0 print:space-y-3">
