@@ -1,14 +1,5 @@
 import { useMemo } from 'react';
-import {
-  Project,
-  Task,
-  Phase,
-  ContractInfo,
-  SavedMeasurement,
-  MeasurementSnapshotItem,
-  MeasurementStatus,
-  MeasurementChangeLog,
-} from '@/types/project';
+import { Project } from '@/types/project';
 import {
   fmtBRL,
   fmtPct,
