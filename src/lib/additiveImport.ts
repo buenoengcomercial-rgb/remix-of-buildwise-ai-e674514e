@@ -1253,7 +1253,7 @@ export async function exportAdditiveToPdf(
     'V.Unit s/BDI', 'V.Unit c/BDI', 'Impacto c/BDI',
   ]];
 
-  for (const c of add.compositions) {
+  for (const c of compositions) {
     const r = computeCompositionWithBDI(c, bdi);
     const body: any[] = [[
       c.item, c.code, c.bank, c.description, c.unit,
