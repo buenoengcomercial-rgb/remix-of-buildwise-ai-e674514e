@@ -1,5 +1,5 @@
-import { useMemo, useCallback } from 'react';
-import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, DailyReportAttachment, WeatherCondition, WorkCondition } from '@/types/project';
+import { useMemo } from 'react';
+import { Project, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition } from '@/types/project';
 import { NotebookPen, CalendarDays, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,15 +11,15 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
+import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
+
 import {
   GENERAL_TASK_VALUE,
   WEATHER_OPTIONS,
   WORK_OPTIONS,
   WEATHER_LABEL_MAP,
   STATUS_META,
-  todayISO,
   formatBR,
-  shortTaskName,
 } from '@/components/dailyReport/dailyReportFormat';
 import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
 import { useDailyReportState } from '@/hooks/useDailyReportState';
