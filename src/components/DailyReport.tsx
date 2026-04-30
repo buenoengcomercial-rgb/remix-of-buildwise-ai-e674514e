@@ -114,79 +114,21 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-[1400px] mx-auto">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <NotebookPen className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Diário de Obra</h1>
-            <p className="text-xs text-muted-foreground">
-              Registro diário de equipes, ocorrências e produção da obra.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {undoButton}
-          <Select value={measurementFilter} onValueChange={setMeasurementFilter}>
-            <SelectTrigger className="h-9 w-[230px] text-xs">
-              <SelectValue placeholder="Filtrar por medição" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as datas</SelectItem>
-              {measurementPeriods.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {activePeriod && periodDates.length > 0 ? (
-            <Select value={selectedDate} onValueChange={setSelectedDate}>
-              <SelectTrigger className="h-9 w-[170px] text-xs">
-                <SelectValue placeholder="Data" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[260px]">
-                {periodDates.map(d => (
-                  <SelectItem key={d} value={d}>{formatBR(d)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-              <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="bg-transparent text-sm focus:outline-none"
-              />
-            </div>
-          )}
-          <Button onClick={handlePrintDay} variant="outline" size="sm" title="Exporta apenas a data selecionada">
-            <Printer className="w-4 h-4 mr-1.5" /> PDF do dia
-          </Button>
-          {activePeriod && (
-            <Button onClick={handlePrintPeriod} variant="default" size="sm" title="Exporta todos os dias do período da medição">
-              <Printer className="w-4 h-4 mr-1.5" /> PDF da medição
-            </Button>
-          )}
-        </div>
-      </div>
+      <DailyReportHeader
+        undoButton={undoButton}
+        measurementFilter={measurementFilter}
+        setMeasurementFilter={setMeasurementFilter}
+        measurementPeriods={measurementPeriods}
+        activePeriod={activePeriod}
+        periodDates={periodDates}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        handlePrintDay={handlePrintDay}
+        handlePrintPeriod={handlePrintPeriod}
+      />
 
       {/* Vínculo com Medição */}
-      {dateMembership && (
-        <div className={`rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
-          dateMembership.kind === 'generated'
-            ? 'border-info/40 bg-info/10 text-info'
-            : 'border-warning/40 bg-warning/10 text-warning'
-        }`}>
-          <FileText className="w-3.5 h-3.5" />
-          <span>
-            {dateMembership.kind === 'generated'
-              ? <>Este diário faz parte da <strong>{dateMembership.label}</strong>.</>
-              : <>Este diário está dentro do período da <strong>{dateMembership.label}</strong>.</>}
-          </span>
-        </div>
-      )}
+      <DailyReportMeasurementBanner dateMembership={dateMembership} />
 
       {/* Diários por Medição (quando há período selecionado) */}
       {activePeriod && periodSummary && (
@@ -199,18 +141,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       )}
 
       {/* Resumo */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <SummaryCard icon={ListChecks} label="Tarefas com produção" value={summary.tasks} />
-        <SummaryCard icon={FolderTree} label="Capítulos com produção" value={summary.chapters} />
-        <SummaryCard icon={Users} label="Equipes presentes" value={summary.teams} />
-        <SummaryCard icon={FileText} label="Ocorrências" value={summary.occurrences} />
-        <SummaryCard
-          icon={AlertOctagon}
-          label="Impedimentos"
-          value={summary.hasImpediments ? 'Sim' : 'Não'}
-          tone={summary.hasImpediments ? 'warning' : 'ok'}
-        />
-      </div>
+      <DailyReportSummaryCards summary={summary} />
 
       {/* Informações gerais */}
       <Card>
