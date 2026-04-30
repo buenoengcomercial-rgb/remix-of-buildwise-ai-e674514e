@@ -41,6 +41,7 @@ import {
   shortTaskName,
 } from '@/components/dailyReport/dailyReportFormat';
 import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
+import { useDailyReportState } from '@/hooks/useDailyReportState';
 
 /** Coleta todos os apontamentos da data, respeitando hierarquia capítulo/subcapítulo. */
 function collectProductionForDate(project: Project, dateISO: string): ProductionEntry[] {
@@ -80,20 +81,15 @@ function collectProductionForDate(project: Project, dateISO: string): Production
 }
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
-  // Default inteligente: se nada veio externo, mas existe medição em preparação, abrir já filtrado por ela.
-  const hasDraft = !!(project.measurementDraft?.startDate && project.measurementDraft?.endDate);
-  const defaultFilter = initialMeasurementFilter || (hasDraft ? 'draft' : 'all');
-
-  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayISO());
-  const [measurementFilter, setMeasurementFilter] = useState<string>(defaultFilter);
-
-  // Sincroniza filtro/data vindos da Medição. Depende de navKey para re-aplicar mesmo
-  // quando os mesmos valores são enviados de novo (ex.: clicar 2x em "Ver no Diário").
-  useEffect(() => {
-    if (initialMeasurementFilter) setMeasurementFilter(initialMeasurementFilter);
-    if (initialDate) setSelectedDate(initialDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMeasurementFilter, initialDate, navKey]);
+  const {
+    selectedDate,
+    setSelectedDate,
+    measurementFilter,
+    setMeasurementFilter,
+    currentReport,
+    persist,
+    updateField,
+  } = useDailyReportState({ project, onProjectChange, initialDate, initialMeasurementFilter, navKey });
 
   const reports = project.dailyReports || [];
 
@@ -156,20 +152,8 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     return null;
   }, [project.measurements, project.measurementDraft, selectedDate]);
 
-  const currentReport: DailyReportEntry = useMemo(() => {
-    const found = reports.find(r => r.date === selectedDate);
-    if (found) return found;
-    const now = new Date().toISOString();
-    return {
-      id: uid('dr'),
-      date: selectedDate,
-      teamsPresent: [],
-      equipment: [],
-      attachments: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-  }, [reports, selectedDate]);
+  // currentReport vem de useDailyReportState
+
 
   const production = useMemo(
     () => collectProductionForDate(project, selectedDate),
@@ -226,23 +210,8 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     [activePeriod, project],
   );
 
-  // ───── Persistência ─────
-  const persist = useCallback((mutator: (r: DailyReportEntry) => DailyReportEntry) => {
-    onProjectChange(prev => {
-      const list = prev.dailyReports || [];
-      const idx = list.findIndex(r => r.date === selectedDate);
-      const base = idx >= 0 ? list[idx] : currentReport;
-      const updated: DailyReportEntry = { ...mutator(base), date: selectedDate, updatedAt: new Date().toISOString() };
-      const nextList = idx >= 0
-        ? list.map((r, i) => i === idx ? updated : r)
-        : [...list, updated];
-      return { ...prev, dailyReports: nextList };
-    });
-  }, [onProjectChange, selectedDate, currentReport]);
+  // persist e updateField vêm de useDailyReportState
 
-  const updateField = <K extends keyof DailyReportEntry>(key: K, value: DailyReportEntry[K]) => {
-    persist(r => ({ ...r, [key]: value }));
-  };
 
   // Equipes cadastradas no projeto (fallback para defaults se ainda não definidas)
   const projectTeams: TeamDefinition[] = useMemo(
