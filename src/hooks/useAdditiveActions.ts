@@ -236,7 +236,7 @@ export function useAdditiveActions({ project, onProjectChange, state }: Params) 
   const handleExportPdf = async (showAnalytic: boolean) => {
     if (!active) return;
     try {
-      await exportAdditiveToPdf(active, project.name, showAnalytic);
+      await exportAdditiveToPdf(active, project, showAnalytic);
       toast.success('PDF gerado');
       logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em PDF' });
     } catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
