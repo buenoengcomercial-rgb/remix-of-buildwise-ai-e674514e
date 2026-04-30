@@ -1642,20 +1642,6 @@ function ProductionTable({
 }
 
 // ───── Seção: Diários por Medição ─────
-const STATUS_META = {
-  filled:       { label: 'Preenchido',     row: 'bg-success/5 hover:bg-success/10',           pill: 'text-success border-success/40 bg-success/10',           icon: CheckCircle2 },
-  pending:      { label: 'Pendente',       row: 'bg-warning/5 hover:bg-warning/10',           pill: 'text-warning border-warning/40 bg-warning/10',           icon: Clock4 },
-  noProduction: { label: 'Sem produção',   row: 'bg-orange-500/5 hover:bg-orange-500/10',     pill: 'text-orange-600 border-orange-500/40 bg-orange-500/10', icon: FileText },
-  impediment:   { label: 'Com impedimento',row: 'bg-destructive/5 hover:bg-destructive/10',   pill: 'text-destructive border-destructive/40 bg-destructive/10', icon: AlertOctagon },
-} as const;
-
-const WEATHER_LABEL_MAP: Record<string, string> = {
-  ensolarado: 'Ensolarado',
-  parcialmente_nublado: 'Parc. nublado',
-  nublado: 'Nublado',
-  chuvoso: 'Chuvoso',
-  outro: 'Outro',
-};
 
 interface PeriodReportsSectionProps {
   period: { id: string; label: string; startDate: string; endDate: string };
