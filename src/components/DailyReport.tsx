@@ -27,78 +27,20 @@ async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: Auto
   return { jsPDF, autoTable };
 }
 
-const PHOTO_BUCKET = 'daily-report-photos';
-const GENERAL_TASK_VALUE = '__general__';
-
-/** Lê arquivo como dataURL (usado para preview e fallback). */
-function readFileAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-interface DailyReportProps {
-  project: Project;
-  onProjectChange: (next: Project | ((prev: Project) => Project)) => void;
-  undoButton?: React.ReactNode;
-  /** Data ISO inicial vinda da Medição (ao clicar em "Abrir Diário"). */
-  initialDate?: string;
-  /** Filtro de medição inicial vindo da Medição (ex.: 'draft' ou id da medição). */
-  initialMeasurementFilter?: string;
-  /** Chave que muda a cada navegação externa, força re-aplicar initialDate/initialMeasurementFilter
-   *  mesmo quando os valores se repetem. */
-  navKey?: number;
-}
-
-const WEATHER_OPTIONS: Array<{ value: WeatherCondition; label: string; icon: React.ElementType }> = [
-  { value: 'ensolarado', label: 'Ensolarado', icon: Sun },
-  { value: 'parcialmente_nublado', label: 'Parc. nublado', icon: CloudSun },
-  { value: 'nublado', label: 'Nublado', icon: Cloud },
-  { value: 'chuvoso', label: 'Chuvoso', icon: CloudRain },
-  { value: 'outro', label: 'Outro', icon: AlertTriangle },
-];
-
-const WORK_OPTIONS: Array<{ value: WorkCondition; label: string }> = [
-  { value: 'normal', label: 'Normal' },
-  { value: 'parcialmente_prejudicada', label: 'Parcialmente prejudicada' },
-  { value: 'paralisada', label: 'Paralisada' },
-  { value: 'outro', label: 'Outro' },
-];
-
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatBR(iso: string): string {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return iso;
-  return `${m[3]}/${m[2]}/${m[1]}`;
-}
-
-function uid(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-interface ProductionEntry {
-  chapterId: string;
-  chapterName: string;
-  chapterNumber: string;
-  subChapterId?: string;
-  subChapterName?: string;
-  subChapterNumber?: string;
-  taskId: string;
-  taskName: string;
-  unit: string;
-  actualQuantity: number;
-  plannedQuantity: number;
-  notes?: string;
-  /** Equipe vinculada à tarefa (para sugestão automática de equipes presentes). */
-  teamCode?: string;
-}
+import {
+  PHOTO_BUCKET,
+  GENERAL_TASK_VALUE,
+  WEATHER_OPTIONS,
+  WORK_OPTIONS,
+  WEATHER_LABEL_MAP,
+  STATUS_META,
+  todayISO,
+  formatBR,
+  uid,
+  readFileAsDataURL,
+  shortTaskName,
+} from '@/components/dailyReport/dailyReportFormat';
+import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
 
 /** Coleta todos os apontamentos da data, respeitando hierarquia capítulo/subcapítulo. */
 function collectProductionForDate(project: Project, dateISO: string): ProductionEntry[] {
