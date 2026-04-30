@@ -46,6 +46,7 @@ import { useDailyReportPeriods } from '@/hooks/useDailyReportPeriods';
 import { useDailyReportProduction, collectProductionForDate } from '@/hooks/useDailyReportProduction';
 import { useDailyReportTeams } from '@/hooks/useDailyReportTeams';
 import { useDailyReportEquipment } from '@/hooks/useDailyReportEquipment';
+import { useDailyReportPhotos } from '@/hooks/useDailyReportPhotos';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
