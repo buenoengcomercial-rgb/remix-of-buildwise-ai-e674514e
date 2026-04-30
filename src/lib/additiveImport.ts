@@ -1280,7 +1280,7 @@ export async function exportAdditiveToPdf(
     });
     cursorY = (doc as any).lastAutoTable.finalY + 1;
 
-    if (showAnalytic && c.inputs.length > 0) {
+    if (showAnalytic && (c.inputs?.length ?? 0) > 0) {
       autoTable(doc, {
         startY: cursorY,
         head: [['', 'Cód.', 'Banco', 'Descrição insumo', 'Un', 'Coef.', 'V.Unit s/BDI', 'Total s/BDI']],
