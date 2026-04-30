@@ -18,6 +18,7 @@ interface MeasurementContractInfoProps {
   contractObject: string; setContractObject: (v: string) => void;
   location: string; setLocation: (v: string) => void;
   budgetSource: string; setBudgetSource: (v: string) => void;
+  artNumber: string; setArtNumber: (v: string) => void;
   bdiInput: string; setBdiInput: (v: string) => void;
   bdiPercent: number;
   measurementNumber: string; setMeasurementNumber: (v: string) => void;
