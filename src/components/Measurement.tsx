@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import {
   Project,
   Task,
@@ -9,20 +9,13 @@ import {
   MeasurementStatus,
   MeasurementChangeLog,
 } from '@/types/project';
-import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
-import { trunc2, money2, calculateUnitPriceWithBDI, calculateMeasurementLine } from '@/lib/measurementCalculations';
 import type { Row, GroupTotals, GroupNode } from '@/components/measurement/types';
-import { STATUS_LABEL, STATUS_CLASS, isLockedStatus } from '@/components/measurement/types';
+import { STATUS_LABEL, STATUS_CLASS } from '@/components/measurement/types';
 import {
   fmtBRL,
   fmtNum,
   fmtPct,
   fmtDateBR,
-  emptyTotals,
-  estimateTaskValue,
-  buildOrderedTasks,
-  isoAddDays,
-  suggestPeriodForNext,
 } from '@/components/measurement/measurementFormat';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
