@@ -66,6 +66,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     contractObject, setContractObject,
     location, setLocation,
     budgetSource, setBudgetSource,
+    artNumber, setArtNumber,
     bdiInput, setBdiInput,
     measurementNumber, setMeasurementNumber,
     confirmGenerate, setConfirmGenerate,
