@@ -167,7 +167,7 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
         metadata: { number: activeMeasurement.number },
       }));
     }
-  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, onProjectChange, projectRef, auditUser]);
+  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, onProjectChange, projectRef, auditUser]);
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
   const exportPDF = useCallback(async () => {
@@ -536,7 +536,7 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
         metadata: { number: activeMeasurement.number },
       }));
     }
-  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, dailyReportsSummary, onProjectChange, projectRef, auditUser]);
+  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, dailyReportsSummary, onProjectChange, projectRef, auditUser]);
 
   const handlePrint = useCallback(() => exportPDF(), [exportPDF]);
 
