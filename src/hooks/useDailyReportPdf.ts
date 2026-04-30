@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { toast } from 'sonner';
 import type {
   DailyReport as DailyReportEntry,
   DailyReportAttachment,
@@ -23,10 +24,12 @@ type AutoTableFn = typeof import('jspdf-autotable').default;
 
 // jsPDF/autoTable são carregados sob demanda (~300 kB) só ao gerar PDF.
 async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: AutoTableFn }> {
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+  const [jsPDFMod, autoTableMod] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
   ]);
+  const jsPDF = (jsPDFMod as any).default || (jsPDFMod as any).jsPDF || jsPDFMod;
+  const autoTable = (autoTableMod as any).default || (autoTableMod as any).autoTable || autoTableMod;
   return { jsPDF, autoTable };
 }
 
@@ -151,7 +154,9 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
     let dates: string[];
     let scopeTitle: string;
     let fileName: string;
-    const safeName = project.name.replace(/[^a-z0-9]+/gi, '_');
+    const projectName = project?.name || 'Obra';
+    const safeName = projectName.replace(/[^a-z0-9]+/gi, '_') || 'Obra';
+    const safeSelectedDate = selectedDate || todayISO();
 
     if (mode === 'period' && activePeriod && periodDates.length > 0) {
       dates = periodDates;
@@ -163,20 +168,20 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
         ? `Diario_Obra_Medicao_Preparacao_${safeName}.pdf`
         : `Diario_Obra_${activePeriod.label.replace(/[^a-z0-9]+/gi, '_')}_${safeName}.pdf`;
     } else {
-      dates = [selectedDate];
-      scopeTitle = `DIÁRIO DE OBRA — ${formatBR(selectedDate)}`;
-      fileName = `Diario_Obra_${safeName}_${selectedDate}.pdf`;
+      dates = [safeSelectedDate];
+      scopeTitle = `DIÁRIO DE OBRA — ${formatBR(safeSelectedDate)}`;
+      fileName = `Diario_Obra_${safeName}_${safeSelectedDate}.pdf`;
     }
 
     // Snapshot da medição (para cabeçalho)
     const ci = project.contractInfo || {};
     const periodoStr = mode === 'period' && activePeriod
       ? `${formatBR(activePeriod.startDate)} a ${formatBR(activePeriod.endDate)}`
-      : formatBR(selectedDate);
+      : formatBR(safeSelectedDate);
     const issueStr = formatBR(todayISO());
 
     // Logo da empresa (canto superior esquerdo)
-    const logo = await loadCompanyLogoForPdf();
+    const logo = await loadCompanyLogoForPdf().catch(() => null);
     const logoTargetW = 28; // mm
     let logoH = 0;
     if (logo) {
@@ -195,7 +200,7 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
 
     const headerColWidths = [usable * 0.18, usable * 0.32, usable * 0.18, usable * 0.32];
     const headerRows: [string, string, string, string][] = [
-      ['Obra:', project.name || '-', 'Período:', periodoStr],
+      ['Obra:', projectName || '-', 'Período:', periodoStr],
       ['Contratante:', ci.contractor || '-', 'Contratada:', ci.contracted || '-'],
       ['Local/Município:', ci.location || '-', 'Nº Contrato:', ci.contractNumber || '-'],
       ['Objeto:', ci.contractObject || '-', 'Nº ART:', ci.artNumber || '-'],
@@ -666,8 +671,22 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
     doc.save(fileName);
   }, [project, activePeriod, periodDates, selectedDate, teamByCode, teamDisplay]);
 
-  const handlePrintDay = useCallback(() => generatePDF('day'), [generatePDF]);
-  const handlePrintPeriod = useCallback(() => generatePDF('period'), [generatePDF]);
+  const handlePrintDay = useCallback(async () => {
+    try {
+      await generatePDF('day');
+    } catch (e) {
+      console.error('Erro ao gerar PDF do dia (Diário de Obra)', e);
+      toast.error('Falha ao gerar PDF do dia. Verifique o console para detalhes.');
+    }
+  }, [generatePDF]);
+  const handlePrintPeriod = useCallback(async () => {
+    try {
+      await generatePDF('period');
+    } catch (e) {
+      console.error('Erro ao gerar PDF do período (Diário de Obra)', e);
+      toast.error('Falha ao gerar PDF do período. Verifique o console para detalhes.');
+    }
+  }, [generatePDF]);
 
   return { handlePrintDay, handlePrintPeriod };
 }

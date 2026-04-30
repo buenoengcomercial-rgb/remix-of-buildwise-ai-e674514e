@@ -239,7 +239,10 @@ export function useAdditiveActions({ project, onProjectChange, state }: Params) 
       await exportAdditiveToPdf(active, project, showAnalytic);
       toast.success('PDF gerado');
       logAdd(active.id, { action: 'exported', title: 'Aditivo exportado em PDF' });
-    } catch (e) { console.error(e); toast.error('Falha ao gerar PDF'); }
+    } catch (e) {
+      console.error('Erro ao gerar PDF do aditivo', e);
+      toast.error('Falha ao gerar PDF do aditivo. Verifique o console para detalhes.');
+    }
   };
 
   const handleDeleteAdditive = (id: string) => {
