@@ -133,16 +133,6 @@ export default function MeasurementContractInfo({
               {fmtDateBR(effIssue)}
             </p>
           </FormField>
-          <FormField label="Período da Medição" colSpan={4}>
-            <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
-              {fmtDateBR(effStart)} a {fmtDateBR(effEnd)}
-            </p>
-          </FormField>
-          <FormField label="Data de Emissão" colSpan={2}>
-            <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
-              {fmtDateBR(effIssue)}
-            </p>
-          </FormField>
           <FormField label="Fonte de Orçamento" colSpan={4}>
             <Input
               className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
