@@ -1,9 +1,6 @@
-import { useMemo } from 'react';
-import { Project, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition } from '@/types/project';
-import { NotebookPen, CalendarDays, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
+import { CalendarDays, Users, Wrench, Plus, Trash2, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,8 +12,6 @@ import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 
 import {
   GENERAL_TASK_VALUE,
-  WEATHER_OPTIONS,
-  WORK_OPTIONS,
   WEATHER_LABEL_MAP,
   STATUS_META,
   formatBR,
@@ -29,6 +24,11 @@ import { useDailyReportTeams } from '@/hooks/useDailyReportTeams';
 import { useDailyReportEquipment } from '@/hooks/useDailyReportEquipment';
 import { useDailyReportPhotos } from '@/hooks/useDailyReportPhotos';
 import { useDailyReportPdf } from '@/hooks/useDailyReportPdf';
+import { DailyReportHeader } from '@/components/dailyReport/DailyReportHeader';
+import { DailyReportMeasurementBanner } from '@/components/dailyReport/DailyReportMeasurementBanner';
+import { DailyReportSummaryCards } from '@/components/dailyReport/DailyReportSummaryCards';
+import { DailyReportGeneralInfo } from '@/components/dailyReport/DailyReportGeneralInfo';
+import { DailyReportTextAreas } from '@/components/dailyReport/DailyReportTextAreas';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
