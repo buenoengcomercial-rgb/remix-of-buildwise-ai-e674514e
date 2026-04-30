@@ -822,29 +822,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       </Card>
 
       {/* Rodapé técnico */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <TotalsBlock title="Sem BDI" rows={[
-          ['Custo total da obra', fmtBRL(totals.contractedNoBDI)],
-          ['Valor desta medição', fmtBRL(totals.periodNoBDI)],
-          ['Valor acumulado', fmtBRL(totals.accumNoBDI)],
-          ['Valor a executar', fmtBRL(totals.balanceNoBDI)],
-        ]} />
-        <TotalsBlock title={`BDI (${fmtPct(effBdi)})`} rows={[
-          ['BDI total', fmtBRL(totals.contracted - totals.contractedNoBDI)],
-          ['BDI desta medição', fmtBRL(totals.period - totals.periodNoBDI)],
-          ['BDI acumulado', fmtBRL(totals.accum - totals.accumNoBDI)],
-          ['BDI a executar', fmtBRL(totals.balance - totals.balanceNoBDI)],
-        ]} />
-        <TotalsBlock title="Com BDI" highlight rows={[
-          ['Custo total da obra', fmtBRL(totals.contracted)],
-          ['Valor desta medição', fmtBRL(totals.period)],
-          ['Valor acumulado', fmtBRL(totals.accum)],
-          ['Valor a executar', fmtBRL(totals.balance)],
-          ['% desta medição', fmtPct(totals.pctPeriod)],
-          ['% acumulado', fmtPct(totals.pctAccum)],
-          ['% a executar', fmtPct(totals.pctBalance)],
-        ]} />
-      </div>
+      <MeasurementTotals totals={totals} effBdi={effBdi} />
 
       {/* Histórico de alterações */}
       {activeMeasurement?.history && activeMeasurement.history.length > 0 && (
