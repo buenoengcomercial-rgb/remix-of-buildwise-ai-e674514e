@@ -1155,7 +1155,7 @@ export async function exportAdditiveToExcel(add: Additive) {
 
 export async function exportAdditiveToPdf(
   add: Additive,
-  projectName: string,
+  projectOrName: Project | string,
   showAnalytic: boolean,
 ) {
   const [{ default: jsPDF }, autoTableMod, branding] = await Promise.all([
@@ -1166,29 +1166,70 @@ export async function exportAdditiveToPdf(
   const autoTable = (autoTableMod as any).default || autoTableMod;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 10;
+  const margin = 5;
   const bdi = add.bdiPercent ?? 0;
 
-  const logo = await branding.loadCompanyLogoForPdf().catch(() => null);
-  let cursorY = margin;
+  // Compat: aceita um Project completo (preferencial) ou apenas o nome (legado).
+  const project: Project | null = typeof projectOrName === 'string' ? null : projectOrName;
+  const projectName = typeof projectOrName === 'string' ? projectOrName : projectOrName.name;
+  const ci = project?.contractInfo || {};
 
+  const logo = await branding.loadCompanyLogoForPdf().catch(() => null);
+  const logoTargetW = 30;
+  let logoH = 0;
   if (logo) {
-    const targetH = 12;
-    const targetW = (logo.width / logo.height) * targetH;
-    try { doc.addImage(logo.dataUrl, 'PNG', margin, cursorY, targetW, targetH); } catch {}
+    const ratio = logo.width / logo.height;
+    logoH = logoTargetW / ratio;
+    try { doc.addImage(logo.dataUrl, 'PNG', margin, margin, logoTargetW, logoH, undefined, 'FAST'); } catch {}
   }
 
+  // Título centralizado (mesmo padrão da Medição)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(`ADITIVO — ${add.name.toUpperCase()}`, pageWidth / 2, cursorY + 6, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(`Obra: ${projectName}`, pageWidth / 2, cursorY + 11, { align: 'center' });
+  doc.setFontSize(11);
   doc.text(
-    `Emitido em: ${new Date().toLocaleDateString('pt-BR')}   |   BDI: ${bdi.toFixed(2)}%   |   Status: ${(add.status ?? 'rascunho').toUpperCase()}`,
-    pageWidth / 2, cursorY + 15, { align: 'center' },
+    `ADITIVO — ${add.name.toUpperCase()}`,
+    pageWidth / 2, margin + 4, { align: 'center' },
   );
-  cursorY += 20;
+
+  let cursorY = Math.max(margin + 7, margin + logoH + 1);
+
+  // Cabeçalho em grade no mesmo padrão da Medição
+  const usable = pageWidth - margin * 2;
+  const headerColWidths = [usable * 0.10, usable * 0.40, usable * 0.10, usable * 0.40];
+  const fmtDateBR = (iso?: string) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('pt-BR');
+  };
+  const statusStr = (add.status ?? 'rascunho').toUpperCase();
+  const issueStr = new Date().toLocaleDateString('pt-BR');
+  const headerRows: [string, string, string, string][] = [
+    ['Obra:', projectName || '-', 'Aditivo:', add.name || '-'],
+    ['Contratante:', ci.contractor || '-', 'Contratada:', ci.contracted || '-'],
+    ['Objeto:', ci.contractObject || '-', 'Local/Município:', ci.location || '-'],
+    ['Nº Contrato:', ci.contractNumber || '-', 'Nº ART:', ci.artNumber || '-'],
+    ['Data emissão:', issueStr, 'Status:', statusStr],
+    ['Fonte de orçamento:', ci.budgetSource || '-', 'BDI %:', `${bdi.toFixed(2)}`],
+  ];
+  autoTable(doc, {
+    startY: cursorY,
+    body: headerRows,
+    theme: 'grid',
+    styles: {
+      font: 'helvetica', fontSize: 7.5, cellPadding: 1.4, overflow: 'linebreak',
+      valign: 'middle', lineColor: [180, 180, 180], lineWidth: 0.15, textColor: 20,
+    },
+    columnStyles: {
+      0: { cellWidth: headerColWidths[0], fontStyle: 'bold', fillColor: [243, 244, 246] },
+      1: { cellWidth: headerColWidths[1] },
+      2: { cellWidth: headerColWidths[2], fontStyle: 'bold', fillColor: [243, 244, 246] },
+      3: { cellWidth: headerColWidths[3] },
+    },
+    margin: { left: margin, right: margin },
+    tableWidth: usable,
+  });
+  cursorY = ((doc as any).lastAutoTable?.finalY ?? cursorY) + 2.5;
 
   const totals = additiveTotals(add);
   doc.setFontSize(8);

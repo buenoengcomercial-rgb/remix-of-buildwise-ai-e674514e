@@ -31,6 +31,7 @@ interface HeaderFormFields {
   contractObject: string;
   location: string;
   budgetSource: string;
+  artNumber: string;
   bdiPercent: number;
 }
 
@@ -77,13 +78,13 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
     auditUser,
   } = params;
 
-  const { contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent } = headerForm;
+  const { contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent } = headerForm;
 
   // ───────── EXPORT XLSX ─────────
   const exportXLSX = useCallback(async () => {
     const XLSX = await loadXLSX();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
-      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent,
     };
     const headerRows: (string | number)[][] = [
       ['BOLETIM DE MEDIÇÃO PARA PAGAMENTO'],
@@ -91,9 +92,10 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
       ['Contratante:', headerCtx.contractor || '', '', 'Contratada:', headerCtx.contracted || ''],
       ['Obra:', project.name, '', 'Local/Município:', headerCtx.location || ''],
       ['Objeto:', headerCtx.contractObject || '', '', 'Nº Contrato:', headerCtx.contractNumber || ''],
-      ['Medição Nº:', effNumber, '', 'Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`],
-      ['Data emissão:', fmtDateBR(effIssue), '', 'Fonte de orçamento:', headerCtx.budgetSource || ''],
-      ['BDI %:', effBdi, '', 'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'],
+      ['Nº ART:', headerCtx.artNumber || '', '', 'Medição Nº:', effNumber],
+      ['Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`, '', 'Data emissão:', fmtDateBR(effIssue)],
+      ['Fonte de orçamento:', headerCtx.budgetSource || '', '', 'BDI %:', effBdi],
+      ['Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'],
       [],
     ];
 
@@ -165,13 +167,13 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
         metadata: { number: activeMeasurement.number },
       }));
     }
-  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, onProjectChange, projectRef, auditUser]);
+  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, onProjectChange, projectRef, auditUser]);
 
   // ───────── EXPORT PDF (limpo, A4 paisagem, sem chrome do navegador) ─────────
   const exportPDF = useCallback(async () => {
     const { jsPDF, autoTable } = await loadPdfDeps();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
-      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent,
     };
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -214,9 +216,10 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
       ['Obra:', project.name || '-', 'Medição Nº:', numStr || '-'],
       ['Contratante:', headerCtx.contractor || '-', 'Contratada:', headerCtx.contracted || '-'],
       ['Objeto:', headerCtx.contractObject || '-', 'Local/Município:', headerCtx.location || '-'],
-      ['Nº Contrato:', headerCtx.contractNumber || '-', 'Período:', periodoStr],
-      ['Data emissão:', fmtDateBR(effIssue) || '-', 'BDI %:', `${effBdi}`],
-      ['Fonte de orçamento:', headerCtx.budgetSource || '-', 'Status:', statusStr],
+      ['Nº Contrato:', headerCtx.contractNumber || '-', 'Nº ART:', headerCtx.artNumber || '-'],
+      ['Período:', periodoStr, 'Data emissão:', fmtDateBR(effIssue) || '-'],
+      ['Fonte de orçamento:', headerCtx.budgetSource || '-', 'BDI %:', `${effBdi}`],
+      ['Status:', statusStr, '', ''],
     ];
 
     autoTable(doc, {
@@ -533,7 +536,7 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
         metadata: { number: activeMeasurement.number },
       }));
     }
-  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, dailyReportsSummary, onProjectChange, projectRef, auditUser]);
+  }, [activeMeasurement, project, contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent, effNumber, effStart, effEnd, effIssue, effBdi, groupTree, totals, dailyReportsSummary, onProjectChange, projectRef, auditUser]);
 
   const handlePrint = useCallback(() => exportPDF(), [exportPDF]);
 

@@ -66,6 +66,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     contractObject, setContractObject,
     location, setLocation,
     budgetSource, setBudgetSource,
+    artNumber, setArtNumber,
     bdiInput, setBdiInput,
     measurementNumber, setMeasurementNumber,
     confirmGenerate, setConfirmGenerate,
@@ -222,7 +223,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     groupTree,
     totals,
     headerForm: {
-      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent,
     },
     effStart,
     effEnd,
@@ -379,6 +380,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
         contractObject={contractObject} setContractObject={setContractObject}
         location={location} setLocation={setLocation}
         budgetSource={budgetSource} setBudgetSource={setBudgetSource}
+        artNumber={artNumber} setArtNumber={setArtNumber}
         bdiInput={bdiInput} setBdiInput={setBdiInput}
         bdiPercent={bdiPercent}
         measurementNumber={measurementNumber} setMeasurementNumber={setMeasurementNumber}

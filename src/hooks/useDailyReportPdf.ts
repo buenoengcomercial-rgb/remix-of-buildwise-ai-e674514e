@@ -198,8 +198,9 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
       ['Obra:', project.name || '-', 'Período:', periodoStr],
       ['Contratante:', ci.contractor || '-', 'Contratada:', ci.contracted || '-'],
       ['Local/Município:', ci.location || '-', 'Nº Contrato:', ci.contractNumber || '-'],
-      ['Objeto:', ci.contractObject || '-', 'Fonte de orçamento:', ci.budgetSource || '-'],
-      ['Data emissão:', issueStr, 'BDI %:', ci.bdiPercent != null ? String(ci.bdiPercent) : '-'],
+      ['Objeto:', ci.contractObject || '-', 'Nº ART:', ci.artNumber || '-'],
+      ['Fonte de orçamento:', ci.budgetSource || '-', 'Data emissão:', issueStr],
+      ['BDI %:', ci.bdiPercent != null ? String(ci.bdiPercent) : '-', '', ''],
     ];
     autoTable(doc, {
       startY: y,

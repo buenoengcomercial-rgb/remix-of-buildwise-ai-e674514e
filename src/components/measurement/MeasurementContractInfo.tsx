@@ -18,6 +18,7 @@ interface MeasurementContractInfoProps {
   contractObject: string; setContractObject: (v: string) => void;
   location: string; setLocation: (v: string) => void;
   budgetSource: string; setBudgetSource: (v: string) => void;
+  artNumber: string; setArtNumber: (v: string) => void;
   bdiInput: string; setBdiInput: (v: string) => void;
   bdiPercent: number;
   measurementNumber: string; setMeasurementNumber: (v: string) => void;
@@ -34,6 +35,7 @@ export default function MeasurementContractInfo({
   contractObject, setContractObject,
   location, setLocation,
   budgetSource, setBudgetSource,
+  artNumber, setArtNumber,
   bdiInput, setBdiInput,
   bdiPercent,
   measurementNumber, setMeasurementNumber,
@@ -101,7 +103,7 @@ export default function MeasurementContractInfo({
               placeholder="Descrição resumida do escopo"
             />
           </FormField>
-          <FormField label="Nº do Contrato" colSpan={4}>
+          <FormField label="Nº do Contrato" colSpan={3}>
             <Input
               className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
               value={contractNumber}
@@ -109,6 +111,16 @@ export default function MeasurementContractInfo({
               onChange={e => setContractNumber(e.target.value)}
               onBlur={() => persistContractInfo({ contractNumber })}
               placeholder="Ex.: 001/2025"
+            />
+          </FormField>
+          <FormField label="Nº ART" colSpan={3}>
+            <Input
+              className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
+              value={artNumber}
+              disabled={isSnapshotMode}
+              onChange={e => setArtNumber(e.target.value)}
+              onBlur={() => persistContractInfo({ artNumber })}
+              placeholder="Ex.: BR20240000000"
             />
           </FormField>
           <FormField label="Período da Medição" colSpan={4}>

@@ -66,6 +66,7 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
   const [contractObject, setContractObject] = useState(contract.contractObject || '');
   const [location, setLocation] = useState(contract.location || '');
   const [budgetSource, setBudgetSource] = useState(contract.budgetSource || '');
+  const [artNumber, setArtNumber] = useState(contract.artNumber || '');
   const [bdiInput, setBdiInput] = useState(
     contract.bdiPercent !== undefined ? String(contract.bdiPercent) : '25',
   );
@@ -89,6 +90,7 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
     setContractObject(c.contractObject || '');
     setLocation(c.location || '');
     setBudgetSource(c.budgetSource || '');
+    setArtNumber(c.artNumber || '');
     setBdiInput(c.bdiPercent !== undefined ? String(c.bdiPercent) : '25');
 
     const sortedMs = (project.measurements || []).slice().sort((a, b) => a.number - b.number);
@@ -187,6 +189,7 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
     contractObject, setContractObject,
     location, setLocation,
     budgetSource, setBudgetSource,
+    artNumber, setArtNumber,
     bdiInput, setBdiInput,
     measurementNumber, setMeasurementNumber,
     // diálogos
