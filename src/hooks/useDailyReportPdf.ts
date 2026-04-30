@@ -200,7 +200,7 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
 
     const headerColWidths = [usable * 0.18, usable * 0.32, usable * 0.18, usable * 0.32];
     const headerRows: [string, string, string, string][] = [
-      ['Obra:', project.name || '-', 'Período:', periodoStr],
+      ['Obra:', projectName || '-', 'Período:', periodoStr],
       ['Contratante:', ci.contractor || '-', 'Contratada:', ci.contracted || '-'],
       ['Local/Município:', ci.location || '-', 'Nº Contrato:', ci.contractNumber || '-'],
       ['Objeto:', ci.contractObject || '-', 'Nº ART:', ci.artNumber || '-'],
