@@ -11,20 +11,6 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
-import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
-
-import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
-import type jsPDFType from 'jspdf';
-type AutoTableFn = typeof import('jspdf-autotable').default;
-// jsPDF/autoTable são carregados sob demanda (~300 kB) só ao gerar PDF.
-async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: AutoTableFn }> {
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable'),
-  ]);
-  return { jsPDF, autoTable };
-}
-
 import {
   GENERAL_TASK_VALUE,
   WEATHER_OPTIONS,
@@ -38,10 +24,11 @@ import {
 import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
 import { useDailyReportState } from '@/hooks/useDailyReportState';
 import { useDailyReportPeriods } from '@/hooks/useDailyReportPeriods';
-import { useDailyReportProduction, collectProductionForDate } from '@/hooks/useDailyReportProduction';
+import { useDailyReportProduction } from '@/hooks/useDailyReportProduction';
 import { useDailyReportTeams } from '@/hooks/useDailyReportTeams';
 import { useDailyReportEquipment } from '@/hooks/useDailyReportEquipment';
 import { useDailyReportPhotos } from '@/hooks/useDailyReportPhotos';
+import { useDailyReportPdf } from '@/hooks/useDailyReportPdf';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
