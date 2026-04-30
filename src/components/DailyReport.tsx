@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback } from 'react';
 import { Project, DailyReport as DailyReportEntry, DailyReportTeamRow, DailyReportEquipmentRow, DailyReportAttachment, WeatherCondition, WorkCondition } from '@/types/project';
 import { NotebookPen, CalendarDays, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,8 +14,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 
 import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
 import type jsPDFType from 'jspdf';
 type AutoTableFn = typeof import('jspdf-autotable').default;
 // jsPDF/autoTable são carregados sob demanda (~300 kB) só ao gerar PDF.
@@ -28,7 +26,6 @@ async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: Auto
 }
 
 import {
-  PHOTO_BUCKET,
   GENERAL_TASK_VALUE,
   WEATHER_OPTIONS,
   WORK_OPTIONS,
@@ -36,8 +33,6 @@ import {
   STATUS_META,
   todayISO,
   formatBR,
-  uid,
-  readFileAsDataURL,
   shortTaskName,
 } from '@/components/dailyReport/dailyReportFormat';
 import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
@@ -46,6 +41,7 @@ import { useDailyReportPeriods } from '@/hooks/useDailyReportPeriods';
 import { useDailyReportProduction, collectProductionForDate } from '@/hooks/useDailyReportProduction';
 import { useDailyReportTeams } from '@/hooks/useDailyReportTeams';
 import { useDailyReportEquipment } from '@/hooks/useDailyReportEquipment';
+import { useDailyReportPhotos } from '@/hooks/useDailyReportPhotos';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
@@ -91,123 +87,25 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
   const { addEqRow, updateEqRow, removeEqRow } = useDailyReportEquipment({ persist });
 
   // ───── Fotos / Anexos ─────
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [pendingTaskId, setPendingTaskId] = useState<string>(GENERAL_TASK_VALUE);
-  const [photoFilter, setPhotoFilter] = useState<string>('all'); // 'all' | taskId | GENERAL_TASK_VALUE
-  const [uploadingCount, setUploadingCount] = useState(0);
-  const [lightbox, setLightbox] = useState<DailyReportAttachment | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<DailyReportAttachment | null>(null);
-
-  const photos: DailyReportAttachment[] = useMemo(
-    () => (currentReport.attachments || []).filter(a => (a.type ?? 'image') === 'image'),
-    [currentReport.attachments],
-  );
-
-  const photosByTask = useMemo(() => {
-    const m = new Map<string, number>();
-    photos.forEach(p => {
-      const key = p.taskId || GENERAL_TASK_VALUE;
-      m.set(key, (m.get(key) || 0) + 1);
-    });
-    return m;
-  }, [photos]);
-
-  const visiblePhotos = useMemo(() => {
-    if (photoFilter === 'all') return photos;
-    return photos.filter(p => (p.taskId || GENERAL_TASK_VALUE) === photoFilter);
-  }, [photos, photoFilter]);
-
-  const photoTaskOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const opts: { value: string; label: string; phaseChain: string; quantity: number; unit: string; taskName: string }[] = [];
-    production.forEach(p => {
-      if (seen.has(p.taskId)) return;
-      seen.add(p.taskId);
-      const chain = p.subChapterName
-        ? `${p.chapterNumber} ${p.chapterName} > ${p.subChapterNumber} ${p.subChapterName}`
-        : `${p.chapterNumber} ${p.chapterName}`;
-      const numero = p.subChapterNumber ? `${p.subChapterNumber}` : `${p.chapterNumber}`;
-      opts.push({
-        value: p.taskId,
-        label: `${numero} — ${p.taskName} — ${p.actualQuantity.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${p.unit}`,
-        phaseChain: chain,
-        quantity: p.actualQuantity,
-        unit: p.unit,
-        taskName: p.taskName,
-      });
-    });
-    return opts;
-  }, [production]);
-
-  const uploadOne = useCallback(async (file: File): Promise<DailyReportAttachment> => {
-    const id = uid('att');
-    const safeExt = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const path = `${project.id || 'local'}/${selectedDate}/${id}.${safeExt}`;
-    const taskMeta = pendingTaskId !== GENERAL_TASK_VALUE
-      ? photoTaskOptions.find(o => o.value === pendingTaskId)
-      : undefined;
-    const base: DailyReportAttachment = {
-      id,
-      type: 'image',
-      fileName: file.name,
-      mimeType: file.type || 'image/jpeg',
-      caption: '',
-      taskId: taskMeta?.value,
-      taskName: taskMeta?.taskName,
-      phaseChain: taskMeta?.phaseChain,
-      quantity: taskMeta?.quantity,
-      unit: taskMeta?.unit,
-      uploadedBy: currentReport.responsible || undefined,
-      uploadedAt: new Date().toISOString(),
-    };
-    try {
-      const { error } = await supabase.storage
-        .from(PHOTO_BUCKET)
-        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-      if (error) throw error;
-      const { data: pub } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-      return { ...base, storagePath: path, publicUrl: pub.publicUrl };
-    } catch (err) {
-      const dataUrl = await readFileAsDataURL(file);
-      return { ...base, dataUrl };
-    }
-  }, [project.id, selectedDate, pendingTaskId, photoTaskOptions, currentReport.responsible]);
-
-  const handleFiles = useCallback(async (files: FileList | File[]) => {
-    const arr = Array.from(files).filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(f.name));
-    if (arr.length === 0) return;
-    setUploadingCount(c => c + arr.length);
-    try {
-      const uploaded: DailyReportAttachment[] = [];
-      for (const f of arr) {
-        try {
-          const att = await uploadOne(f);
-          uploaded.push(att);
-        } catch (err) {
-          console.error('Falha ao anexar foto', err);
-        }
-      }
-      if (uploaded.length > 0) {
-        persist(r => ({ ...r, attachments: [...(r.attachments || []), ...uploaded] }));
-        toast({ title: `${uploaded.length} foto(s) anexada(s)`, description: 'A galeria do dia foi atualizada.' });
-      }
-    } finally {
-      setUploadingCount(c => Math.max(0, c - arr.length));
-    }
-  }, [uploadOne, persist]);
-
-  const updatePhoto = (id: string, patch: Partial<DailyReportAttachment>) => persist(r => ({
-    ...r,
-    attachments: (r.attachments || []).map(a => a.id === id ? { ...a, ...patch } : a),
-  }));
-
-  const removePhoto = useCallback(async (att: DailyReportAttachment) => {
-    if (att.storagePath) {
-      try { await supabase.storage.from(PHOTO_BUCKET).remove([att.storagePath]); } catch { /* ignore */ }
-    }
-    persist(r => ({ ...r, attachments: (r.attachments || []).filter(a => a.id !== att.id) }));
-    toast({ title: 'Foto removida' });
-  }, [persist]);
+  const {
+    pendingTaskId,
+    setPendingTaskId,
+    photoFilter,
+    setPhotoFilter,
+    uploadingCount,
+    lightbox,
+    setLightbox,
+    confirmDelete,
+    setConfirmDelete,
+    fileInputRef,
+    photos,
+    photosByTask,
+    visiblePhotos,
+    photoTaskOptions,
+    handleFiles,
+    updatePhoto,
+    removePhoto,
+  } = useDailyReportPhotos({ project, currentReport, persist, production, selectedDate });
 
   /** Carrega URL como dataURL (necessário para embed no PDF). */
   const fetchAsDataURL = async (url: string): Promise<string | null> => {
