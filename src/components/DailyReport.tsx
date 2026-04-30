@@ -1,9 +1,6 @@
-import { useMemo } from 'react';
-import { Project, DailyReportTeamRow, DailyReportEquipmentRow, WeatherCondition, WorkCondition } from '@/types/project';
-import { NotebookPen, CalendarDays, Users, Wrench, FileText, Plus, Trash2, Printer, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
+import { CalendarDays, Users, Wrench, Plus, Trash2, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,8 +12,6 @@ import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 
 import {
   GENERAL_TASK_VALUE,
-  WEATHER_OPTIONS,
-  WORK_OPTIONS,
   WEATHER_LABEL_MAP,
   STATUS_META,
   formatBR,
@@ -29,6 +24,11 @@ import { useDailyReportTeams } from '@/hooks/useDailyReportTeams';
 import { useDailyReportEquipment } from '@/hooks/useDailyReportEquipment';
 import { useDailyReportPhotos } from '@/hooks/useDailyReportPhotos';
 import { useDailyReportPdf } from '@/hooks/useDailyReportPdf';
+import { DailyReportHeader } from '@/components/dailyReport/DailyReportHeader';
+import { DailyReportMeasurementBanner } from '@/components/dailyReport/DailyReportMeasurementBanner';
+import { DailyReportSummaryCards } from '@/components/dailyReport/DailyReportSummaryCards';
+import { DailyReportGeneralInfo } from '@/components/dailyReport/DailyReportGeneralInfo';
+import { DailyReportTextAreas } from '@/components/dailyReport/DailyReportTextAreas';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
@@ -114,79 +114,21 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-[1400px] mx-auto">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <NotebookPen className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Diário de Obra</h1>
-            <p className="text-xs text-muted-foreground">
-              Registro diário de equipes, ocorrências e produção da obra.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {undoButton}
-          <Select value={measurementFilter} onValueChange={setMeasurementFilter}>
-            <SelectTrigger className="h-9 w-[230px] text-xs">
-              <SelectValue placeholder="Filtrar por medição" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as datas</SelectItem>
-              {measurementPeriods.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {activePeriod && periodDates.length > 0 ? (
-            <Select value={selectedDate} onValueChange={setSelectedDate}>
-              <SelectTrigger className="h-9 w-[170px] text-xs">
-                <SelectValue placeholder="Data" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[260px]">
-                {periodDates.map(d => (
-                  <SelectItem key={d} value={d}>{formatBR(d)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-              <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="bg-transparent text-sm focus:outline-none"
-              />
-            </div>
-          )}
-          <Button onClick={handlePrintDay} variant="outline" size="sm" title="Exporta apenas a data selecionada">
-            <Printer className="w-4 h-4 mr-1.5" /> PDF do dia
-          </Button>
-          {activePeriod && (
-            <Button onClick={handlePrintPeriod} variant="default" size="sm" title="Exporta todos os dias do período da medição">
-              <Printer className="w-4 h-4 mr-1.5" /> PDF da medição
-            </Button>
-          )}
-        </div>
-      </div>
+      <DailyReportHeader
+        undoButton={undoButton}
+        measurementFilter={measurementFilter}
+        setMeasurementFilter={setMeasurementFilter}
+        measurementPeriods={measurementPeriods}
+        activePeriod={activePeriod}
+        periodDates={periodDates}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        handlePrintDay={handlePrintDay}
+        handlePrintPeriod={handlePrintPeriod}
+      />
 
       {/* Vínculo com Medição */}
-      {dateMembership && (
-        <div className={`rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
-          dateMembership.kind === 'generated'
-            ? 'border-info/40 bg-info/10 text-info'
-            : 'border-warning/40 bg-warning/10 text-warning'
-        }`}>
-          <FileText className="w-3.5 h-3.5" />
-          <span>
-            {dateMembership.kind === 'generated'
-              ? <>Este diário faz parte da <strong>{dateMembership.label}</strong>.</>
-              : <>Este diário está dentro do período da <strong>{dateMembership.label}</strong>.</>}
-          </span>
-        </div>
-      )}
+      <DailyReportMeasurementBanner dateMembership={dateMembership} />
 
       {/* Diários por Medição (quando há período selecionado) */}
       {activePeriod && periodSummary && (
@@ -199,88 +141,10 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       )}
 
       {/* Resumo */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <SummaryCard icon={ListChecks} label="Tarefas com produção" value={summary.tasks} />
-        <SummaryCard icon={FolderTree} label="Capítulos com produção" value={summary.chapters} />
-        <SummaryCard icon={Users} label="Equipes presentes" value={summary.teams} />
-        <SummaryCard icon={FileText} label="Ocorrências" value={summary.occurrences} />
-        <SummaryCard
-          icon={AlertOctagon}
-          label="Impedimentos"
-          value={summary.hasImpediments ? 'Sim' : 'Não'}
-          tone={summary.hasImpediments ? 'warning' : 'ok'}
-        />
-      </div>
+      <DailyReportSummaryCards summary={summary} />
 
       {/* Informações gerais */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Informações do dia</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Responsável pelo lançamento</Label>
-              <Input
-                value={currentReport.responsible || ''}
-                onChange={e => updateField('responsible', e.target.value)}
-                placeholder="Nome / função"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Clima</Label>
-              <Select
-                value={currentReport.weather || ''}
-                onValueChange={(v) => updateField('weather', v as WeatherCondition)}
-              >
-                <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                <SelectContent>
-                  {WEATHER_OPTIONS.map(o => {
-                    const Icon = o.icon;
-                    return (
-                      <SelectItem key={o.value} value={o.value}>
-                        <span className="inline-flex items-center gap-2">
-                          <Icon className="w-3.5 h-3.5" /> {o.label}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {currentReport.weather === 'outro' && (
-                <Input
-                  className="mt-1"
-                  placeholder="Descreva o clima"
-                  value={currentReport.weatherOther || ''}
-                  onChange={e => updateField('weatherOther', e.target.value)}
-                />
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Condição de trabalho</Label>
-              <Select
-                value={currentReport.workCondition || ''}
-                onValueChange={(v) => updateField('workCondition', v as WorkCondition)}
-              >
-                <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                <SelectContent>
-                  {WORK_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {currentReport.workCondition === 'outro' && (
-                <Input
-                  className="mt-1"
-                  placeholder="Descreva a condição"
-                  value={currentReport.workConditionOther || ''}
-                  onChange={e => updateField('workConditionOther', e.target.value)}
-                />
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <DailyReportGeneralInfo currentReport={currentReport} updateField={updateField} />
 
       {/* Equipes / Equipamentos lado a lado */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -381,32 +245,7 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
       </div>
 
       {/* Textos longos */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Ocorrências</CardTitle></CardHeader>
-          <CardContent>
-            <Textarea rows={4} value={currentReport.occurrences || ''}
-              onChange={e => updateField('occurrences', e.target.value)}
-              placeholder="Fatos importantes do dia..." />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Impedimentos</CardTitle></CardHeader>
-          <CardContent>
-            <Textarea rows={4} value={currentReport.impediments || ''}
-              onChange={e => updateField('impediments', e.target.value)}
-              placeholder="Problemas que afetaram a produção..." />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Observações gerais</CardTitle></CardHeader>
-          <CardContent>
-            <Textarea rows={4} value={currentReport.observations || ''}
-              onChange={e => updateField('observations', e.target.value)}
-              placeholder="Notas adicionais..." />
-          </CardContent>
-        </Card>
-      </div>
+      <DailyReportTextAreas currentReport={currentReport} updateField={updateField} />
 
       {/* Fotos da Obra */}
       <Card>
