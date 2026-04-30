@@ -103,7 +103,7 @@ export default function MeasurementContractInfo({
               placeholder="Descrição resumida do escopo"
             />
           </FormField>
-          <FormField label="Nº do Contrato" colSpan={4}>
+          <FormField label="Nº do Contrato" colSpan={3}>
             <Input
               className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
               value={contractNumber}
@@ -112,6 +112,26 @@ export default function MeasurementContractInfo({
               onBlur={() => persistContractInfo({ contractNumber })}
               placeholder="Ex.: 001/2025"
             />
+          </FormField>
+          <FormField label="Nº ART" colSpan={3}>
+            <Input
+              className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
+              value={artNumber}
+              disabled={isSnapshotMode}
+              onChange={e => setArtNumber(e.target.value)}
+              onBlur={() => persistContractInfo({ artNumber })}
+              placeholder="Ex.: BR20240000000"
+            />
+          </FormField>
+          <FormField label="Período da Medição" colSpan={4}>
+            <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
+              {fmtDateBR(effStart)} a {fmtDateBR(effEnd)}
+            </p>
+          </FormField>
+          <FormField label="Data de Emissão" colSpan={2}>
+            <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
+              {fmtDateBR(effIssue)}
+            </p>
           </FormField>
           <FormField label="Período da Medição" colSpan={4}>
             <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
