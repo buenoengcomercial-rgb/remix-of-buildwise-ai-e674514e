@@ -189,6 +189,7 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
     contractObject, setContractObject,
     location, setLocation,
     budgetSource, setBudgetSource,
+    artNumber, setArtNumber,
     bdiInput, setBdiInput,
     measurementNumber, setMeasurementNumber,
     // diálogos
