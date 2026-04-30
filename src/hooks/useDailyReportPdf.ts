@@ -181,7 +181,7 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
     const issueStr = formatBR(todayISO());
 
     // Logo da empresa (canto superior esquerdo)
-    const logo = await loadCompanyLogoForPdf();
+    const logo = await loadCompanyLogoForPdf().catch(() => null);
     const logoTargetW = 28; // mm
     let logoH = 0;
     if (logo) {
