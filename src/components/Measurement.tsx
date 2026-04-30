@@ -13,28 +13,18 @@ import type { Row, GroupTotals, GroupNode } from '@/components/measurement/types
 import { STATUS_LABEL, STATUS_CLASS } from '@/components/measurement/types';
 import {
   fmtBRL,
-  fmtNum,
   fmtPct,
   fmtDateBR,
 } from '@/components/measurement/measurementFormat';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  AlertCircle,
-  ChevronRight,
-  ChevronDown,
-  Lock,
-  Pencil,
-  Check,
-  X,
-} from 'lucide-react';
 import MeasurementHeader from '@/components/measurement/MeasurementHeader';
 import MeasurementStatusBar from '@/components/measurement/MeasurementStatusBar';
 import MeasurementContractInfo from '@/components/measurement/MeasurementContractInfo';
 import MeasurementFilters from '@/components/measurement/MeasurementFilters';
 import MeasurementSummaryCards from '@/components/measurement/MeasurementSummaryCards';
 import MeasurementTotals from '@/components/measurement/MeasurementTotals';
+import MeasurementTable from '@/components/measurement/MeasurementTable';
 import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
