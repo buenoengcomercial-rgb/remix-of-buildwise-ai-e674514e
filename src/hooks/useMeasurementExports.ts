@@ -78,7 +78,7 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
     auditUser,
   } = params;
 
-  const { contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent } = headerForm;
+  const { contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent } = headerForm;
 
   // ───────── EXPORT XLSX ─────────
   const exportXLSX = useCallback(async () => {
