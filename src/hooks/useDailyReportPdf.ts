@@ -154,7 +154,9 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
     let dates: string[];
     let scopeTitle: string;
     let fileName: string;
-    const safeName = project.name.replace(/[^a-z0-9]+/gi, '_');
+    const projectName = project?.name || 'Obra';
+    const safeName = projectName.replace(/[^a-z0-9]+/gi, '_') || 'Obra';
+    const safeSelectedDate = selectedDate || todayISO();
 
     if (mode === 'period' && activePeriod && periodDates.length > 0) {
       dates = periodDates;
@@ -166,9 +168,9 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
         ? `Diario_Obra_Medicao_Preparacao_${safeName}.pdf`
         : `Diario_Obra_${activePeriod.label.replace(/[^a-z0-9]+/gi, '_')}_${safeName}.pdf`;
     } else {
-      dates = [selectedDate];
-      scopeTitle = `DIÁRIO DE OBRA — ${formatBR(selectedDate)}`;
-      fileName = `Diario_Obra_${safeName}_${selectedDate}.pdf`;
+      dates = [safeSelectedDate];
+      scopeTitle = `DIÁRIO DE OBRA — ${formatBR(safeSelectedDate)}`;
+      fileName = `Diario_Obra_${safeName}_${safeSelectedDate}.pdf`;
     }
 
     // Snapshot da medição (para cabeçalho)
