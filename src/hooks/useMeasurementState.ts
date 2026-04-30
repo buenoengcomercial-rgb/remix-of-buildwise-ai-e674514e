@@ -66,6 +66,7 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
   const [contractObject, setContractObject] = useState(contract.contractObject || '');
   const [location, setLocation] = useState(contract.location || '');
   const [budgetSource, setBudgetSource] = useState(contract.budgetSource || '');
+  const [artNumber, setArtNumber] = useState(contract.artNumber || '');
   const [bdiInput, setBdiInput] = useState(
     contract.bdiPercent !== undefined ? String(contract.bdiPercent) : '25',
   );
