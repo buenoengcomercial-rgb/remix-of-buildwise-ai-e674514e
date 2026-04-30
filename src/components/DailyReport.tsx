@@ -80,20 +80,15 @@ function collectProductionForDate(project: Project, dateISO: string): Production
 }
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
-  // Default inteligente: se nada veio externo, mas existe medição em preparação, abrir já filtrado por ela.
-  const hasDraft = !!(project.measurementDraft?.startDate && project.measurementDraft?.endDate);
-  const defaultFilter = initialMeasurementFilter || (hasDraft ? 'draft' : 'all');
-
-  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayISO());
-  const [measurementFilter, setMeasurementFilter] = useState<string>(defaultFilter);
-
-  // Sincroniza filtro/data vindos da Medição. Depende de navKey para re-aplicar mesmo
-  // quando os mesmos valores são enviados de novo (ex.: clicar 2x em "Ver no Diário").
-  useEffect(() => {
-    if (initialMeasurementFilter) setMeasurementFilter(initialMeasurementFilter);
-    if (initialDate) setSelectedDate(initialDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMeasurementFilter, initialDate, navKey]);
+  const {
+    selectedDate,
+    setSelectedDate,
+    measurementFilter,
+    setMeasurementFilter,
+    currentReport,
+    persist,
+    updateField,
+  } = useDailyReportState({ project, onProjectChange, initialDate, initialMeasurementFilter, navKey });
 
   const reports = project.dailyReports || [];
 
