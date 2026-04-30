@@ -9,8 +9,6 @@ import {
   MeasurementStatus,
   MeasurementChangeLog,
 } from '@/types/project';
-import type { Row, GroupTotals, GroupNode } from '@/components/measurement/types';
-import { STATUS_LABEL, STATUS_CLASS } from '@/components/measurement/types';
 import {
   fmtBRL,
   fmtPct,
