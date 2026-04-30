@@ -223,7 +223,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     groupTree,
     totals,
     headerForm: {
-      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent,
     },
     effStart,
     effEnd,
