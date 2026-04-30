@@ -90,6 +90,7 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
     setContractObject(c.contractObject || '');
     setLocation(c.location || '');
     setBudgetSource(c.budgetSource || '');
+    setArtNumber(c.artNumber || '');
     setBdiInput(c.bdiPercent !== undefined ? String(c.bdiPercent) : '25');
 
     const sortedMs = (project.measurements || []).slice().sort((a, b) => a.number - b.number);
