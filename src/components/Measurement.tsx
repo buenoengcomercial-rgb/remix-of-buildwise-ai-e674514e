@@ -20,29 +20,21 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  ClipboardList,
-  FileSpreadsheet,
-  Printer,
-  Search,
-  CalendarDays,
-  Building2,
   AlertCircle,
   ChevronRight,
   ChevronDown,
-  Plus,
   Lock,
-  Unlock,
-  CheckCircle2,
-  XCircle,
-  FileCheck2,
-  Trash2,
   Pencil,
   Check,
   X,
-  History,
 } from 'lucide-react';
+import MeasurementHeader from '@/components/measurement/MeasurementHeader';
+import MeasurementStatusBar from '@/components/measurement/MeasurementStatusBar';
+import MeasurementContractInfo from '@/components/measurement/MeasurementContractInfo';
+import MeasurementFilters from '@/components/measurement/MeasurementFilters';
+import MeasurementSummaryCards from '@/components/measurement/MeasurementSummaryCards';
+import MeasurementTotals from '@/components/measurement/MeasurementTotals';
 import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
@@ -406,154 +398,28 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       `}</style>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-3 print:hidden">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <ClipboardList className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Boletim de Medição</h1>
-            <p className="text-sm text-muted-foreground">Planilha de medição para pagamento</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {undoButton}
-          <Button variant="outline" size="sm" onClick={exportXLSX}>
-            <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
-          </Button>
-          <Button variant="default" size="sm" onClick={handlePrint}>
-            <Printer className="w-4 h-4 mr-1" /> Imprimir / PDF
-          </Button>
-          {activeMeasurement && (
-            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
-              <History className="w-4 h-4 mr-1" /> Histórico
-            </Button>
-          )}
-        </div>
-      </div>
+      <MeasurementHeader
+        undoButton={undoButton}
+        onExportXLSX={exportXLSX}
+        onPrint={handlePrint}
+        showHistory={!!activeMeasurement}
+        onOpenHistory={() => setHistoryOpen(true)}
+      />
 
-      {/* Seletor de medições salvas */}
-      <Card className="print:hidden">
-        <CardContent className="p-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-2">
-              Medições
-            </span>
-
-            {measurements.map(m => (
-              <button
-                key={m.id}
-                onClick={() => setActiveId(m.id)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-                  activeId === m.id
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-background hover:bg-muted/60 border-border'
-                }`}
-              >
-                <span className="font-mono">{m.number}ª</span> Medição
-                <span
-                  className={`text-[9px] uppercase px-1.5 py-0.5 rounded border ${STATUS_CLASS[m.status]} ${
-                    activeId === m.id ? 'opacity-90' : ''
-                  }`}
-                >
-                  {STATUS_LABEL[m.status]}
-                </span>
-              </button>
-            ))}
-
-            {(() => {
-              const nextNumber = (measurements[measurements.length - 1]?.number || 0) + 1;
-              return (
-                <button
-                  onClick={newMeasurementDraft}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border border-dashed transition-colors flex items-center gap-1.5 ${
-                    activeId === 'live'
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background hover:bg-muted/60 border-border text-muted-foreground'
-                  }`}
-                  title="Medição em preparação"
-                >
-                  Preparando {nextNumber}ª Medição
-                </button>
-              );
-            })()}
-
-            <div className="ml-auto flex items-center gap-2">
-              {!activeMeasurement && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => setConfirmGenerate(true)}
-                  disabled={validationSummary.hasBlocking}
-                  title={validationSummary.hasBlocking
-                    ? 'Existem erros de validação que impedem gerar a medição.'
-                    : undefined}
-                >
-                  <FileCheck2 className="w-4 h-4 mr-1" /> Gerar Medição
-                </Button>
-              )}
-              {activeMeasurement && (
-                <Button size="sm" variant="outline" onClick={newMeasurementDraft}>
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Continuar próxima medição
-                </Button>
-              )}
-              {activeMeasurement && isLocked && (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => setConfirmEdit(true)}>
-                    <Unlock className="w-4 h-4 mr-1" /> Editar Medição
-                  </Button>
-                  {activeMeasurement.status === 'generated' && (
-                    <Button size="sm" variant="outline" onClick={() => setStatus('in_review')}>
-                      Enviar p/ Fiscal
-                    </Button>
-                  )}
-                  {activeMeasurement.status === 'in_review' && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => setStatus('approved')}>
-                        <CheckCircle2 className="w-4 h-4 mr-1 text-success" /> Aprovar
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setStatus('rejected')}>
-                        <XCircle className="w-4 h-4 mr-1 text-destructive" /> Reprovar
-                      </Button>
-                    </>
-                  )}
-                </>
-              )}
-              {activeMeasurement && !isLocked && activeMeasurement.status === 'rejected' && (
-                <Button size="sm" variant="default" onClick={() => setStatus('generated')}>
-                  <Lock className="w-4 h-4 mr-1" /> Reaprovar (bloquear)
-                </Button>
-              )}
-              {activeMeasurement && (
-                <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)}>
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Linha de status */}
-          {activeMeasurement && (
-            <div className="mt-3 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-3">
-                <span className={`px-2 py-1 rounded border font-semibold ${STATUS_CLASS[activeMeasurement.status]}`}>
-                  {STATUS_LABEL[activeMeasurement.status]}
-                </span>
-                <span className="text-muted-foreground">
-                  Medição nº <strong className="text-foreground">{activeMeasurement.number}</strong> ·
-                  período {fmtDateBR(activeMeasurement.startDate)} a {fmtDateBR(activeMeasurement.endDate)} ·
-                  emitida em {fmtDateBR(activeMeasurement.issueDate)}
-                </span>
-              </div>
-              {isLocked && (
-                <span className="flex items-center gap-1 text-muted-foreground">
-                  <Lock className="w-3.5 h-3.5" /> Snapshot bloqueado
-                </span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Seletor de medições salvas + status */}
+      <MeasurementStatusBar
+        measurements={measurements}
+        activeId={activeId}
+        setActiveId={setActiveId}
+        activeMeasurement={activeMeasurement}
+        isLocked={isLocked}
+        newMeasurementDraft={newMeasurementDraft}
+        onConfirmGenerate={() => setConfirmGenerate(true)}
+        onConfirmEdit={() => setConfirmEdit(true)}
+        onConfirmDelete={() => setConfirmDelete(true)}
+        setStatus={setStatus}
+        validationHasBlocking={validationSummary.hasBlocking}
+      />
 
       {/* Painel de validação (somente em modo "live") */}
       {!activeMeasurement && (
@@ -570,176 +436,43 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       )}
 
       {/* Cabeçalho técnico do boletim */}
-      <Card className="border-2 border-foreground/20 print:border-foreground print:shadow-none">
-        <CardContent className="p-0">
-          <div className="bg-muted/40 px-5 py-3 border-b-2 border-foreground/20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-5 h-5 text-foreground" />
-              <h2 className="text-sm font-bold tracking-widest uppercase text-foreground">
-                Boletim de Medição para Pagamento
-              </h2>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Medição Nº</p>
-              <p className="text-lg font-bold tabular-nums text-foreground leading-none">
-                {effNumber || '—'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-12 text-[11px]">
-            <FormField label="Contratante" colSpan={6}>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
-                value={contractor}
-                disabled={isSnapshotMode}
-                onChange={e => setContractor(e.target.value)}
-                onBlur={() => persistContractInfo({ contractor })}
-                placeholder="Nome do contratante"
-              />
-            </FormField>
-            <FormField label="Contratada" colSpan={6}>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
-                value={contracted}
-                disabled={isSnapshotMode}
-                onChange={e => setContracted(e.target.value)}
-                onBlur={() => persistContractInfo({ contracted })}
-                placeholder="Nome da contratada"
-              />
-            </FormField>
-            <FormField label="Obra" colSpan={8}>
-              <p className="text-xs font-semibold text-foreground py-1">{project.name}</p>
-            </FormField>
-            <FormField label="Local / Município" colSpan={4}>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
-                value={location}
-                disabled={isSnapshotMode}
-                onChange={e => setLocation(e.target.value)}
-                onBlur={() => persistContractInfo({ location })}
-                placeholder="Cidade / UF"
-              />
-            </FormField>
-            <FormField label="Objeto" colSpan={8}>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
-                value={contractObject}
-                disabled={isSnapshotMode}
-                onChange={e => setContractObject(e.target.value)}
-                onBlur={() => persistContractInfo({ contractObject })}
-                placeholder="Descrição resumida do escopo"
-              />
-            </FormField>
-            <FormField label="Nº do Contrato" colSpan={4}>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
-                value={contractNumber}
-                disabled={isSnapshotMode}
-                onChange={e => setContractNumber(e.target.value)}
-                onBlur={() => persistContractInfo({ contractNumber })}
-                placeholder="Ex.: 001/2025"
-              />
-            </FormField>
-            <FormField label="Período da Medição" colSpan={4}>
-              <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
-                {fmtDateBR(effStart)} a {fmtDateBR(effEnd)}
-              </p>
-            </FormField>
-            <FormField label="Data de Emissão" colSpan={2}>
-              <p className="text-xs font-semibold text-foreground py-1 tabular-nums">
-                {fmtDateBR(effIssue)}
-              </p>
-            </FormField>
-            <FormField label="Fonte de Orçamento" colSpan={4}>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent"
-                value={budgetSource}
-                disabled={isSnapshotMode}
-                onChange={e => setBudgetSource(e.target.value)}
-                onBlur={() => persistContractInfo({ budgetSource })}
-                placeholder="Ex.: SINAPI 07/2024"
-              />
-            </FormField>
-            <FormField label="BDI %" colSpan={2} last>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                disabled={isSnapshotMode}
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent tabular-nums font-semibold"
-                value={isSnapshotMode ? String(effBdi) : bdiInput}
-                onChange={e => setBdiInput(e.target.value)}
-                onBlur={() => persistContractInfo({ bdiPercent: bdiPercent })}
-              />
-            </FormField>
-            <FormField label="Medição Nº" colSpan={3} bottom>
-              <Input
-                className="h-7 text-xs border-0 px-0 focus-visible:ring-0 bg-transparent tabular-nums font-semibold"
-                value={effNumber}
-                disabled={isSnapshotMode}
-                onChange={e => setMeasurementNumber(e.target.value)}
-                onBlur={() => persistContractInfo({ nextMeasurementNumber: Number(measurementNumber) || 1 })}
-              />
-            </FormField>
-            <div className="col-span-9 border-t border-border" />
-          </div>
-        </CardContent>
-      </Card>
+      <MeasurementContractInfo
+        project={project}
+        isSnapshotMode={isSnapshotMode}
+        effStart={effStart}
+        effEnd={effEnd}
+        effIssue={effIssue}
+        effBdi={effBdi}
+        effNumber={effNumber}
+        contractor={contractor} setContractor={setContractor}
+        contracted={contracted} setContracted={setContracted}
+        contractNumber={contractNumber} setContractNumber={setContractNumber}
+        contractObject={contractObject} setContractObject={setContractObject}
+        location={location} setLocation={setLocation}
+        budgetSource={budgetSource} setBudgetSource={setBudgetSource}
+        bdiInput={bdiInput} setBdiInput={setBdiInput}
+        bdiPercent={bdiPercent}
+        measurementNumber={measurementNumber} setMeasurementNumber={setMeasurementNumber}
+        persistContractInfo={persistContractInfo}
+      />
 
       {/* Filtros (live e snapshot) */}
-      <Card className="print:hidden">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
-              <CalendarDays className="w-3 h-3" /> Data inicial
-            </label>
-            <Input type="date" value={effStart} disabled={isSnapshotMode}
-              onChange={e => setStartDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
-              <CalendarDays className="w-3 h-3" /> Data final
-            </label>
-            <Input type="date" value={effEnd} disabled={isSnapshotMode}
-              onChange={e => setEndDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Capítulo</label>
-            <Select value={chapterFilter} onValueChange={setChapterFilter} disabled={isSnapshotMode}>
-              <SelectTrigger><SelectValue placeholder="Todos os capítulos" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os capítulos</SelectItem>
-                {project.phases.map(p => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {numbering.get(p.id)} — {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
-              <Search className="w-3 h-3" /> Busca
-            </label>
-            <Input placeholder="Item, código, capítulo ou descrição"
-              value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
+      <MeasurementFilters
+        project={project}
+        isSnapshotMode={isSnapshotMode}
+        effStart={effStart}
+        effEnd={effEnd}
+        setStartDate={setStartDate}
+        setEndDate={setEndDate}
+        chapterFilter={chapterFilter}
+        setChapterFilter={setChapterFilter}
+        search={search}
+        setSearch={setSearch}
+        numbering={numbering}
+      />
 
       {/* Resumo técnico */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <SummaryCard label="Contratado c/ BDI" value={fmtBRL(totals.contracted)} />
-        <SummaryCard label="Desta medição" value={fmtBRL(totals.period)} highlight />
-        <SummaryCard label="Acumulado" value={fmtBRL(totals.accum)} />
-        <SummaryCard label="Saldo a executar" value={fmtBRL(totals.balance)} />
-        <SummaryCard label="% desta medição" value={fmtPct(totals.pctPeriod)} />
-        <SummaryCard label="% acumulado" value={fmtPct(totals.pctAccum)} />
-      </div>
+      <MeasurementSummaryCards totals={totals} />
 
       {/* Tabela */}
       <Card>
@@ -1089,29 +822,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       </Card>
 
       {/* Rodapé técnico */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <TotalsBlock title="Sem BDI" rows={[
-          ['Custo total da obra', fmtBRL(totals.contractedNoBDI)],
-          ['Valor desta medição', fmtBRL(totals.periodNoBDI)],
-          ['Valor acumulado', fmtBRL(totals.accumNoBDI)],
-          ['Valor a executar', fmtBRL(totals.balanceNoBDI)],
-        ]} />
-        <TotalsBlock title={`BDI (${fmtPct(effBdi)})`} rows={[
-          ['BDI total', fmtBRL(totals.contracted - totals.contractedNoBDI)],
-          ['BDI desta medição', fmtBRL(totals.period - totals.periodNoBDI)],
-          ['BDI acumulado', fmtBRL(totals.accum - totals.accumNoBDI)],
-          ['BDI a executar', fmtBRL(totals.balance - totals.balanceNoBDI)],
-        ]} />
-        <TotalsBlock title="Com BDI" highlight rows={[
-          ['Custo total da obra', fmtBRL(totals.contracted)],
-          ['Valor desta medição', fmtBRL(totals.period)],
-          ['Valor acumulado', fmtBRL(totals.accum)],
-          ['Valor a executar', fmtBRL(totals.balance)],
-          ['% desta medição', fmtPct(totals.pctPeriod)],
-          ['% acumulado', fmtPct(totals.pctAccum)],
-          ['% a executar', fmtPct(totals.pctBalance)],
-        ]} />
-      </div>
+      <MeasurementTotals totals={totals} effBdi={effBdi} />
 
       {/* Histórico de alterações */}
       {activeMeasurement?.history && activeMeasurement.history.length > 0 && (
@@ -1257,61 +968,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 }
 
 // ───────── Subcomponentes ─────────
-function FormField({
-  label, colSpan, children, last, bottom,
-}: {
-  label: string; colSpan: number; children: React.ReactNode; last?: boolean; bottom?: boolean;
-}) {
-  return (
-    <div
-      className={`col-span-${colSpan} px-3 py-1.5 border-border ${last ? '' : 'border-r'} ${bottom ? '' : 'border-b'}`}
-      style={{ gridColumn: `span ${colSpan} / span ${colSpan}` }}
-    >
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <Card className={highlight ? 'border-primary/40 bg-primary/5' : ''}>
-      <CardContent className="p-3">
-        <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{label}</p>
-        <p className={`text-sm font-bold mt-1 tabular-nums ${highlight ? 'text-primary' : 'text-foreground'}`}>
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TotalsBlock({
-  title, rows, highlight,
-}: { title: string; rows: [string, string][]; highlight?: boolean }) {
-  return (
-    <Card className={`${highlight ? 'border-primary/40 bg-primary/5' : ''} print:break-inside-avoid`}>
-      <CardHeader className="py-2 border-b border-border">
-        <CardTitle className="text-xs font-bold uppercase tracking-wider">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <table className="w-full text-xs">
-          <tbody>
-            {rows.map(([k, v]) => (
-              <tr key={k} className="border-b border-border/60 last:border-0">
-                <td className="px-3 py-1.5 text-muted-foreground">{k}</td>
-                <td className={`px-3 py-1.5 text-right tabular-nums font-semibold ${highlight ? 'text-primary' : 'text-foreground'}`}>
-                  {v}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
-  );
-}
-
 function SignatureBox({ label }: { label: string }) {
   return (
     <div>
