@@ -177,7 +177,7 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
     const ci = project.contractInfo || {};
     const periodoStr = mode === 'period' && activePeriod
       ? `${formatBR(activePeriod.startDate)} a ${formatBR(activePeriod.endDate)}`
-      : formatBR(selectedDate);
+      : formatBR(safeSelectedDate);
     const issueStr = formatBR(todayISO());
 
     // Logo da empresa (canto superior esquerdo)
