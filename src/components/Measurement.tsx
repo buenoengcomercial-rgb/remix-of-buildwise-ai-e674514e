@@ -968,6 +968,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 }
 
 // ───────── Subcomponentes ─────────
+function SignatureBox({ label }: { label: string }) {
   return (
     <div>
       <div className="border-t border-foreground pt-1 text-center">
