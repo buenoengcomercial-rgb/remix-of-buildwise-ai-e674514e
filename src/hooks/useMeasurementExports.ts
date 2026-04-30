@@ -216,9 +216,10 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
       ['Obra:', project.name || '-', 'Medição Nº:', numStr || '-'],
       ['Contratante:', headerCtx.contractor || '-', 'Contratada:', headerCtx.contracted || '-'],
       ['Objeto:', headerCtx.contractObject || '-', 'Local/Município:', headerCtx.location || '-'],
-      ['Nº Contrato:', headerCtx.contractNumber || '-', 'Período:', periodoStr],
-      ['Data emissão:', fmtDateBR(effIssue) || '-', 'BDI %:', `${effBdi}`],
-      ['Fonte de orçamento:', headerCtx.budgetSource || '-', 'Status:', statusStr],
+      ['Nº Contrato:', headerCtx.contractNumber || '-', 'Nº ART:', headerCtx.artNumber || '-'],
+      ['Período:', periodoStr, 'Data emissão:', fmtDateBR(effIssue) || '-'],
+      ['Fonte de orçamento:', headerCtx.budgetSource || '-', 'BDI %:', `${effBdi}`],
+      ['Status:', statusStr, '', ''],
     ];
 
     autoTable(doc, {
