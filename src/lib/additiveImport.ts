@@ -1155,23 +1155,31 @@ export async function exportAdditiveToExcel(add: Additive) {
 
 export async function exportAdditiveToPdf(
   add: Additive,
-  projectOrName: Project | string,
+  projectOrName: Project | string | null | undefined,
   showAnalytic: boolean,
 ) {
-  const [{ default: jsPDF }, autoTableMod, branding] = await Promise.all([
+  const [jsPDFMod, autoTableMod, branding] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
     import('./companyBranding'),
   ]);
-  const autoTable = (autoTableMod as any).default || autoTableMod;
+  const jsPDF = (jsPDFMod as any).default || (jsPDFMod as any).jsPDF || jsPDFMod;
+  const autoTable = (autoTableMod as any).default || (autoTableMod as any).autoTable || autoTableMod;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 5;
-  const bdi = add.bdiPercent ?? 0;
+  const safeAdd: Additive = (add ?? ({} as Additive));
+  const additiveName = safeAdd.name || 'Aditivo';
+  const compositions = safeAdd.compositions || [];
+  const bdi = safeAdd.bdiPercent ?? 0;
 
-  // Compat: aceita um Project completo (preferencial) ou apenas o nome (legado).
-  const project: Project | null = typeof projectOrName === 'string' ? null : projectOrName;
-  const projectName = typeof projectOrName === 'string' ? projectOrName : projectOrName.name;
+  // Compat: aceita um Project completo (preferencial), apenas o nome (legado), ou null.
+  const project: Project | null =
+    projectOrName && typeof projectOrName !== 'string' ? projectOrName : null;
+  const projectName =
+    typeof projectOrName === 'string'
+      ? (projectOrName || 'Obra')
+      : (project?.name || 'Obra');
   const ci = project?.contractInfo || {};
 
   const logo = await branding.loadCompanyLogoForPdf().catch(() => null);
@@ -1187,7 +1195,7 @@ export async function exportAdditiveToPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text(
-    `ADITIVO — ${add.name.toUpperCase()}`,
+    `ADITIVO — ${additiveName.toUpperCase()}`,
     pageWidth / 2, margin + 4, { align: 'center' },
   );
 
@@ -1202,10 +1210,11 @@ export async function exportAdditiveToPdf(
     if (Number.isNaN(d.getTime())) return iso;
     return d.toLocaleDateString('pt-BR');
   };
-  const statusStr = (add.status ?? 'rascunho').toUpperCase();
+  void fmtDateBR;
+  const statusStr = (safeAdd.status ?? 'rascunho').toUpperCase();
   const issueStr = new Date().toLocaleDateString('pt-BR');
   const headerRows: [string, string, string, string][] = [
-    ['Obra:', projectName || '-', 'Aditivo:', add.name || '-'],
+    ['Obra:', projectName || '-', 'Aditivo:', additiveName || '-'],
     ['Contratante:', ci.contractor || '-', 'Contratada:', ci.contracted || '-'],
     ['Objeto:', ci.contractObject || '-', 'Local/Município:', ci.location || '-'],
     ['Nº Contrato:', ci.contractNumber || '-', 'Nº ART:', ci.artNumber || '-'],
