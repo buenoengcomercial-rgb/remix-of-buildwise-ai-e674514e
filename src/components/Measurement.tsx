@@ -968,62 +968,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 }
 
 // ───────── Subcomponentes ─────────
-function FormField({
-  label, colSpan, children, last, bottom,
-}: {
-  label: string; colSpan: number; children: React.ReactNode; last?: boolean; bottom?: boolean;
-}) {
-  return (
-    <div
-      className={`col-span-${colSpan} px-3 py-1.5 border-border ${last ? '' : 'border-r'} ${bottom ? '' : 'border-b'}`}
-      style={{ gridColumn: `span ${colSpan} / span ${colSpan}` }}
-    >
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <Card className={highlight ? 'border-primary/40 bg-primary/5' : ''}>
-      <CardContent className="p-3">
-        <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{label}</p>
-        <p className={`text-sm font-bold mt-1 tabular-nums ${highlight ? 'text-primary' : 'text-foreground'}`}>
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TotalsBlock({
-  title, rows, highlight,
-}: { title: string; rows: [string, string][]; highlight?: boolean }) {
-  return (
-    <Card className={`${highlight ? 'border-primary/40 bg-primary/5' : ''} print:break-inside-avoid`}>
-      <CardHeader className="py-2 border-b border-border">
-        <CardTitle className="text-xs font-bold uppercase tracking-wider">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <table className="w-full text-xs">
-          <tbody>
-            {rows.map(([k, v]) => (
-              <tr key={k} className="border-b border-border/60 last:border-0">
-                <td className="px-3 py-1.5 text-muted-foreground">{k}</td>
-                <td className={`px-3 py-1.5 text-right tabular-nums font-semibold ${highlight ? 'text-primary' : 'text-foreground'}`}>
-                  {v}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SignatureBox({ label }: { label: string }) {
   return (
     <div>
       <div className="border-t border-foreground pt-1 text-center">
