@@ -1,17 +1,11 @@
-import { CalendarDays, Plus, Trash2, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 
 import {
-  GENERAL_TASK_VALUE,
   WEATHER_LABEL_MAP,
   STATUS_META,
   formatBR,
@@ -31,6 +25,9 @@ import { DailyReportGeneralInfo } from '@/components/dailyReport/DailyReportGene
 import { DailyReportTextAreas } from '@/components/dailyReport/DailyReportTextAreas';
 import { DailyReportTeamsCard } from '@/components/dailyReport/DailyReportTeamsCard';
 import { DailyReportEquipmentCard } from '@/components/dailyReport/DailyReportEquipmentCard';
+import { DailyReportPhotosCard } from '@/components/dailyReport/DailyReportPhotosCard';
+import { DailyReportPhotoLightbox } from '@/components/dailyReport/DailyReportPhotoLightbox';
+import { DailyReportPhotoDeleteDialog } from '@/components/dailyReport/DailyReportPhotoDeleteDialog';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
