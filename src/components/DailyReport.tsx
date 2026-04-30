@@ -1,4 +1,4 @@
-import { CalendarDays, Plus, Trash2, FolderTree, ListChecks, AlertOctagon, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, FolderTree, ListChecks, AlertOctagon, Activity, ArrowRight, Camera, Image as ImageIcon, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
