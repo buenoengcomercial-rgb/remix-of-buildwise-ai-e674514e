@@ -84,7 +84,7 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
   const exportXLSX = useCallback(async () => {
     const XLSX = await loadXLSX();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
-      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent,
     };
     const headerRows: (string | number)[][] = [
       ['BOLETIM DE MEDIÇÃO PARA PAGAMENTO'],
@@ -92,9 +92,10 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
       ['Contratante:', headerCtx.contractor || '', '', 'Contratada:', headerCtx.contracted || ''],
       ['Obra:', project.name, '', 'Local/Município:', headerCtx.location || ''],
       ['Objeto:', headerCtx.contractObject || '', '', 'Nº Contrato:', headerCtx.contractNumber || ''],
-      ['Medição Nº:', effNumber, '', 'Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`],
-      ['Data emissão:', fmtDateBR(effIssue), '', 'Fonte de orçamento:', headerCtx.budgetSource || ''],
-      ['BDI %:', effBdi, '', 'Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'],
+      ['Nº ART:', headerCtx.artNumber || '', '', 'Medição Nº:', effNumber],
+      ['Período:', `${fmtDateBR(effStart)} a ${fmtDateBR(effEnd)}`, '', 'Data emissão:', fmtDateBR(effIssue)],
+      ['Fonte de orçamento:', headerCtx.budgetSource || '', '', 'BDI %:', effBdi],
+      ['Status:', activeMeasurement ? STATUS_LABEL[activeMeasurement.status] : 'Em preparação'],
       [],
     ];
 
