@@ -46,6 +46,9 @@ export interface GroupTotals {
   balanceNoBDI: number;
   qtyContracted: number;
   qtyAccum: number;
+  pctPeriod?: number;
+  pctAccum?: number;
+  pctBalance?: number;
 }
 
 export interface GroupNode {
