@@ -1284,7 +1284,7 @@ export async function exportAdditiveToPdf(
       autoTable(doc, {
         startY: cursorY,
         head: [['', 'Cód.', 'Banco', 'Descrição insumo', 'Un', 'Coef.', 'V.Unit s/BDI', 'Total s/BDI']],
-        body: c.inputs.map(i => [
+        body: (c.inputs ?? []).map(i => [
           '', i.code, i.bank, i.description, i.unit,
           i.coefficient.toLocaleString('pt-BR'), fmtBRL(i.unitPrice), fmtBRL(i.total),
         ]),
