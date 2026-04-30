@@ -151,20 +151,8 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     return null;
   }, [project.measurements, project.measurementDraft, selectedDate]);
 
-  const currentReport: DailyReportEntry = useMemo(() => {
-    const found = reports.find(r => r.date === selectedDate);
-    if (found) return found;
-    const now = new Date().toISOString();
-    return {
-      id: uid('dr'),
-      date: selectedDate,
-      teamsPresent: [],
-      equipment: [],
-      attachments: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-  }, [reports, selectedDate]);
+  // currentReport vem de useDailyReportState
+
 
   const production = useMemo(
     () => collectProductionForDate(project, selectedDate),
