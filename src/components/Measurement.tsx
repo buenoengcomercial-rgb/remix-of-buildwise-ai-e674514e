@@ -1,40 +1,19 @@
 import { useMemo } from 'react';
-import {
-  Project,
-  Task,
-  Phase,
-  ContractInfo,
-  SavedMeasurement,
-  MeasurementSnapshotItem,
-  MeasurementStatus,
-  MeasurementChangeLog,
-} from '@/types/project';
-import type { Row, GroupTotals, GroupNode } from '@/components/measurement/types';
-import { STATUS_LABEL, STATUS_CLASS } from '@/components/measurement/types';
+import { Project } from '@/types/project';
 import {
   fmtBRL,
-  fmtNum,
   fmtPct,
   fmtDateBR,
 } from '@/components/measurement/measurementFormat';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  AlertCircle,
-  ChevronRight,
-  ChevronDown,
-  Lock,
-  Pencil,
-  Check,
-  X,
-} from 'lucide-react';
 import MeasurementHeader from '@/components/measurement/MeasurementHeader';
 import MeasurementStatusBar from '@/components/measurement/MeasurementStatusBar';
 import MeasurementContractInfo from '@/components/measurement/MeasurementContractInfo';
 import MeasurementFilters from '@/components/measurement/MeasurementFilters';
 import MeasurementSummaryCards from '@/components/measurement/MeasurementSummaryCards';
 import MeasurementTotals from '@/components/measurement/MeasurementTotals';
+import MeasurementTable from '@/components/measurement/MeasurementTable';
 import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
@@ -244,15 +223,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     setEditReason,
   });
 
-  // ───────── Collapse helpers ─────────
-  const toggleCollapsed = (id: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
   // ───────── EXPORT XLSX / PDF (extraído para useMeasurementExports) ─────────
   const { exportXLSX, exportPDF, handlePrint } = useMeasurementExports({
     project,
@@ -272,37 +242,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     dailyReportsSummary,
     auditUser,
   });
-
-  // ───────── RENDER ─────────
-  const COLSPAN = 15;
-
-  // Cores por grupo (tokens semânticos)
-  const G_BG = {
-    id: 'bg-muted/40',                 // Identificação
-    contract: 'bg-info/10',            // Contrato
-    period: 'bg-success/10',           // Medição atual
-    accum: 'bg-warning/10',            // Acumulado
-    balance: 'bg-destructive/10',      // Saldo
-  };
-  const G_HEAD = {
-    id: 'bg-muted text-foreground',
-    contract: 'bg-info/20 text-foreground',
-    period: 'bg-success/20 text-foreground',
-    accum: 'bg-warning/20 text-foreground',
-    balance: 'bg-destructive/15 text-foreground',
-  };
-  const BORDER_L = 'border-l-2 border-border';
-
-  const headerStyleByDepth = (depth: number) => {
-    if (depth === 0) return 'bg-primary/10 text-foreground font-bold border-y-2 border-primary/40';
-    if (depth === 1) return 'bg-muted/70 text-foreground font-semibold border-y border-border';
-    return 'bg-muted/40 text-foreground font-semibold border-y border-border';
-  };
-  const subtotalStyleByDepth = (depth: number) => {
-    if (depth === 0) return 'bg-primary/5 border-y border-primary/30 font-bold';
-    if (depth === 1) return 'bg-muted/50 border-y border-border font-semibold';
-    return 'bg-muted/30 border-y border-border font-semibold';
-  };
 
   return (
     <div className="measurement-print-root p-6 space-y-5 print:p-0 print:space-y-3">
@@ -475,351 +414,23 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
       <MeasurementSummaryCards totals={totals} />
 
       {/* Tabela */}
-      <Card>
-        <CardHeader className="pb-3 print:hidden">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            Planilha de medição ({filteredRows.length} itens)
-            {isLocked && (
-              <span className="text-[10px] font-normal text-muted-foreground flex items-center gap-1">
-                <Lock className="w-3 h-3" /> somente leitura
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 overflow-hidden">
-          <div className="overflow-x-auto max-w-full print:overflow-visible">
-            <table className="measurement-table w-full text-[11px] border-collapse print:min-w-0">
-              <colgroup>
-                <col className="col-item" />
-                <col className="col-code" />
-                <col className="col-bank" />
-                <col className="col-desc" />
-                <col className="col-und" />
-                <col className="col-qty" />
-                <col className="col-val" />
-                <col className="col-val" />
-                <col className="col-val" />
-                <col className="col-qty" />
-                <col className="col-val" />
-                <col className="col-qty" />
-                <col className="col-val" />
-                <col className="col-qty" />
-                <col className="col-val" />
-              </colgroup>
-              <thead className="sticky top-0 z-10">
-                {/* Linha de grupos coloridos */}
-                <tr>
-                  <th colSpan={5} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.id}`}>
-                    Identificação
-                  </th>
-                  <th colSpan={4} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.contract} ${BORDER_L}`}>
-                    Contrato
-                  </th>
-                  <th colSpan={2} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.period} ${BORDER_L}`}>
-                    Medição Atual
-                  </th>
-                  <th colSpan={2} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.accum} ${BORDER_L}`}>
-                    Acumulado
-                  </th>
-                  <th colSpan={2} className={`px-2 py-1 text-[10px] uppercase tracking-wider font-bold ${G_HEAD.balance} ${BORDER_L}`}>
-                    Saldo
-                  </th>
-                </tr>
-                <tr className="bg-foreground text-background">
-                  {/* Identificação */}
-                  <th className="px-2 py-2 text-left font-semibold">Item</th>
-                  <th className="px-2 py-2 text-center font-semibold">Código</th>
-                  <th className="px-2 py-2 text-center font-semibold">Banco</th>
-                  <th className="px-2 py-2 text-left font-semibold">Descrição</th>
-                  <th className="px-2 py-2 text-center font-semibold cell-und">Und.</th>
-                  {/* Contrato */}
-                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Contrat.</th>
-                  <th className="px-2 py-2 text-right font-semibold">V. Unit. s/ BDI</th>
-                  <th className="px-2 py-2 text-right font-semibold">V. Unit. c/ BDI</th>
-                  <th className="px-2 py-2 text-right font-semibold">Total Contratado</th>
-                  {/* Medição atual */}
-                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Medição</th>
-                  <th className="px-2 py-2 text-right font-semibold">Subtotal Medição</th>
-                  {/* Acumulado */}
-                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. Acum.</th>
-                  <th className="px-2 py-2 text-right font-semibold">Subtotal Acumulado</th>
-                  {/* Saldo */}
-                  <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Quant. a Executar</th>
-                  <th className="px-2 py-2 text-right font-semibold">Subtotal a Executar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupTree.length === 0 ? (
-                  <tr>
-                    <td colSpan={COLSPAN} className="text-center py-8 text-muted-foreground">
-                      Nenhum item encontrado para os filtros selecionados.
-                    </td>
-                  </tr>
-                ) : (
-                  (() => {
-                    const out: JSX.Element[] = [];
-
-                    const renderGroup = (g: GroupNode) => {
-                      const indentPx = g.depth * 14;
-                      const isCollapsed = collapsed.has(g.phaseId);
-
-                      out.push(
-                        <tr key={`h-${g.phaseId}`} className={headerStyleByDepth(g.depth)}>
-                          <td colSpan={COLSPAN} className="px-2 py-1.5">
-                            <button
-                              type="button"
-                              onClick={() => toggleCollapsed(g.phaseId)}
-                              className="inline-flex items-center gap-1 hover:opacity-80 print-hide"
-                              style={{ paddingLeft: indentPx }}
-                            >
-                              {isCollapsed
-                                ? <ChevronRight className="w-3.5 h-3.5" />
-                                : <ChevronDown className="w-3.5 h-3.5" />}
-                              <span className="font-mono tabular-nums">{g.number}</span>
-                              <span className="ml-1 uppercase tracking-wide">{g.name}</span>
-                            </button>
-                            <span className="hidden print:inline font-mono tabular-nums" style={{ paddingLeft: indentPx }}>
-                              {g.number} {g.name}
-                            </span>
-                          </td>
-                        </tr>,
-                      );
-
-                      if (!isCollapsed) {
-                        g.rows.forEach(r => {
-                          const baseBg = r.hasNoLogsInPeriod ? 'bg-warning/5' : 'bg-background';
-                          const stickyBg = r.hasNoLogsInPeriod ? 'bg-warning/5' : 'bg-background';
-
-                          out.push(
-                            <tr key={r.taskId} className={`border-b border-border/60 hover:bg-muted/30 ${baseBg}`}>
-                              {/* Identificação */}
-                              <td
-                                className={`px-2 py-1.5 font-mono tabular-nums text-foreground align-top ${stickyBg}`}
-                                style={{ paddingLeft: indentPx + 8 }}
-                              >
-                                {r.item}
-                              </td>
-                              <td className={`px-1 py-1 align-top text-center ${stickyBg}`}>
-                                <Input
-                                  className="h-7 px-1.5 text-[11px] text-center border-transparent hover:border-input focus-visible:ring-1 print:hidden"
-                                  value={r.itemCode}
-                                  disabled={isLocked}
-                                  onChange={e => isSnapshotMode
-                                    ? patchSnapshotItem(r.taskId, { itemCode: e.target.value }, 'Código')
-                                    : updateTaskField(r.taskId, { itemCode: e.target.value })}
-                                  placeholder="—"
-                                />
-                                <span className="hidden print:inline">{r.itemCode || '—'}</span>
-                              </td>
-                              <td className={`px-1 py-1 align-top text-center ${stickyBg}`}>
-                                <Input
-                                  className="h-7 px-1.5 text-[11px] text-center border-transparent hover:border-input focus-visible:ring-1 print:hidden"
-                                  value={r.priceBank}
-                                  disabled={isLocked}
-                                  onChange={e => isSnapshotMode
-                                    ? patchSnapshotItem(r.taskId, { priceBank: e.target.value }, 'Banco')
-                                    : updateTaskField(r.taskId, { priceBank: e.target.value })}
-                                  placeholder="—"
-                                />
-                                <span className="hidden print:inline">{r.priceBank || '—'}</span>
-                              </td>
-                              <td className={`px-2 py-1.5 text-foreground align-top cell-desc ${stickyBg}`}>
-                                <div className="flex items-start gap-1.5">
-                                  {r.hasNoLogsInPeriod && (
-                                    <AlertCircle
-                                      className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5 print:hidden"
-                                      aria-label="Sem apontamento no período"
-                                    />
-                                  )}
-                                  <span className="leading-snug break-words">{r.description}</span>
-                                </div>
-                              </td>
-                              <td className={`px-2 py-1.5 text-muted-foreground align-top cell-und ${G_BG.id}`}>
-                                {r.unit}
-                              </td>
-
-                              {/* Contrato */}
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${BORDER_L} ${G_BG.contract}`}>
-                                {fmtNum(r.qtyContracted)}
-                              </td>
-                              <td className={`px-1 py-1 text-right align-top ${G_BG.contract}`} style={{ minWidth: 210, width: 220 }}>
-                                {editingPriceTaskId === r.taskId ? (
-                                  <div className="flex items-center justify-end gap-1 print:hidden bg-accent/40 rounded px-1 py-0.5 min-w-[210px]">
-                                    <div className="relative">
-                                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">R$</span>
-                                      <Input
-                                        autoFocus
-                                        type="number" step="0.01" min="0"
-                                        value={editingPriceValue}
-                                        placeholder="0,00"
-                                        onChange={e => setEditingPriceValue(e.target.value)}
-                                        onKeyDown={e => {
-                                          if (e.key === 'Enter') {
-                                            updateUnitPriceNoBDI(r.taskId, parseFloat(editingPriceValue) || 0);
-                                            setEditingPriceTaskId(null);
-                                          } else if (e.key === 'Escape') {
-                                            setEditingPriceTaskId(null);
-                                          }
-                                        }}
-                                        className="h-7 pl-7 pr-2 text-right tabular-nums text-xs w-[150px] min-w-[150px]"
-                                      />
-                                    </div>
-                                    <Button
-                                      type="button" size="icon" variant="ghost"
-                                      className="h-6 w-6 shrink-0 text-success hover:text-success"
-                                      title="Confirmar (Enter)"
-                                      onClick={() => {
-                                        updateUnitPriceNoBDI(r.taskId, parseFloat(editingPriceValue) || 0);
-                                        setEditingPriceTaskId(null);
-                                      }}
-                                    >
-                                      <Check className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      type="button" size="icon" variant="ghost"
-                                      className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
-                                      title="Cancelar (Esc)"
-                                      onClick={() => setEditingPriceTaskId(null)}
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-end gap-1 print:hidden">
-                                    <span className={`tabular-nums text-[11px] ${r.unitPriceIsEstimated ? 'italic text-muted-foreground' : ''}`}>
-                                      {fmtBRL(r.unitPriceNoBDI || 0)}
-                                    </span>
-                                    {!isLocked && (
-                                      <Button
-                                        type="button" size="icon" variant="ghost"
-                                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                                        title={r.unitPriceIsEstimated ? 'Preço estimado — clique para editar' : 'Editar valor unitário s/ BDI'}
-                                        onClick={() => {
-                                          setEditingPriceValue(((r.unitPriceNoBDI || 0)).toFixed(2));
-                                          setEditingPriceTaskId(r.taskId);
-                                        }}
-                                      >
-                                        <Pencil className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                    {isLocked && (
-                                      <Lock className="h-3 w-3 text-muted-foreground" aria-label="Medição bloqueada" />
-                                    )}
-                                  </div>
-                                )}
-                                <span className="hidden print:inline tabular-nums">{fmtBRL(r.unitPriceNoBDI || 0)}</span>
-                              </td>
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${G_BG.contract}`}>
-                                {fmtBRL(r.unitPriceWithBDI || 0)}
-                              </td>
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${G_BG.contract}`}>
-                                {fmtBRL(r.valueContracted)}
-                              </td>
-
-                              {/* Medição atual */}
-                              <td className={`px-1 py-1 text-right align-top ${BORDER_L} ${G_BG.period}`}>
-                                {isSnapshotMode ? (
-                                  <Input
-                                    type="number" step="0.01" min="0"
-                                    value={r.qtyPeriod ? Number(r.qtyPeriod.toFixed(3)) : ''}
-                                    placeholder="0,00"
-                                    disabled={isLocked}
-                                    onChange={e => {
-                                      const v = parseFloat(e.target.value) || 0;
-                                      // Em modo edição liberada de snapshot, ajusta qtyApproved
-                                      patchSnapshotItem(r.taskId, { qtyApproved: v }, 'Quant. medição (aprovada)');
-                                    }}
-                                    className="h-7 px-1.5 text-right tabular-nums text-[11px] border-transparent hover:border-input focus-visible:ring-1 print:hidden"
-                                    title="Quantidade desta medição"
-                                  />
-                                ) : r.hasNoLogsInPeriod ? (
-                                  <Input
-                                    type="number" step="0.01" min="0"
-                                    value={r.qtyPeriod ? Number(r.qtyPeriod.toFixed(3)) : ''}
-                                    placeholder="0,00"
-                                    onChange={e => setManualPeriodQuantity(r.taskId, parseFloat(e.target.value) || 0)}
-                                    className="h-7 px-1.5 text-right tabular-nums text-[11px] border-warning/50 print:hidden"
-                                    title="Sem apontamento no período — lance manualmente"
-                                  />
-                                ) : (
-                                  <span className="tabular-nums font-semibold pr-2">{fmtNum(r.qtyPeriod)}</span>
-                                )}
-                                <span className="hidden print:inline tabular-nums">{fmtNum(r.qtyPeriod)}</span>
-                              </td>
-                              <td className={`px-2 py-1.5 text-right tabular-nums font-semibold text-foreground align-top ${G_BG.period}`}>
-                                {fmtBRL(r.valuePeriod)}
-                              </td>
-
-                              {/* Acumulado */}
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${BORDER_L} ${G_BG.accum}`}>
-                                {fmtNum(r.qtyCurrentAccum)}
-                              </td>
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-foreground align-top ${G_BG.accum}`}>
-                                {fmtBRL(r.valueAccum)}
-                              </td>
-
-                              {/* Saldo */}
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top ${BORDER_L} ${G_BG.balance}`}>
-                                {fmtNum(r.qtyBalance)}
-                              </td>
-                              <td className={`px-2 py-1.5 text-right tabular-nums text-muted-foreground align-top ${G_BG.balance}`}>
-                                {fmtBRL(r.valueBalance)}
-                              </td>
-                            </tr>,
-                          );
-                        });
-                        g.children.forEach(renderGroup);
-                      }
-
-                      out.push(
-                        <tr key={`s-${g.phaseId}`} className={subtotalStyleByDepth(g.depth)}>
-                          <td colSpan={8} className="px-2 py-1.5 text-right text-foreground border-t-2 border-border">
-                            <span style={{ paddingLeft: indentPx }}>
-                              Subtotal {g.number} — {g.name}
-                            </span>
-                          </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border">
-                            {fmtBRL(g.totals.contracted)}
-                          </td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border ${BORDER_L}`}>—</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border">
-                            {fmtBRL(g.totals.period)}
-                          </td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border ${BORDER_L}`}>—</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border">
-                            {fmtBRL(g.totals.accum)}
-                          </td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border ${BORDER_L}`}>—</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-foreground border-t-2 border-border">
-                            {fmtBRL(g.totals.balance)}
-                          </td>
-                        </tr>,
-                      );
-                    };
-
-                    groupTree.forEach(renderGroup);
-                    return out;
-                  })()
-                )}
-              </tbody>
-              {groupTree.length > 0 && (
-                <tfoot>
-                  <tr className="bg-foreground text-background border-t-2 border-foreground font-bold">
-                    <td colSpan={8} className="px-2 py-2 text-right uppercase tracking-wide">Total Geral</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmtBRL(totals.contracted)}</td>
-                    <td className={`px-2 py-2 text-right ${BORDER_L}`}>—</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmtBRL(totals.period)}</td>
-                    <td className={`px-2 py-2 text-right ${BORDER_L}`}>—</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmtBRL(totals.accum)}</td>
-                    <td className={`px-2 py-2 text-right ${BORDER_L}`}>—</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmtBRL(totals.balance)}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <MeasurementTable
+        filteredRows={filteredRows}
+        groupTree={groupTree}
+        totals={totals}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        isLocked={isLocked}
+        isSnapshotMode={isSnapshotMode}
+        editingPriceTaskId={editingPriceTaskId}
+        editingPriceValue={editingPriceValue}
+        setEditingPriceTaskId={setEditingPriceTaskId}
+        setEditingPriceValue={setEditingPriceValue}
+        updateUnitPriceNoBDI={updateUnitPriceNoBDI}
+        updateTaskField={updateTaskField}
+        patchSnapshotItem={patchSnapshotItem}
+        setManualPeriodQuantity={setManualPeriodQuantity}
+      />
 
       {/* Rodapé técnico */}
       <MeasurementTotals totals={totals} effBdi={effBdi} />
