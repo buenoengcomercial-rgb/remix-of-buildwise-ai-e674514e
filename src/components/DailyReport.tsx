@@ -14,8 +14,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 
 import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
 import type jsPDFType from 'jspdf';
 type AutoTableFn = typeof import('jspdf-autotable').default;
 // jsPDF/autoTable são carregados sob demanda (~300 kB) só ao gerar PDF.
