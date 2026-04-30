@@ -24,10 +24,12 @@ type AutoTableFn = typeof import('jspdf-autotable').default;
 
 // jsPDF/autoTable são carregados sob demanda (~300 kB) só ao gerar PDF.
 async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: AutoTableFn }> {
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+  const [jsPDFMod, autoTableMod] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
   ]);
+  const jsPDF = (jsPDFMod as any).default || (jsPDFMod as any).jsPDF || jsPDFMod;
+  const autoTable = (autoTableMod as any).default || (autoTableMod as any).autoTable || autoTableMod;
   return { jsPDF, autoTable };
 }
 
