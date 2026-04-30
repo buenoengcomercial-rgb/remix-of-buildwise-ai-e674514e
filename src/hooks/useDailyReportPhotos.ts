@@ -101,7 +101,7 @@ export function useDailyReportPhotos({
       if (error) throw error;
       const { data: pub } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
       return { ...base, storagePath: path, publicUrl: pub.publicUrl };
-    } catch (err) {
+    } catch {
       const dataUrl = await readFileAsDataURL(file);
       return { ...base, dataUrl };
     }
