@@ -173,7 +173,7 @@ export function useMeasurementExports(params: UseMeasurementExportsParams) {
   const exportPDF = useCallback(async () => {
     const { jsPDF, autoTable } = await loadPdfDeps();
     const headerCtx = activeMeasurement?.contractSnapshot ?? {
-      contractor, contracted, contractNumber, contractObject, location, budgetSource, bdiPercent,
+      contractor, contracted, contractNumber, contractObject, location, budgetSource, artNumber, bdiPercent,
     };
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
