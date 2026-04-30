@@ -511,16 +511,6 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     }
   };
 
-  /** Nome curto da atividade para títulos de fotos no PDF. */
-  const shortTaskName = (raw?: string, max = 50): string => {
-    if (!raw) return '—';
-    let s = raw.trim();
-    // Corta no primeiro separador estrutural
-    const cut = s.search(/[,.;\-–—()\/]/);
-    if (cut > 0) s = s.slice(0, cut).trim();
-    if (s.length > max) s = s.slice(0, max - 1).trimEnd() + '…';
-    return s || '—';
-  };
 
   // ───── PDF ─────
   /**
