@@ -12,7 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
-import { DEFAULT_TEAMS, type TeamDefinition } from '@/lib/teams';
+import { type TeamDefinition } from '@/lib/teams';
 import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -44,6 +44,8 @@ import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport
 import { useDailyReportState } from '@/hooks/useDailyReportState';
 import { useDailyReportPeriods } from '@/hooks/useDailyReportPeriods';
 import { useDailyReportProduction, collectProductionForDate } from '@/hooks/useDailyReportProduction';
+import { useDailyReportTeams } from '@/hooks/useDailyReportTeams';
+import { useDailyReportEquipment } from '@/hooks/useDailyReportEquipment';
 
 
 export default function DailyReport({ project, onProjectChange, undoButton, initialDate, initialMeasurementFilter, navKey }: DailyReportProps) {
@@ -75,73 +77,18 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
   // persist e updateField vêm de useDailyReportState
 
 
-  // Equipes cadastradas no projeto (fallback para defaults se ainda não definidas)
-  const projectTeams: TeamDefinition[] = useMemo(
-    () => (project.teams && project.teams.length > 0) ? project.teams : DEFAULT_TEAMS,
-    [project.teams],
-  );
-  const teamByCode = useMemo(
-    () => new Map(projectTeams.map(t => [t.code, t])),
-    [projectTeams],
-  );
-  /** Exibição amigável da equipe: composition → label → code. */
-  const teamDisplay = (def?: TeamDefinition, fallback?: string): string => {
-    if (def) return (def.composition?.trim() || def.label?.trim() || def.code);
-    return fallback?.trim() || '—';
-  };
+  const {
+    projectTeams,
+    teamByCode,
+    teamDisplay,
+    suggestedTeamCodes,
+    addTeamRow,
+    updateTeamRow,
+    removeTeamRow,
+    addSuggestedTeams,
+  } = useDailyReportTeams({ project, production, persist });
 
-  // Equipes sugeridas: códigos vindos das tarefas com produção no dia
-  const suggestedTeamCodes = useMemo(() => {
-    const set = new Set<string>();
-    production.forEach(p => { if (p.teamCode) set.add(p.teamCode); });
-    return Array.from(set);
-  }, [production]);
-
-  // Equipes
-  const addTeamRow = (teamCode?: string) => persist(r => {
-    const def = teamCode ? teamByCode.get(teamCode) : undefined;
-    return {
-      ...r,
-      teamsPresent: [
-        ...(r.teamsPresent || []),
-        { id: uid('tm'), teamCode, name: def?.label || '', role: def?.composition || '', count: 1 },
-      ],
-    };
-  });
-  const updateTeamRow = (id: string, patch: Partial<DailyReportTeamRow>) => persist(r => ({
-    ...r,
-    teamsPresent: (r.teamsPresent || []).map(t => t.id === id ? { ...t, ...patch } : t),
-  }));
-  const removeTeamRow = (id: string) => persist(r => ({
-    ...r,
-    teamsPresent: (r.teamsPresent || []).filter(t => t.id !== id),
-  }));
-
-  /** Adiciona em lote as equipes sugeridas pelo apontamento, evitando duplicar códigos já presentes. */
-  const addSuggestedTeams = () => persist(r => {
-    const existingCodes = new Set((r.teamsPresent || []).map(t => t.teamCode).filter(Boolean) as string[]);
-    const toAdd = suggestedTeamCodes.filter(c => !existingCodes.has(c));
-    if (toAdd.length === 0) return r;
-    const newRows: DailyReportTeamRow[] = toAdd.map(code => {
-      const def = teamByCode.get(code);
-      return { id: uid('tm'), teamCode: code, name: def?.label || code, role: def?.composition || '', count: 1 };
-    });
-    return { ...r, teamsPresent: [...(r.teamsPresent || []), ...newRows] };
-  });
-
-  // Equipamentos
-  const addEqRow = () => persist(r => ({
-    ...r,
-    equipment: [...(r.equipment || []), { id: uid('eq'), name: '', count: 1, notes: '' }],
-  }));
-  const updateEqRow = (id: string, patch: Partial<DailyReportEquipmentRow>) => persist(r => ({
-    ...r,
-    equipment: (r.equipment || []).map(e => e.id === id ? { ...e, ...patch } : e),
-  }));
-  const removeEqRow = (id: string) => persist(r => ({
-    ...r,
-    equipment: (r.equipment || []).filter(e => e.id !== id),
-  }));
+  const { addEqRow, updateEqRow, removeEqRow } = useDailyReportEquipment({ persist });
 
   // ───── Fotos / Anexos ─────
   const fileInputRef = useRef<HTMLInputElement | null>(null);
