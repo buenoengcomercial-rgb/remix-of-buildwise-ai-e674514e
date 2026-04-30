@@ -20,29 +20,21 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  ClipboardList,
-  FileSpreadsheet,
-  Printer,
-  Search,
-  CalendarDays,
-  Building2,
   AlertCircle,
   ChevronRight,
   ChevronDown,
-  Plus,
   Lock,
-  Unlock,
-  CheckCircle2,
-  XCircle,
-  FileCheck2,
-  Trash2,
   Pencil,
   Check,
   X,
-  History,
 } from 'lucide-react';
+import MeasurementHeader from '@/components/measurement/MeasurementHeader';
+import MeasurementStatusBar from '@/components/measurement/MeasurementStatusBar';
+import MeasurementContractInfo from '@/components/measurement/MeasurementContractInfo';
+import MeasurementFilters from '@/components/measurement/MeasurementFilters';
+import MeasurementSummaryCards from '@/components/measurement/MeasurementSummaryCards';
+import MeasurementTotals from '@/components/measurement/MeasurementTotals';
 import { useAuth } from '@/hooks/useAuth';
 import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
