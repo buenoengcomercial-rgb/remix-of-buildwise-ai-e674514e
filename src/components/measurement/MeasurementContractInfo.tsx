@@ -35,6 +35,7 @@ export default function MeasurementContractInfo({
   contractObject, setContractObject,
   location, setLocation,
   budgetSource, setBudgetSource,
+  artNumber, setArtNumber,
   bdiInput, setBdiInput,
   bdiPercent,
   measurementNumber, setMeasurementNumber,
