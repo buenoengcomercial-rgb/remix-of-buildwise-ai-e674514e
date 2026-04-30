@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { Project } from '@/types/project';
 import {
-  fmtBRL,
-  fmtPct,
   fmtDateBR,
 } from '@/components/measurement/measurementFormat';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +13,7 @@ import MeasurementSummaryCards from '@/components/measurement/MeasurementSummary
 import MeasurementTotals from '@/components/measurement/MeasurementTotals';
 import MeasurementTable from '@/components/measurement/MeasurementTable';
 import { useAuth } from '@/hooks/useAuth';
-import { logToProject, userInfoFromSupabaseUser } from '@/lib/audit';
+import { userInfoFromSupabaseUser } from '@/lib/audit';
 import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import { useMeasurementExports } from '@/hooks/useMeasurementExports';
 import { useMeasurementState } from '@/hooks/useMeasurementState';
@@ -31,11 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { toast } from '@/hooks/use-toast';
 import { validateMeasurement, summarizeIssues, type ValidationIssue } from '@/lib/measurementValidation';
 import MeasurementValidationPanel from '@/components/MeasurementValidationPanel';
-import { summarizeDailyReportsForPeriod, buildDailyReportSnapshot } from '@/lib/dailyReportSummary';
-import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
+import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
 
 interface MeasurementProps {
   project: Project;
@@ -54,10 +50,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   const {
     projectRef,
     measurements,
-    contract,
     today,
     monthAgo,
-    defaultNextNumber,
     issueDate,
     activeId, setActiveId,
     historyOpen, setHistoryOpen,
@@ -91,10 +85,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   // ───────── Linhas, filtros, agrupamento e totais (extraído para useMeasurementRows) ─────────
   const {
-    syntheticBudgetItems,
-    hasSyntheticBudget,
     numbering,
-    orderedTasks,
     activeMeasurement,
     isLocked,
     isSnapshotMode,
@@ -104,7 +95,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     effBdiFactor,
     effIssue,
     effNumber,
-    priorAccumByTask,
     rows,
     filteredRows,
     groupTree,
@@ -224,7 +214,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   });
 
   // ───────── EXPORT XLSX / PDF (extraído para useMeasurementExports) ─────────
-  const { exportXLSX, exportPDF, handlePrint } = useMeasurementExports({
+  const { exportXLSX, handlePrint } = useMeasurementExports({
     project,
     projectRef,
     onProjectChange,
