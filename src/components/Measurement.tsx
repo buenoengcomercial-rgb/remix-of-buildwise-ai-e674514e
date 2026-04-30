@@ -49,6 +49,7 @@ import AuditHistoryPanel from '@/components/AuditHistoryPanel';
 import { useMeasurementExports } from '@/hooks/useMeasurementExports';
 import { useMeasurementState } from '@/hooks/useMeasurementState';
 import { useMeasurementActions } from '@/hooks/useMeasurementActions';
+import { useMeasurementRows } from '@/hooks/useMeasurementRows';
 import {
   AlertDialog,
   AlertDialogAction,
