@@ -671,8 +671,22 @@ export function useDailyReportPdf(args: UseDailyReportPdfArgs) {
     doc.save(fileName);
   }, [project, activePeriod, periodDates, selectedDate, teamByCode, teamDisplay]);
 
-  const handlePrintDay = useCallback(() => generatePDF('day'), [generatePDF]);
-  const handlePrintPeriod = useCallback(() => generatePDF('period'), [generatePDF]);
+  const handlePrintDay = useCallback(async () => {
+    try {
+      await generatePDF('day');
+    } catch (e) {
+      console.error('Erro ao gerar PDF do dia (Diário de Obra)', e);
+      toast.error('Falha ao gerar PDF do dia. Verifique o console para detalhes.');
+    }
+  }, [generatePDF]);
+  const handlePrintPeriod = useCallback(async () => {
+    try {
+      await generatePDF('period');
+    } catch (e) {
+      console.error('Erro ao gerar PDF do período (Diário de Obra)', e);
+      toast.error('Falha ao gerar PDF do período. Verifique o console para detalhes.');
+    }
+  }, [generatePDF]);
 
   return { handlePrintDay, handlePrintPeriod };
 }
