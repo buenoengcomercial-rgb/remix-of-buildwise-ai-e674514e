@@ -12,7 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 import { summarizeDailyReportsForPeriod } from '@/lib/dailyReportSummary';
-import { type TeamDefinition } from '@/lib/teams';
+
 import { loadCompanyLogoForPdf } from '@/lib/companyBranding';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
