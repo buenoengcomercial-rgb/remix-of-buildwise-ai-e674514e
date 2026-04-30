@@ -26,7 +26,6 @@ async function loadPdfDeps(): Promise<{ jsPDF: typeof jsPDFType; autoTable: Auto
 }
 
 import {
-  PHOTO_BUCKET,
   GENERAL_TASK_VALUE,
   WEATHER_OPTIONS,
   WORK_OPTIONS,
@@ -34,8 +33,6 @@ import {
   STATUS_META,
   todayISO,
   formatBR,
-  uid,
-  readFileAsDataURL,
   shortTaskName,
 } from '@/components/dailyReport/dailyReportFormat';
 import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
