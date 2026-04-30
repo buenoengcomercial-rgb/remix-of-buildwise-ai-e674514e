@@ -209,23 +209,8 @@ export default function DailyReport({ project, onProjectChange, undoButton, init
     [activePeriod, project],
   );
 
-  // ───── Persistência ─────
-  const persist = useCallback((mutator: (r: DailyReportEntry) => DailyReportEntry) => {
-    onProjectChange(prev => {
-      const list = prev.dailyReports || [];
-      const idx = list.findIndex(r => r.date === selectedDate);
-      const base = idx >= 0 ? list[idx] : currentReport;
-      const updated: DailyReportEntry = { ...mutator(base), date: selectedDate, updatedAt: new Date().toISOString() };
-      const nextList = idx >= 0
-        ? list.map((r, i) => i === idx ? updated : r)
-        : [...list, updated];
-      return { ...prev, dailyReports: nextList };
-    });
-  }, [onProjectChange, selectedDate, currentReport]);
+  // persist e updateField vêm de useDailyReportState
 
-  const updateField = <K extends keyof DailyReportEntry>(key: K, value: DailyReportEntry[K]) => {
-    persist(r => ({ ...r, [key]: value }));
-  };
 
   // Equipes cadastradas no projeto (fallback para defaults se ainda não definidas)
   const projectTeams: TeamDefinition[] = useMemo(
