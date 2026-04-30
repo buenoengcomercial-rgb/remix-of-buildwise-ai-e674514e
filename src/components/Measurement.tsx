@@ -50,10 +50,8 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   const {
     projectRef,
     measurements,
-    contract,
     today,
     monthAgo,
-    defaultNextNumber,
     issueDate,
     activeId, setActiveId,
     historyOpen, setHistoryOpen,
