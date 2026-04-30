@@ -42,6 +42,7 @@ import {
 } from '@/components/dailyReport/dailyReportFormat';
 import type { ProductionEntry, DailyReportProps } from '@/components/dailyReport/types';
 import { useDailyReportState } from '@/hooks/useDailyReportState';
+import { useDailyReportPeriods } from '@/hooks/useDailyReportPeriods';
 
 /** Coleta todos os apontamentos da data, respeitando hierarquia capítulo/subcapítulo. */
 function collectProductionForDate(project: Project, dateISO: string): ProductionEntry[] {
