@@ -85,10 +85,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
 
   // ───────── Linhas, filtros, agrupamento e totais (extraído para useMeasurementRows) ─────────
   const {
-    syntheticBudgetItems,
-    hasSyntheticBudget,
     numbering,
-    orderedTasks,
     activeMeasurement,
     isLocked,
     isSnapshotMode,
@@ -98,7 +95,6 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
     effBdiFactor,
     effIssue,
     effNumber,
-    priorAccumByTask,
     rows,
     filteredRows,
     groupTree,
