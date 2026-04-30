@@ -31,6 +31,7 @@ interface HeaderFormFields {
   contractObject: string;
   location: string;
   budgetSource: string;
+  artNumber: string;
   bdiPercent: number;
 }
 
