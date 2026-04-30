@@ -214,7 +214,7 @@ export default function Measurement({ project, onProjectChange, undoButton, onOp
   });
 
   // ───────── EXPORT XLSX / PDF (extraído para useMeasurementExports) ─────────
-  const { exportXLSX, exportPDF, handlePrint } = useMeasurementExports({
+  const { exportXLSX, handlePrint } = useMeasurementExports({
     project,
     projectRef,
     onProjectChange,
