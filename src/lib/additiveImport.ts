@@ -1317,7 +1317,8 @@ export async function exportAdditiveToPdf(
     doc.text(`Pág. ${p}/${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 5, { align: 'right' });
   }
 
-  doc.save(`${add.name.replace(/[^\w\d-]+/g, '_')}.pdf`);
+  const safeFileName = (additiveName || 'Aditivo').replace(/[^\w\d-]+/g, '_') || 'Aditivo';
+  doc.save(`${safeFileName}.pdf`);
 }
 
 // ============= Novos serviços (estudo no Aditivo) =============
