@@ -94,6 +94,20 @@ export default function AdditiveCompositionRow({
                 Dif. analítica c/ BDI: {fmtBRL(diff)}
               </Badge>
             )}
+            {hasMemory && (
+              <Badge variant="outline" className="text-[9px] text-violet-700 border-violet-400 bg-violet-50">
+                Calculado pela memória
+              </Badge>
+            )}
+            <button
+              onClick={() => onToggleMemory(c.id)}
+              className={`text-[10px] inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border ${isMemoryOpen ? 'bg-violet-100 border-violet-300 text-violet-800' : 'border-border text-muted-foreground hover:bg-muted'}`}
+              title="Memória de cálculo"
+              type="button"
+            >
+              <Calculator className="w-3 h-3" />
+              Memória {hasMemory ? `(${(c.calculationMemory ?? []).length})` : ''}
+            </button>
             {isNew && !isLocked && (
               <button
                 onClick={() => onRemoveComposition(c.id)}
