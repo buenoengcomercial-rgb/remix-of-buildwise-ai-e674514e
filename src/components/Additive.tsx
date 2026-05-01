@@ -31,7 +31,7 @@ interface Props {
 }
 
 export default function Additive({ project, onProjectChange, undoButton }: Props) {
-  const state = useAdditiveState(project);
+  const state = useAdditiveState(project, { onProjectChange });
   const actions = useAdditiveActions({ project, onProjectChange, state });
   const { banks, filteredComps, groupTree, orphanRows, hasEapLink } = useAdditiveGroups(
     project, state.active, state.search, state.bankFilter,
