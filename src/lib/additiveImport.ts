@@ -1321,6 +1321,48 @@ export async function exportAdditiveToPdf(
       cursorY += 2;
     }
 
+    const memRows = c.calculationMemory ?? [];
+    if (memRows.length > 0) {
+      let memAdded = 0;
+      let memSuppressed = 0;
+      const body = memRows.map(m => {
+        const p = Number.isFinite(m.partial) ? m.partial : 0;
+        if (m.type === 'suprimida') memSuppressed += p; else memAdded += p;
+        return [
+          m.type === 'suprimida' ? 'Suprimida' : 'Acrescida',
+          m.loc ?? '',
+          m.comment ?? '',
+          m.formula ?? '',
+          m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
+          p.toLocaleString('pt-BR', { maximumFractionDigits: 4 }),
+        ];
+      });
+      body.push([
+        '', '', '', '', '', '', '', 'Total Acrescida:',
+        memAdded.toLocaleString('pt-BR', { maximumFractionDigits: 4 }),
+      ]);
+      body.push([
+        '', '', '', '', '', '', '', 'Total Suprimida:',
+        memSuppressed.toLocaleString('pt-BR', { maximumFractionDigits: 4 }),
+      ]);
+      autoTable(doc, {
+        startY: cursorY,
+        head: [['Tipo', 'Loc', 'Comentário', 'Fórmula', 'A', 'B', 'C', 'D', 'Parcial']],
+        body,
+        margin: { left: margin + 6, right: margin },
+        styles: { fontSize: 6.8, cellPadding: 1.1, overflow: 'linebreak', textColor: 60 },
+        headStyles: { fillColor: [225, 220, 240], textColor: 30 },
+        columnStyles: {
+          0: { cellWidth: 16 }, 1: { cellWidth: 24 }, 2: { cellWidth: 'auto' },
+          3: { cellWidth: 22 },
+          4: { halign: 'right', cellWidth: 10 }, 5: { halign: 'right', cellWidth: 10 },
+          6: { halign: 'right', cellWidth: 10 }, 7: { halign: 'right', cellWidth: 14 },
+          8: { halign: 'right', cellWidth: 18 },
+        },
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 3;
+    }
+
     if (cursorY > doc.internal.pageSize.getHeight() - 20) {
       doc.addPage();
       cursorY = margin;
