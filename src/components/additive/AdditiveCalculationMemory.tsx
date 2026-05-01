@@ -1,14 +1,17 @@
+import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, Copy, Trash2, AlertTriangle } from 'lucide-react';
 import type {
   AdditiveComposition,
   AdditiveCalculationMemoryRow,
+  AdditiveCalculationMemoryColumns,
 } from '@/types/project';
 import {
   evalMemoryFormula,
   makeMemoryRow,
   recalcMemoryRow,
+  resolveMemoryColumnLabels,
 } from '@/lib/calculationMemory';
 import { fmtNum } from './types';
 
@@ -16,6 +19,7 @@ interface Props {
   c: AdditiveComposition;
   isLocked: boolean;
   onChange: (rows: AdditiveCalculationMemoryRow[]) => void;
+  onChangeColumns?: (cols: AdditiveCalculationMemoryColumns) => void;
 }
 
 const numOrUndef = (v: string): number | undefined => {
@@ -24,15 +28,85 @@ const numOrUndef = (v: string): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Props) {
+/** Cabeçalho editável por duplo clique. */
+function EditableHeader({
+  value,
+  defaultValue,
+  disabled,
+  onCommit,
+}: {
+  value: string;
+  defaultValue: string;
+  disabled?: boolean;
+  onCommit: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(value);
+      requestAnimationFrame(() => {
+        ref.current?.focus();
+        ref.current?.select();
+      });
+    }
+  }, [editing, value]);
+
+  if (editing && !disabled) {
+    return (
+      <input
+        ref={ref}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={() => {
+          setEditing(false);
+          const v = draft.trim();
+          onCommit(v || defaultValue);
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            setEditing(false);
+            const v = draft.trim();
+            onCommit(v || defaultValue);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setEditing(false);
+          }
+        }}
+        className="h-6 w-full text-[11px] px-1 border border-input rounded bg-background"
+      />
+    );
+  }
+  return (
+    <span
+      onDoubleClick={() => !disabled && setEditing(true)}
+      title={disabled ? value : 'Duplo clique para renomear'}
+      className={`block w-full select-none ${disabled ? '' : 'cursor-text hover:underline decoration-dotted'}`}
+    >
+      {value}
+    </span>
+  );
+}
+
+export default function AdditiveCalculationMemory({
+  c, isLocked, onChange, onChangeColumns,
+}: Props) {
   const rows = c.calculationMemory ?? [];
+  const labels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
+
+  /** Mantém Loc sequencial 1..N, ignorando o que vier salvo. */
+  const renumber = (list: AdditiveCalculationMemoryRow[]): AdditiveCalculationMemoryRow[] =>
+    list.map((r, idx) => ({ ...r, loc: String(idx + 1) }));
 
   const update = (id: string, patch: Partial<AdditiveCalculationMemoryRow>) => {
     const next = rows.map(r => (r.id === id ? recalcMemoryRow({ ...r, ...patch }) : r));
-    onChange(next);
+    onChange(renumber(next));
   };
   const add = (type: 'acrescida' | 'suprimida' = 'acrescida') => {
-    onChange([...rows, makeMemoryRow(type)]);
+    onChange(renumber([...rows, makeMemoryRow(type)]));
   };
   const dup = (id: string) => {
     const idx = rows.findIndex(r => r.id === id);
@@ -40,9 +114,14 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
     const orig = rows[idx];
     const copy = recalcMemoryRow({ ...orig, id: makeMemoryRow().id });
     const next = [...rows.slice(0, idx + 1), copy, ...rows.slice(idx + 1)];
-    onChange(next);
+    onChange(renumber(next));
   };
-  const del = (id: string) => onChange(rows.filter(r => r.id !== id));
+  const del = (id: string) => onChange(renumber(rows.filter(r => r.id !== id)));
+
+  const setColLabel = (k: 'a' | 'b' | 'c' | 'd', value: string) => {
+    if (!onChangeColumns) return;
+    onChangeColumns({ ...(c.calculationMemoryColumns ?? {}), [k]: value });
+  };
 
   const totalAcrescida = rows
     .filter(r => r.type !== 'suprimida')
@@ -50,6 +129,8 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
   const totalSuprimida = rows
     .filter(r => r.type === 'suprimida')
     .reduce((acc, r) => acc + (Number.isFinite(r.partial) ? r.partial : 0), 0);
+
+  const placeholder = `${labels.a}*${labels.b}*${labels.c}*${labels.d}`;
 
   return (
     <div className="border rounded-md bg-background p-2 space-y-2">
@@ -80,19 +161,59 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
+        <table className="w-full text-[11px] table-fixed">
+          <colgroup>
+            <col style={{ width: 36 }} />
+            <col style={{ width: 88 }} />
+            <col />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 78 }} />
+            <col style={{ width: 56 }} />
+          </colgroup>
           <thead className="text-muted-foreground">
             <tr className="border-b">
-              <th className="px-1.5 py-1 text-left font-medium w-[110px]">Tipo</th>
-              <th className="px-1.5 py-1 text-left font-medium">Loc</th>
+              <th className="px-1 py-1 text-center font-medium">Loc</th>
+              <th className="px-1.5 py-1 text-left font-medium">Tipo</th>
               <th className="px-1.5 py-1 text-left font-medium">Comentário</th>
-              <th className="px-1.5 py-1 text-left font-medium w-[140px]">Fórmula</th>
-              <th className="px-1.5 py-1 text-right font-medium w-[70px]">A</th>
-              <th className="px-1.5 py-1 text-right font-medium w-[70px]">B</th>
-              <th className="px-1.5 py-1 text-right font-medium w-[70px]">C</th>
-              <th className="px-1.5 py-1 text-right font-medium w-[70px]">D</th>
-              <th className="px-1.5 py-1 text-right font-medium w-[80px]">Parcial</th>
-              <th className="px-1.5 py-1 text-center font-medium w-[80px]">Ações</th>
+              <th className="px-1.5 py-1 text-left font-medium">Fórmula</th>
+              <th className="px-1.5 py-1 text-right font-medium">
+                <EditableHeader
+                  value={labels.a}
+                  defaultValue="UND"
+                  disabled={isLocked || !onChangeColumns}
+                  onCommit={v => setColLabel('a', v)}
+                />
+              </th>
+              <th className="px-1.5 py-1 text-right font-medium">
+                <EditableHeader
+                  value={labels.b}
+                  defaultValue="Comprim."
+                  disabled={isLocked || !onChangeColumns}
+                  onCommit={v => setColLabel('b', v)}
+                />
+              </th>
+              <th className="px-1.5 py-1 text-right font-medium">
+                <EditableHeader
+                  value={labels.c}
+                  defaultValue="Largura"
+                  disabled={isLocked || !onChangeColumns}
+                  onCommit={v => setColLabel('c', v)}
+                />
+              </th>
+              <th className="px-1.5 py-1 text-right font-medium">
+                <EditableHeader
+                  value={labels.d}
+                  defaultValue="Altura"
+                  disabled={isLocked || !onChangeColumns}
+                  onCommit={v => setColLabel('d', v)}
+                />
+              </th>
+              <th className="px-1.5 py-1 text-right font-medium">Parcial</th>
+              <th className="px-1.5 py-1 text-center font-medium">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -103,7 +224,7 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
                 </td>
               </tr>
             )}
-            {rows.map(r => {
+            {rows.map((r, idx) => {
               const ev = evalMemoryFormula(r.formula ?? '', {
                 a: r.a, b: r.b, c: r.c, d: r.d,
               });
@@ -114,6 +235,9 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
                   key={r.id}
                   className={`border-b align-top ${isInvalid ? 'bg-rose-50/50' : r.type === 'suprimida' ? 'bg-rose-50/20' : 'bg-emerald-50/20'}`}
                 >
+                  <td className="px-1 py-1 text-center font-mono text-muted-foreground">
+                    {idx + 1}
+                  </td>
                   <td className="px-1.5 py-1">
                     <select
                       value={r.type}
@@ -124,15 +248,6 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
                       <option value="acrescida">Acrescida</option>
                       <option value="suprimida">Suprimida</option>
                     </select>
-                  </td>
-                  <td className="px-1.5 py-1">
-                    <Input
-                      value={r.loc ?? ''}
-                      disabled={isLocked}
-                      onChange={e => update(r.id, { loc: e.target.value })}
-                      className="h-7 text-[11px]"
-                      placeholder="Ex.: Entrada de bomba"
-                    />
                   </td>
                   <td className="px-1.5 py-1">
                     <Input
@@ -149,8 +264,10 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
                       disabled={isLocked}
                       onChange={e => update(r.id, { formula: e.target.value })}
                       className={`h-7 text-[11px] font-mono ${isInvalid ? 'border-rose-400' : ''}`}
-                      placeholder="A*B*C*D"
-                      title={isInvalid ? ev.error : 'Fórmula opcional. Use A, B, C, D, +, -, *, /, ( )'}
+                      placeholder={placeholder}
+                      title={isInvalid
+                        ? ev.error
+                        : `Fórmula opcional. Use A, B, C, D, +, -, *, /, ( ). Padrão: ${placeholder}`}
                     />
                   </td>
                   {(['a', 'b', 'c', 'd'] as const).map(k => (
@@ -161,7 +278,7 @@ export default function AdditiveCalculationMemory({ c, isLocked, onChange }: Pro
                         value={r[k] ?? ''}
                         disabled={isLocked}
                         onChange={e => update(r.id, { [k]: numOrUndef(e.target.value) } as Partial<AdditiveCalculationMemoryRow>)}
-                        className="h-7 text-[11px] text-right"
+                        className="h-7 text-[11px] text-right px-1"
                       />
                     </td>
                   ))}

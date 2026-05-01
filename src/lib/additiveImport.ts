@@ -10,6 +10,7 @@ import type {
   Phase,
 } from '@/types/project';
 import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
+import { resolveMemoryColumnLabels } from '@/lib/calculationMemory';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -1148,21 +1149,27 @@ export async function exportAdditiveToExcel(add: Additive) {
   const wsAnaly = XLSX.utils.aoa_to_sheet([analyHeader, ...analyRows]);
 
   // Aba dedicada de Memória de Cálculo (vinculada à composição).
+  // Loc é numérico automático (1..N por composição). Os cabeçalhos UND/Comprim./Largura/Altura
+  // são padrões; quando a composição tiver rótulos personalizados, eles aparecem na coluna "Rótulos".
   const memHeader = [
     'Item composição', 'Código composição', 'Descrição composição',
-    'Tipo', 'Loc', 'Comentário', 'Fórmula',
-    'A', 'B', 'C', 'D', 'Parcial',
+    'Loc', 'Tipo', 'Comentário', 'Fórmula',
+    'UND', 'Comprim.', 'Largura', 'Altura', 'Parcial',
+    'Rótulos (UND|Comprim.|Largura|Altura)',
   ];
   const memRows: (string | number)[][] = [];
   for (const c of add.compositions) {
-    for (const m of (c.calculationMemory ?? [])) {
+    const labels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
+    const labelsStr = `${labels.a}|${labels.b}|${labels.c}|${labels.d}`;
+    (c.calculationMemory ?? []).forEach((m, idx) => {
       memRows.push([
         c.item, c.code, c.description,
-        m.type, m.loc ?? '', m.comment ?? '', m.formula ?? '',
+        idx + 1, m.type, m.comment ?? '', m.formula ?? '',
         m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
         Number.isFinite(m.partial) ? m.partial : 0,
+        labelsStr,
       ]);
-    }
+    });
   }
   const wsMem = XLSX.utils.aoa_to_sheet([memHeader, ...memRows]);
 
@@ -1323,14 +1330,15 @@ export async function exportAdditiveToPdf(
 
     const memRows = c.calculationMemory ?? [];
     if (memRows.length > 0) {
+      const memLabels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
       let memAdded = 0;
       let memSuppressed = 0;
-      const body = memRows.map(m => {
+      const body = memRows.map((m, idx) => {
         const p = Number.isFinite(m.partial) ? m.partial : 0;
         if (m.type === 'suprimida') memSuppressed += p; else memAdded += p;
         return [
+          String(idx + 1),
           m.type === 'suprimida' ? 'Suprimida' : 'Acrescida',
-          m.loc ?? '',
           m.comment ?? '',
           m.formula ?? '',
           m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
@@ -1347,16 +1355,18 @@ export async function exportAdditiveToPdf(
       ]);
       autoTable(doc, {
         startY: cursorY,
-        head: [['Tipo', 'Loc', 'Comentário', 'Fórmula', 'A', 'B', 'C', 'D', 'Parcial']],
+        head: [['Loc', 'Tipo', 'Comentário', 'Fórmula', memLabels.a, memLabels.b, memLabels.c, memLabels.d, 'Parcial']],
         body,
         margin: { left: margin + 6, right: margin },
         styles: { fontSize: 6.8, cellPadding: 1.1, overflow: 'linebreak', textColor: 60 },
         headStyles: { fillColor: [225, 220, 240], textColor: 30 },
         columnStyles: {
-          0: { cellWidth: 16 }, 1: { cellWidth: 24 }, 2: { cellWidth: 'auto' },
+          0: { halign: 'center', cellWidth: 8 },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 'auto' },
           3: { cellWidth: 22 },
-          4: { halign: 'right', cellWidth: 10 }, 5: { halign: 'right', cellWidth: 10 },
-          6: { halign: 'right', cellWidth: 10 }, 7: { halign: 'right', cellWidth: 14 },
+          4: { halign: 'right', cellWidth: 12 }, 5: { halign: 'right', cellWidth: 14 },
+          6: { halign: 'right', cellWidth: 12 }, 7: { halign: 'right', cellWidth: 12 },
           8: { halign: 'right', cellWidth: 18 },
         },
       });
