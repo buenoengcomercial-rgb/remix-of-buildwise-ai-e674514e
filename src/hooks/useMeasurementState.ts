@@ -57,7 +57,13 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
   const [search, setSearch] = useState(
     initialDraftMatches && initialDraft?.search ? initialDraft.search : '',
   );
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Estado visual de capítulos colapsados, persistido por activeId no projeto.
+  const initialCollapsed = useMemo(() => {
+    const map = project.measurementUiState?.collapsedByActiveId || {};
+    return new Set<string>(map['live'] || []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [collapsed, setCollapsedState] = useState<Set<string>>(initialCollapsed);
 
   // Cabeçalho (formulário contratual)
   const [contractor, setContractor] = useState(contract.contractor || '');
