@@ -1,7 +1,21 @@
 import type {
   AdditiveComposition,
   AdditiveCalculationMemoryRow,
+  AdditiveCalculationMemoryColumns,
 } from '@/types/project';
+import { DEFAULT_MEMORY_COLUMN_LABELS } from '@/types/project';
+
+/** Resolve os rótulos visíveis das colunas dimensionais (A,B,C,D), aplicando defaults quando faltarem. */
+export function resolveMemoryColumnLabels(
+  cols?: AdditiveCalculationMemoryColumns,
+): Required<AdditiveCalculationMemoryColumns> {
+  return {
+    a: (cols?.a ?? '').trim() || DEFAULT_MEMORY_COLUMN_LABELS.a,
+    b: (cols?.b ?? '').trim() || DEFAULT_MEMORY_COLUMN_LABELS.b,
+    c: (cols?.c ?? '').trim() || DEFAULT_MEMORY_COLUMN_LABELS.c,
+    d: (cols?.d ?? '').trim() || DEFAULT_MEMORY_COLUMN_LABELS.d,
+  };
+}
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
