@@ -486,6 +486,17 @@ export interface Additive {
   version?: number;
   /** Histórico de snapshots aprovados (congelados). */
   approvalSnapshots?: AdditiveApprovalSnapshot[];
+  /** Estado visual persistido por aditivo (capítulos recolhidos, composições abertas, mostrar analítico). */
+  uiState?: AdditiveUiState;
+}
+
+export interface AdditiveUiState {
+  /** IDs (phaseId) de capítulos/subcapítulos recolhidos na tabela do Aditivo. */
+  collapsedGroupIds?: string[];
+  /** IDs de composições com painel analítico expandido. */
+  expandedCompositionIds?: string[];
+  /** Mostrar/ocultar painel analítico globalmente. */
+  showAnalytic?: boolean;
 }
 
 // =================== AUDITORIA ===================
