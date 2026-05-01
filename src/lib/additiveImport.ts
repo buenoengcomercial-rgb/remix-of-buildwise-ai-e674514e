@@ -1147,9 +1147,29 @@ export async function exportAdditiveToExcel(add: Additive) {
   }
   const wsAnaly = XLSX.utils.aoa_to_sheet([analyHeader, ...analyRows]);
 
+  // Aba dedicada de Memória de Cálculo (vinculada à composição).
+  const memHeader = [
+    'Item composição', 'Código composição', 'Descrição composição',
+    'Tipo', 'Loc', 'Comentário', 'Fórmula',
+    'A', 'B', 'C', 'D', 'Parcial',
+  ];
+  const memRows: (string | number)[][] = [];
+  for (const c of add.compositions) {
+    for (const m of (c.calculationMemory ?? [])) {
+      memRows.push([
+        c.item, c.code, c.description,
+        m.type, m.loc ?? '', m.comment ?? '', m.formula ?? '',
+        m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
+        Number.isFinite(m.partial) ? m.partial : 0,
+      ]);
+    }
+  }
+  const wsMem = XLSX.utils.aoa_to_sheet([memHeader, ...memRows]);
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsSynth, 'Sintetica');
   XLSX.utils.book_append_sheet(wb, wsAnaly, 'Analitica');
+  XLSX.utils.book_append_sheet(wb, wsMem, 'Memoria de Calculo');
   XLSX.writeFile(wb, `${add.name.replace(/[^\w\d-]+/g, '_')}.xlsx`);
 }
 
@@ -1299,6 +1319,48 @@ export async function exportAdditiveToPdf(
       cursorY = (doc as any).lastAutoTable.finalY + 3;
     } else {
       cursorY += 2;
+    }
+
+    const memRows = c.calculationMemory ?? [];
+    if (memRows.length > 0) {
+      let memAdded = 0;
+      let memSuppressed = 0;
+      const body = memRows.map(m => {
+        const p = Number.isFinite(m.partial) ? m.partial : 0;
+        if (m.type === 'suprimida') memSuppressed += p; else memAdded += p;
+        return [
+          m.type === 'suprimida' ? 'Suprimida' : 'Acrescida',
+          m.loc ?? '',
+          m.comment ?? '',
+          m.formula ?? '',
+          m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
+          p.toLocaleString('pt-BR', { maximumFractionDigits: 4 }),
+        ];
+      });
+      body.push([
+        '', '', '', '', '', '', '', 'Total Acrescida:',
+        memAdded.toLocaleString('pt-BR', { maximumFractionDigits: 4 }),
+      ]);
+      body.push([
+        '', '', '', '', '', '', '', 'Total Suprimida:',
+        memSuppressed.toLocaleString('pt-BR', { maximumFractionDigits: 4 }),
+      ]);
+      autoTable(doc, {
+        startY: cursorY,
+        head: [['Tipo', 'Loc', 'Comentário', 'Fórmula', 'A', 'B', 'C', 'D', 'Parcial']],
+        body,
+        margin: { left: margin + 6, right: margin },
+        styles: { fontSize: 6.8, cellPadding: 1.1, overflow: 'linebreak', textColor: 60 },
+        headStyles: { fillColor: [225, 220, 240], textColor: 30 },
+        columnStyles: {
+          0: { cellWidth: 16 }, 1: { cellWidth: 24 }, 2: { cellWidth: 'auto' },
+          3: { cellWidth: 22 },
+          4: { halign: 'right', cellWidth: 10 }, 5: { halign: 'right', cellWidth: 10 },
+          6: { halign: 'right', cellWidth: 10 }, 7: { halign: 'right', cellWidth: 14 },
+          8: { halign: 'right', cellWidth: 18 },
+        },
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 3;
     }
 
     if (cursorY > doc.internal.pageSize.getHeight() - 20) {

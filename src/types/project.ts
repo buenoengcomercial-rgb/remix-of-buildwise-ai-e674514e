@@ -447,6 +447,27 @@ export interface AdditiveComposition {
   isNewService?: boolean;
   /** Valor unitário s/ BDI informado pelo usuário (antes do desconto global). Apenas para novos serviços. */
   unitPriceNoBDIInformed?: number;
+  /** Memória de cálculo justificando as quantidades suprimidas/acrescidas. */
+  calculationMemory?: AdditiveCalculationMemoryRow[];
+}
+
+/** Linha da memória de cálculo (Arquimedes-like) de uma composição do aditivo. */
+export interface AdditiveCalculationMemoryRow {
+  id: string;
+  /** Tipo: acrescida soma na Qtd Acrescida; suprimida soma na Qtd Suprimida. */
+  type: 'acrescida' | 'suprimida';
+  /** Local/frente/ambiente. */
+  loc?: string;
+  /** Comentário livre (justificativa do item). */
+  comment?: string;
+  /** Fórmula opcional usando A,B,C,D. Vazio = A*B*C*D. */
+  formula?: string;
+  a?: number;
+  b?: number;
+  c?: number;
+  d?: number;
+  /** Resultado calculado (cache). */
+  partial: number;
 }
 
 export interface AdditiveImportIssue {
@@ -507,6 +528,8 @@ export interface AdditiveUiState {
   collapsedGroupIds?: string[];
   /** IDs de composições com painel analítico expandido. */
   expandedCompositionIds?: string[];
+  /** IDs de composições com painel de memória de cálculo expandido. */
+  expandedMemoryIds?: string[];
   /** Mostrar/ocultar painel analítico globalmente. */
   showAnalytic?: boolean;
 }

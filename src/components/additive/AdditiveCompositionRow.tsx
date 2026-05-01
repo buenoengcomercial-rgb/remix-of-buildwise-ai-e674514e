@@ -1,11 +1,13 @@
 import { Fragment } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
-import type { AdditiveComposition } from '@/types/project';
+import { ChevronRight, ChevronDown, Trash2, Calculator } from 'lucide-react';
+import type { AdditiveComposition, AdditiveCalculationMemoryRow } from '@/types/project';
 import { computeAdditiveRow, computeCompositionWithBDI } from '@/lib/additiveImport';
+import { memoryTotals } from '@/lib/calculationMemory';
 import { fmtBRL, fmtNum, fmtPct, COL_COUNT } from './types';
 import AdditiveAnalyticRows from './AdditiveAnalyticRows';
+import AdditiveCalculationMemory from './AdditiveCalculationMemory';
 
 interface Props {
   c: AdditiveComposition;
@@ -13,16 +15,20 @@ interface Props {
   globalDiscount: number;
   isLocked: boolean;
   isOpen: boolean;
+  isMemoryOpen: boolean;
   showAnalytic: boolean;
   onToggleExpand: (id: string) => void;
+  onToggleMemory: (id: string) => void;
   onUpdateComposition: (id: string, patch: Partial<AdditiveComposition>) => void;
   onUpdateQuantity: (id: string, field: 'addedQuantity' | 'suppressedQuantity', v: number) => void;
   onRemoveComposition: (id: string) => void;
+  onChangeMemory: (id: string, rows: AdditiveCalculationMemoryRow[]) => void;
 }
 
 export default function AdditiveCompositionRow({
-  c, bdi, globalDiscount, isLocked, isOpen, showAnalytic,
-  onToggleExpand, onUpdateComposition, onUpdateQuantity, onRemoveComposition,
+  c, bdi, globalDiscount, isLocked, isOpen, isMemoryOpen, showAnalytic,
+  onToggleExpand, onToggleMemory, onUpdateComposition, onUpdateQuantity,
+  onRemoveComposition, onChangeMemory,
 }: Props) {
   const r = computeAdditiveRow(c, bdi, globalDiscount);
   const cb = computeCompositionWithBDI(c, bdi);
@@ -31,6 +37,8 @@ export default function AdditiveCompositionRow({
   const hasDiff = hasInputs && Math.abs(diff) > 0.05;
   const noAnalytic = !hasInputs && !c.isNewService;
   const isNew = !!c.isNewService;
+  const memTotals = memoryTotals(c);
+  const hasMemory = memTotals.hasMemory;
 
   return (
     <Fragment>
@@ -86,6 +94,20 @@ export default function AdditiveCompositionRow({
                 Dif. analítica c/ BDI: {fmtBRL(diff)}
               </Badge>
             )}
+            {hasMemory && (
+              <Badge variant="outline" className="text-[9px] text-violet-700 border-violet-400 bg-violet-50">
+                Calculado pela memória
+              </Badge>
+            )}
+            <button
+              onClick={() => onToggleMemory(c.id)}
+              className={`text-[10px] inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border ${isMemoryOpen ? 'bg-violet-100 border-violet-300 text-violet-800' : 'border-border text-muted-foreground hover:bg-muted'}`}
+              title="Memória de cálculo"
+              type="button"
+            >
+              <Calculator className="w-3 h-3" />
+              Memória {hasMemory ? `(${(c.calculationMemory ?? []).length})` : ''}
+            </button>
             {isNew && !isLocked && (
               <button
                 onClick={() => onRemoveComposition(c.id)}
@@ -121,10 +143,11 @@ export default function AdditiveCompositionRow({
           <Input
             type="number" step="0.0001" min={0}
             value={c.suppressedQuantity ?? 0}
-            disabled={isLocked || isNew}
+            disabled={isLocked || isNew || hasMemory}
             onChange={e => onUpdateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
             className="h-7 w-20 text-xs text-right border-rose-200"
+            title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
         {/* H — Qtd Acrescida */}
@@ -132,10 +155,11 @@ export default function AdditiveCompositionRow({
           <Input
             type="number" step="0.0001" min={0}
             value={c.addedQuantity ?? 0}
-            disabled={isLocked}
+            disabled={isLocked || hasMemory}
             onChange={e => onUpdateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
             className="h-7 w-20 text-xs text-right border-emerald-200"
+            title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
         {/* I — Qtd Final */}
@@ -184,6 +208,18 @@ export default function AdditiveCompositionRow({
           <td />
           <td colSpan={COL_COUNT - 1} className="px-3 py-2">
             <AdditiveAnalyticRows c={c} bdi={bdi} globalDiscount={globalDiscount} cb={cb} />
+          </td>
+        </tr>
+      )}
+      {isMemoryOpen && (
+        <tr className="bg-violet-50/30 border-b">
+          <td />
+          <td colSpan={COL_COUNT - 1} className="px-3 py-2">
+            <AdditiveCalculationMemory
+              c={c}
+              isLocked={isLocked}
+              onChange={rows => onChangeMemory(c.id, rows)}
+            />
           </td>
         </tr>
       )}

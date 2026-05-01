@@ -22,6 +22,7 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
   const initialUi = active?.uiState;
   const [showAnalytic, setShowAnalyticState] = useState<boolean>(initialUi?.showAnalytic ?? true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(initialUi?.expandedCompositionIds ?? []));
+  const [expandedMemory, setExpandedMemory] = useState<Set<string>>(new Set(initialUi?.expandedMemoryIds ?? []));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(initialUi?.collapsedGroupIds ?? []));
 
   // Recarrega o estado visual quando muda o aditivo ativo (cada aditivo tem seu próprio estado).
@@ -33,6 +34,7 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
     const ui = active?.uiState;
     setShowAnalyticState(ui?.showAnalytic ?? true);
     setExpanded(new Set(ui?.expandedCompositionIds ?? []));
+    setExpandedMemory(new Set(ui?.expandedMemoryIds ?? []));
     setCollapsed(new Set(ui?.collapsedGroupIds ?? []));
   }, [active?.id, active?.uiState]);
 
@@ -74,6 +76,14 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
       return n;
     });
 
+  const toggleExpandMemory = (id: string) =>
+    setExpandedMemory(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      persistUi({ expandedMemoryIds: Array.from(n) });
+      return n;
+    });
+
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importName, setImportName] = useState('SINTÉTICA CORREÇÃO 02');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -105,6 +115,7 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
     bankFilter, setBankFilter,
     showAnalytic, setShowAnalytic,
     expanded, toggleExpand,
+    expandedMemory, toggleExpandMemory,
     collapsed, toggleCollapsed,
     importDialogOpen, setImportDialogOpen,
     importName, setImportName,
