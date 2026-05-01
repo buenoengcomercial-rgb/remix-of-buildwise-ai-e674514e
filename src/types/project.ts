@@ -449,6 +449,8 @@ export interface AdditiveComposition {
   unitPriceNoBDIInformed?: number;
   /** Memória de cálculo justificando as quantidades suprimidas/acrescidas. */
   calculationMemory?: AdditiveCalculationMemoryRow[];
+  /** Nomes personalizados das colunas dimensionais da memória de cálculo (por composição). */
+  calculationMemoryColumns?: AdditiveCalculationMemoryColumns;
 }
 
 /** Linha da memória de cálculo (Arquimedes-like) de uma composição do aditivo. */
@@ -456,7 +458,7 @@ export interface AdditiveCalculationMemoryRow {
   id: string;
   /** Tipo: acrescida soma na Qtd Acrescida; suprimida soma na Qtd Suprimida. */
   type: 'acrescida' | 'suprimida';
-  /** Local/frente/ambiente. */
+  /** Local/frente/ambiente. (Legado — hoje "Loc" é número automático derivado da posição.) */
   loc?: string;
   /** Comentário livre (justificativa do item). */
   comment?: string;
@@ -469,6 +471,22 @@ export interface AdditiveCalculationMemoryRow {
   /** Resultado calculado (cache). */
   partial: number;
 }
+
+/** Nomes personalizados das colunas dimensionais (A,B,C,D) por composição. */
+export interface AdditiveCalculationMemoryColumns {
+  a?: string;
+  b?: string;
+  c?: string;
+  d?: string;
+}
+
+/** Rótulos padrão das colunas dimensionais da memória de cálculo. */
+export const DEFAULT_MEMORY_COLUMN_LABELS: Required<AdditiveCalculationMemoryColumns> = {
+  a: 'UND',
+  b: 'Comprim.',
+  c: 'Largura',
+  d: 'Altura',
+};
 
 export interface AdditiveImportIssue {
   level: 'error' | 'warning' | 'info';
