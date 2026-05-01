@@ -1147,9 +1147,29 @@ export async function exportAdditiveToExcel(add: Additive) {
   }
   const wsAnaly = XLSX.utils.aoa_to_sheet([analyHeader, ...analyRows]);
 
+  // Aba dedicada de Memória de Cálculo (vinculada à composição).
+  const memHeader = [
+    'Item composição', 'Código composição', 'Descrição composição',
+    'Tipo', 'Loc', 'Comentário', 'Fórmula',
+    'A', 'B', 'C', 'D', 'Parcial',
+  ];
+  const memRows: (string | number)[][] = [];
+  for (const c of add.compositions) {
+    for (const m of (c.calculationMemory ?? [])) {
+      memRows.push([
+        c.item, c.code, c.description,
+        m.type, m.loc ?? '', m.comment ?? '', m.formula ?? '',
+        m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
+        Number.isFinite(m.partial) ? m.partial : 0,
+      ]);
+    }
+  }
+  const wsMem = XLSX.utils.aoa_to_sheet([memHeader, ...memRows]);
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsSynth, 'Sintetica');
   XLSX.utils.book_append_sheet(wb, wsAnaly, 'Analitica');
+  XLSX.utils.book_append_sheet(wb, wsMem, 'Memoria de Calculo');
   XLSX.writeFile(wb, `${add.name.replace(/[^\w\d-]+/g, '_')}.xlsx`);
 }
 
