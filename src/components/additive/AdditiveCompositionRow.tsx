@@ -219,6 +219,7 @@ export default function AdditiveCompositionRow({
               c={c}
               isLocked={isLocked}
               onChange={rows => onChangeMemory(c.id, rows)}
+              onChangeColumns={cols => onUpdateComposition(c.id, { calculationMemoryColumns: cols })}
             />
           </td>
         </tr>
