@@ -1330,14 +1330,15 @@ export async function exportAdditiveToPdf(
 
     const memRows = c.calculationMemory ?? [];
     if (memRows.length > 0) {
+      const memLabels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
       let memAdded = 0;
       let memSuppressed = 0;
-      const body = memRows.map(m => {
+      const body = memRows.map((m, idx) => {
         const p = Number.isFinite(m.partial) ? m.partial : 0;
         if (m.type === 'suprimida') memSuppressed += p; else memAdded += p;
         return [
+          String(idx + 1),
           m.type === 'suprimida' ? 'Suprimida' : 'Acrescida',
-          m.loc ?? '',
           m.comment ?? '',
           m.formula ?? '',
           m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
@@ -1354,16 +1355,18 @@ export async function exportAdditiveToPdf(
       ]);
       autoTable(doc, {
         startY: cursorY,
-        head: [['Tipo', 'Loc', 'Comentário', 'Fórmula', 'A', 'B', 'C', 'D', 'Parcial']],
+        head: [['Loc', 'Tipo', 'Comentário', 'Fórmula', memLabels.a, memLabels.b, memLabels.c, memLabels.d, 'Parcial']],
         body,
         margin: { left: margin + 6, right: margin },
         styles: { fontSize: 6.8, cellPadding: 1.1, overflow: 'linebreak', textColor: 60 },
         headStyles: { fillColor: [225, 220, 240], textColor: 30 },
         columnStyles: {
-          0: { cellWidth: 16 }, 1: { cellWidth: 24 }, 2: { cellWidth: 'auto' },
+          0: { halign: 'center', cellWidth: 8 },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 'auto' },
           3: { cellWidth: 22 },
-          4: { halign: 'right', cellWidth: 10 }, 5: { halign: 'right', cellWidth: 10 },
-          6: { halign: 'right', cellWidth: 10 }, 7: { halign: 'right', cellWidth: 14 },
+          4: { halign: 'right', cellWidth: 12 }, 5: { halign: 'right', cellWidth: 14 },
+          6: { halign: 'right', cellWidth: 12 }, 7: { halign: 'right', cellWidth: 12 },
           8: { halign: 'right', cellWidth: 18 },
         },
       });
