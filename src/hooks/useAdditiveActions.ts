@@ -501,10 +501,55 @@ export function useAdditiveActions({ project, onProjectChange, state }: Params) 
     toast.success('Aditivo contratado — novos serviços integrados ao projeto');
   };
 
+  // ----- Memória de cálculo -----
+  const setCalculationMemory = (
+    compId: string,
+    rows: import('@/types/project').AdditiveCalculationMemoryRow[],
+  ) => {
+    if (!active || isLocked) return;
+    const comp = active.compositions.find(c => c.id === compId);
+    if (!comp) return;
+    const beforeAdded = comp.addedQuantity ?? 0;
+    const beforeSuppressed = comp.suppressedQuantity ?? 0;
+    const totalsAdded = rows
+      .filter(r => r.type !== 'suprimida')
+      .reduce((acc, r) => acc + (Number.isFinite(r.partial) ? r.partial : 0), 0);
+    const totalsSuppressed = rows
+      .filter(r => r.type === 'suprimida')
+      .reduce((acc, r) => acc + (Number.isFinite(r.partial) ? r.partial : 0), 0);
+    const patch: Partial<import('@/types/project').AdditiveComposition> = {
+      calculationMemory: rows,
+    };
+    if (rows.length > 0) {
+      patch.addedQuantity = totalsAdded;
+      patch.suppressedQuantity = totalsSuppressed;
+    }
+    updateComposition(compId, patch);
+    const impactAdded = rows.length > 0 && totalsAdded !== beforeAdded;
+    const impactSuppressed = rows.length > 0 && totalsSuppressed !== beforeSuppressed;
+    if (impactAdded || impactSuppressed || rows.length === 0) {
+      logAdd(active.id, {
+        action: 'updated',
+        title: 'Memória de cálculo alterada',
+        metadata: {
+          item: comp.item || comp.itemNumber,
+          code: comp.code,
+          description: comp.description,
+          rows: rows.length,
+          totalAcrescido: totalsAdded,
+          totalSuprimido: totalsSuppressed,
+          impactedAcrescido: impactAdded,
+          impactedSuprimido: impactSuppressed,
+        },
+      });
+    }
+  };
+
   return {
     updateAdditive,
     updateComposition,
     updateCompositionQuantity,
+    setCalculationMemory,
     handleFileSelected,
     handleConfirmImport,
     handleExportExcel,
