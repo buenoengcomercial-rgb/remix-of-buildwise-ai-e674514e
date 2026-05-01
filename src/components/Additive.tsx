@@ -39,7 +39,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
 
   const {
     additives, active, status, isLocked, bdi, globalDiscount,
-    showAnalytic, setShowAnalytic, expanded, collapsed,
+    showAnalytic, setShowAnalytic, expanded, expandedMemory, collapsed,
     importDialogOpen, setImportDialogOpen, importName, setImportName,
     setPendingFile, fileRef,
     issuesOpen, setIssuesOpen,
@@ -48,7 +48,7 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
     reviewNotes, setReviewNotes, approvedBy, setApprovedBy,
     historyOpen, setHistoryOpen,
     setActiveId, search, setSearch, bankFilter, setBankFilter,
-    toggleExpand, toggleCollapsed,
+    toggleExpand, toggleExpandMemory, toggleCollapsed,
   } = state;
 
   const totals = active ? additiveTotals(active) : null;
