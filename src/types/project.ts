@@ -242,6 +242,16 @@ export interface MeasurementDraft {
   search?: string;
 }
 
+/** Estado visual persistido da tela de Medição (apenas UI: aberto/fechado). */
+export interface MeasurementUiState {
+  /**
+   * IDs de capítulos/subcapítulos colapsados, agrupados pelo activeId em uso
+   * (ex.: "live", ou o id de uma medição gerada). Permite preservar estado
+   * diferente entre live e snapshots.
+   */
+  collapsedByActiveId?: Record<string, string[]>;
+}
+
 export type WeatherCondition = 'ensolarado' | 'nublado' | 'chuvoso' | 'parcialmente_nublado' | 'outro';
 export type WorkCondition = 'normal' | 'parcialmente_prejudicada' | 'paralisada' | 'outro';
 
@@ -326,6 +336,8 @@ export interface Project {
   measurements?: SavedMeasurement[];
   /** Rascunho de filtros da medição em preparação (datas, capítulo, busca). */
   measurementDraft?: MeasurementDraft;
+  /** Estado visual persistido da Medição (capítulos colapsados por aba ativa). */
+  measurementUiState?: MeasurementUiState;
   /** Diários de obra registrados, indexados por data. */
   dailyReports?: DailyReport[];
   /** Aditivos contratuais importados (Sintética + Analítica). Isolado das demais áreas. */
