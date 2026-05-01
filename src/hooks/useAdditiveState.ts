@@ -1,7 +1,13 @@
-import { useMemo, useRef, useState } from 'react';
-import type { Project, Additive as AdditiveModel, AdditiveStatus } from '@/types/project';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Project, Additive as AdditiveModel, AdditiveStatus, AdditiveUiState } from '@/types/project';
 
-export function useAdditiveState(project: Project) {
+interface Options {
+  /** Quando fornecido, persiste o estado visual (collapsed/expanded/showAnalytic) dentro do aditivo ativo. */
+  onProjectChange?: (next: Project | ((prev: Project) => Project)) => void;
+}
+
+export function useAdditiveState(project: Project, opts: Options = {}) {
+  const { onProjectChange } = opts;
   const additives = project.additives ?? [];
   const [activeId, setActiveId] = useState<string | null>(additives[0]?.id ?? null);
   const active = useMemo<AdditiveModel | null>(
@@ -11,9 +17,62 @@ export function useAdditiveState(project: Project) {
 
   const [search, setSearch] = useState('');
   const [bankFilter, setBankFilter] = useState<string>('all');
-  const [showAnalytic, setShowAnalytic] = useState(true);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // ----- Estado visual persistido (por aditivo) -----
+  const initialUi = active?.uiState;
+  const [showAnalytic, setShowAnalyticState] = useState<boolean>(initialUi?.showAnalytic ?? true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(initialUi?.expandedCompositionIds ?? []));
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set(initialUi?.collapsedGroupIds ?? []));
+
+  // Recarrega o estado visual quando muda o aditivo ativo (cada aditivo tem seu próprio estado).
+  const lastLoadedIdRef = useRef<string | null>(active?.id ?? null);
+  useEffect(() => {
+    const id = active?.id ?? null;
+    if (id === lastLoadedIdRef.current) return;
+    lastLoadedIdRef.current = id;
+    const ui = active?.uiState;
+    setShowAnalyticState(ui?.showAnalytic ?? true);
+    setExpanded(new Set(ui?.expandedCompositionIds ?? []));
+    setCollapsed(new Set(ui?.collapsedGroupIds ?? []));
+  }, [active?.id, active?.uiState]);
+
+  const persistUi = (patch: Partial<AdditiveUiState>) => {
+    if (!onProjectChange) return;
+    const id = active?.id;
+    if (!id) return;
+    onProjectChange(prev => ({
+      ...prev,
+      additives: (prev.additives ?? []).map(a =>
+        a.id === id
+          ? { ...a, uiState: { ...(a.uiState ?? {}), ...patch } }
+          : a,
+      ),
+    }));
+  };
+
+  const setShowAnalytic: typeof setShowAnalyticState = (value) => {
+    setShowAnalyticState(prev => {
+      const next = typeof value === 'function' ? (value as (p: boolean) => boolean)(prev) : value;
+      if (next !== prev) persistUi({ showAnalytic: next });
+      return next;
+    });
+  };
+
+  const toggleExpand = (id: string) =>
+    setExpanded(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      persistUi({ expandedCompositionIds: Array.from(n) });
+      return n;
+    });
+
+  const toggleCollapsed = (id: string) =>
+    setCollapsed(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      persistUi({ collapsedGroupIds: Array.from(n) });
+      return n;
+    });
 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importName, setImportName] = useState('SINTÉTICA CORREÇÃO 02');
@@ -37,20 +96,6 @@ export function useAdditiveState(project: Project) {
     !!active?.isContracted;
   const globalDiscount = active?.globalDiscountPercent ?? 0;
   const bdi = active?.bdiPercent ?? 0;
-
-  const toggleExpand = (id: string) =>
-    setExpanded(prev => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
-
-  const toggleCollapsed = (id: string) =>
-    setCollapsed(prev => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
 
   return {
     additives,
