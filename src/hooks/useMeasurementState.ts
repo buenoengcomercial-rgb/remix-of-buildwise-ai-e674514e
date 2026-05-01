@@ -142,6 +142,39 @@ export function useMeasurementState({ project, onProjectChange }: UseMeasurement
     }
   }, [activeId, startDate, endDate]);
 
+  // Recarrega capítulos colapsados ao trocar entre live/snapshots ou ao trocar de obra.
+  useEffect(() => {
+    const map = projectRef.current.measurementUiState?.collapsedByActiveId || {};
+    setCollapsedState(new Set<string>(map[activeId] || []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, project.id]);
+
+  // Wrapper que atualiza estado local e persiste a lista por activeId no projeto.
+  const setCollapsed: React.Dispatch<React.SetStateAction<Set<string>>> = (action) => {
+    setCollapsedState(prev => {
+      const next = typeof action === 'function'
+        ? (action as (p: Set<string>) => Set<string>)(prev)
+        : action;
+      const latestProject = projectRef.current;
+      const map = { ...(latestProject.measurementUiState?.collapsedByActiveId || {}) };
+      const arr = Array.from(next);
+      const cur = map[activeId] || [];
+      const sameLen = cur.length === arr.length;
+      const same = sameLen && cur.every(id => next.has(id));
+      if (!same) {
+        if (arr.length === 0) delete map[activeId]; else map[activeId] = arr;
+        onProjectChange({
+          ...latestProject,
+          measurementUiState: {
+            ...(latestProject.measurementUiState || {}),
+            collapsedByActiveId: map,
+          },
+        });
+      }
+      return next;
+    });
+  };
+
   // Persiste rascunho (datas + filtros) por nº de medição em preparação.
   useEffect(() => {
     if (activeId !== 'live') return;
