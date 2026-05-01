@@ -115,6 +115,7 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
     bankFilter, setBankFilter,
     showAnalytic, setShowAnalytic,
     expanded, toggleExpand,
+    expandedMemory, toggleExpandMemory,
     collapsed, toggleCollapsed,
     importDialogOpen, setImportDialogOpen,
     importName, setImportName,
