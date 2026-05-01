@@ -1,11 +1,13 @@
 import { Fragment } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
-import type { AdditiveComposition } from '@/types/project';
+import { ChevronRight, ChevronDown, Trash2, Calculator } from 'lucide-react';
+import type { AdditiveComposition, AdditiveCalculationMemoryRow } from '@/types/project';
 import { computeAdditiveRow, computeCompositionWithBDI } from '@/lib/additiveImport';
+import { memoryTotals } from '@/lib/calculationMemory';
 import { fmtBRL, fmtNum, fmtPct, COL_COUNT } from './types';
 import AdditiveAnalyticRows from './AdditiveAnalyticRows';
+import AdditiveCalculationMemory from './AdditiveCalculationMemory';
 
 interface Props {
   c: AdditiveComposition;
@@ -13,11 +15,14 @@ interface Props {
   globalDiscount: number;
   isLocked: boolean;
   isOpen: boolean;
+  isMemoryOpen: boolean;
   showAnalytic: boolean;
   onToggleExpand: (id: string) => void;
+  onToggleMemory: (id: string) => void;
   onUpdateComposition: (id: string, patch: Partial<AdditiveComposition>) => void;
   onUpdateQuantity: (id: string, field: 'addedQuantity' | 'suppressedQuantity', v: number) => void;
   onRemoveComposition: (id: string) => void;
+  onChangeMemory: (id: string, rows: AdditiveCalculationMemoryRow[]) => void;
 }
 
 export default function AdditiveCompositionRow({
