@@ -1149,21 +1149,27 @@ export async function exportAdditiveToExcel(add: Additive) {
   const wsAnaly = XLSX.utils.aoa_to_sheet([analyHeader, ...analyRows]);
 
   // Aba dedicada de Memória de Cálculo (vinculada à composição).
+  // Loc é numérico automático (1..N por composição). Os cabeçalhos UND/Comprim./Largura/Altura
+  // são padrões; quando a composição tiver rótulos personalizados, eles aparecem na coluna "Rótulos".
   const memHeader = [
     'Item composição', 'Código composição', 'Descrição composição',
-    'Tipo', 'Loc', 'Comentário', 'Fórmula',
-    'A', 'B', 'C', 'D', 'Parcial',
+    'Loc', 'Tipo', 'Comentário', 'Fórmula',
+    'UND', 'Comprim.', 'Largura', 'Altura', 'Parcial',
+    'Rótulos (UND|Comprim.|Largura|Altura)',
   ];
   const memRows: (string | number)[][] = [];
   for (const c of add.compositions) {
-    for (const m of (c.calculationMemory ?? [])) {
+    const labels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
+    const labelsStr = `${labels.a}|${labels.b}|${labels.c}|${labels.d}`;
+    (c.calculationMemory ?? []).forEach((m, idx) => {
       memRows.push([
         c.item, c.code, c.description,
-        m.type, m.loc ?? '', m.comment ?? '', m.formula ?? '',
+        idx + 1, m.type, m.comment ?? '', m.formula ?? '',
         m.a ?? '', m.b ?? '', m.c ?? '', m.d ?? '',
         Number.isFinite(m.partial) ? m.partial : 0,
+        labelsStr,
       ]);
-    }
+    });
   }
   const wsMem = XLSX.utils.aoa_to_sheet([memHeader, ...memRows]);
 
