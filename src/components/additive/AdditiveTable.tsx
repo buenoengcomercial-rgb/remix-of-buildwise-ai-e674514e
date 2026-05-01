@@ -95,14 +95,17 @@ export default function AdditiveTable(props: Props) {
                     globalDiscount={props.globalDiscount}
                     isLocked={props.isLocked}
                     expanded={props.expanded}
+                    expandedMemory={props.expandedMemory}
                     collapsed={props.collapsed}
                     showAnalytic={props.showAnalytic}
                     onToggleExpand={props.onToggleExpand}
+                    onToggleMemory={props.onToggleMemory}
                     onToggleCollapsed={props.onToggleCollapsed}
                     onUpdateComposition={props.onUpdateComposition}
                     onUpdateQuantity={props.onUpdateQuantity}
                     onRemoveComposition={props.onRemoveComposition}
                     onAddNewService={props.onAddNewService}
+                    onChangeMemory={props.onChangeMemory}
                   />
                 ))}
                 {orphanRows.length > 0 && (
