@@ -528,6 +528,8 @@ export interface AdditiveUiState {
   collapsedGroupIds?: string[];
   /** IDs de composições com painel analítico expandido. */
   expandedCompositionIds?: string[];
+  /** IDs de composições com painel de memória de cálculo expandido. */
+  expandedMemoryIds?: string[];
   /** Mostrar/ocultar painel analítico globalmente. */
   showAnalytic?: boolean;
 }
