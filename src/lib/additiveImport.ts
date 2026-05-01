@@ -10,6 +10,7 @@ import type {
   Phase,
 } from '@/types/project';
 import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
+import { resolveMemoryColumnLabels } from '@/lib/calculationMemory';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
