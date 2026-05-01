@@ -76,6 +76,14 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
       return n;
     });
 
+  const toggleExpandMemory = (id: string) =>
+    setExpandedMemory(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      persistUi({ expandedMemoryIds: Array.from(n) });
+      return n;
+    });
+
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importName, setImportName] = useState('SINTÉTICA CORREÇÃO 02');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
