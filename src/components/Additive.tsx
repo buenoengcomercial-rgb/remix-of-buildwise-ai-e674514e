@@ -131,17 +131,20 @@ export default function Additive({ project, onProjectChange, undoButton }: Props
             isLocked={isLocked}
             showAnalytic={showAnalytic}
             expanded={expanded}
+            expandedMemory={expandedMemory}
             collapsed={collapsed}
             filteredComps={filteredComps}
             groupTree={groupTree}
             orphanRows={orphanRows}
             hasEapLink={hasEapLink}
             onToggleExpand={toggleExpand}
+            onToggleMemory={toggleExpandMemory}
             onToggleCollapsed={toggleCollapsed}
             onUpdateComposition={actions.updateComposition}
             onUpdateQuantity={actions.updateCompositionQuantity}
             onRemoveComposition={actions.handleRemoveComposition}
             onAddNewService={actions.handleAddNewService}
+            onChangeMemory={actions.setCalculationMemory}
           />
 
           <AdditiveTotalsBlock
