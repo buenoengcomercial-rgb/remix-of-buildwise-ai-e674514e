@@ -26,8 +26,9 @@ interface Props {
 }
 
 export default function AdditiveCompositionRow({
-  c, bdi, globalDiscount, isLocked, isOpen, showAnalytic,
-  onToggleExpand, onUpdateComposition, onUpdateQuantity, onRemoveComposition,
+  c, bdi, globalDiscount, isLocked, isOpen, isMemoryOpen, showAnalytic,
+  onToggleExpand, onToggleMemory, onUpdateComposition, onUpdateQuantity,
+  onRemoveComposition, onChangeMemory,
 }: Props) {
   const r = computeAdditiveRow(c, bdi, globalDiscount);
   const cb = computeCompositionWithBDI(c, bdi);
@@ -36,6 +37,8 @@ export default function AdditiveCompositionRow({
   const hasDiff = hasInputs && Math.abs(diff) > 0.05;
   const noAnalytic = !hasInputs && !c.isNewService;
   const isNew = !!c.isNewService;
+  const memTotals = memoryTotals(c);
+  const hasMemory = memTotals.hasMemory;
 
   return (
     <Fragment>
