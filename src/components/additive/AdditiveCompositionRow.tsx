@@ -211,6 +211,18 @@ export default function AdditiveCompositionRow({
           </td>
         </tr>
       )}
+      {isMemoryOpen && (
+        <tr className="bg-violet-50/30 border-b">
+          <td />
+          <td colSpan={COL_COUNT - 1} className="px-3 py-2">
+            <AdditiveCalculationMemory
+              c={c}
+              isLocked={isLocked}
+              onChange={rows => onChangeMemory(c.id, rows)}
+            />
+          </td>
+        </tr>
+      )}
     </Fragment>
   );
 }
