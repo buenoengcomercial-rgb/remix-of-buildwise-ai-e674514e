@@ -10,7 +10,7 @@ import type {
   Phase,
 } from '@/types/project';
 import { getChapterTree, getChapterNumbering, type ChapterNode } from '@/lib/chapters';
-import { resolveMemoryColumnLabels } from '@/lib/calculationMemory';
+import { resolveMemoryColumnLabels, validMemoryRows } from '@/lib/calculationMemory';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -1161,7 +1161,7 @@ export async function exportAdditiveToExcel(add: Additive) {
   for (const c of add.compositions) {
     const labels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
     const labelsStr = `${labels.a}|${labels.b}|${labels.c}|${labels.d}`;
-    (c.calculationMemory ?? []).forEach((m, idx) => {
+    validMemoryRows(c.calculationMemory).forEach((m, idx) => {
       memRows.push([
         c.item, c.code, c.description,
         idx + 1, m.type, m.comment ?? '', m.formula ?? '',
@@ -1328,7 +1328,7 @@ export async function exportAdditiveToPdf(
       cursorY += 2;
     }
 
-    const memRows = c.calculationMemory ?? [];
+    const memRows = validMemoryRows(c.calculationMemory);
     if (memRows.length > 0) {
       const memLabels = resolveMemoryColumnLabels(c.calculationMemoryColumns);
       let memAdded = 0;

@@ -99,13 +99,28 @@ export function makeMemoryRow(
   };
 }
 
-/** Soma dos parciais por tipo dentro da memória da composição. */
+/** Considera a linha "preenchida" se tiver qualquer dado significativo (exceto somente o tipo). */
+export function isMemoryRowFilled(row: AdditiveCalculationMemoryRow): boolean {
+  if (!row) return false;
+  const txt = (s?: string) => !!(s && s.trim() !== '');
+  const num = (n?: number) => Number.isFinite(n as number);
+  return txt(row.comment) || txt(row.formula) || num(row.a) || num(row.b) || num(row.c) || num(row.d);
+}
+
+/** Retorna apenas as linhas preenchidas (descartando rascunho/linha vazia visual). */
+export function validMemoryRows(
+  rows: AdditiveCalculationMemoryRow[] | undefined,
+): AdditiveCalculationMemoryRow[] {
+  return (rows ?? []).filter(isMemoryRowFilled);
+}
+
+/** Soma dos parciais por tipo dentro da memória da composição (considera apenas linhas preenchidas). */
 export function memoryTotals(comp: AdditiveComposition): {
   added: number;
   suppressed: number;
   hasMemory: boolean;
 } {
-  const rows = comp.calculationMemory ?? [];
+  const rows = validMemoryRows(comp.calculationMemory);
   if (rows.length === 0) return { added: 0, suppressed: 0, hasMemory: false };
   let added = 0;
   let suppressed = 0;
