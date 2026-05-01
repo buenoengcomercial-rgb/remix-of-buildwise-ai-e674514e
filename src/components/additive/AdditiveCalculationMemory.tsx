@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, Copy, Trash2, AlertTriangle } from 'lucide-react';
@@ -79,6 +79,21 @@ function EditableHeader({
   );
 }
 
+/**
+ * Garante exatamente UMA linha vazia ao final.
+ * - Remove linhas vazias intermediárias (mantém preenchidas).
+ * - Adiciona uma única linha vazia no fim com tipo herdado.
+ */
+function ensureSingleTrailingDraftRow(
+  rows: AdditiveCalculationMemoryRow[],
+  preferredType?: 'acrescida' | 'suprimida',
+): AdditiveCalculationMemoryRow[] {
+  const filled = rows.filter(isMemoryRowFilled);
+  const lastType = preferredType
+    ?? (filled.length > 0 ? filled[filled.length - 1].type : 'acrescida');
+  return [...filled, makeMemoryRow(lastType)];
+}
+
 export default function AdditiveCalculationMemory({
   c, isLocked, onChange, onChangeColumns,
 }: Props) {
@@ -91,26 +106,51 @@ export default function AdditiveCalculationMemory({
     [c.calculationMemory],
   );
 
-  /** Estado local: linhas filled + 1 draft (vazia) no fim. Draft NUNCA é salvo. */
-  const initialDraft = () => makeMemoryRow('acrescida');
-  const [draft, setDraft] = useState<AdditiveCalculationMemoryRow>(initialDraft);
+  /**
+   * ESTADO LOCAL: todas as linhas em edição (preenchidas + 1 vazia no fim).
+   * Tudo é alterado livremente em onChange SEM tocar no projeto.
+   * O projeto só é atualizado em eventos de confirmação (blur/enter/tab/duplicar/excluir).
+   */
+  const [rows, setRows] = useState<AdditiveCalculationMemoryRow[]>(
+    () => ensureSingleTrailingDraftRow(persistedFilled),
+  );
 
-  // Quando o aditivo/composição muda externamente (ex.: troca de aba), recria draft com tipo herdado.
+  // Sincroniza quando troca de composição OU quando a versão persistida muda externamente
+  // (ex.: troca de aba, recarregar). Só ressincroniza se o conjunto de linhas preenchidas
+  // visualmente diferir do que já temos — evita "engolir" digitação local.
   const lastCompIdRef = useRef<string>(c.id);
   useEffect(() => {
-    if (lastCompIdRef.current !== c.id) {
+    const compChanged = lastCompIdRef.current !== c.id;
+    if (compChanged) {
       lastCompIdRef.current = c.id;
-      const lastType = persistedFilled.length > 0
-        ? persistedFilled[persistedFilled.length - 1].type
-        : 'acrescida';
-      setDraft(makeMemoryRow(lastType));
+      setRows(ensureSingleTrailingDraftRow(persistedFilled));
+      return;
     }
+    // Mesma composição: reconcilia se difere significativamente.
+    const localFilled = rows.filter(isMemoryRowFilled);
+    const sameLen = localFilled.length === persistedFilled.length;
+    const sameContent = sameLen && localFilled.every((r, i) => {
+      const p = persistedFilled[i];
+      return p
+        && p.id === r.id
+        && p.type === r.type
+        && (p.comment ?? '') === (r.comment ?? '')
+        && (p.formula ?? '') === (r.formula ?? '')
+        && (p.a ?? null) === (r.a ?? null)
+        && (p.b ?? null) === (r.b ?? null)
+        && (p.c ?? null) === (r.c ?? null)
+        && (p.d ?? null) === (r.d ?? null);
+    });
+    if (!sameContent) {
+      setRows(ensureSingleTrailingDraftRow(persistedFilled));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [c.id, persistedFilled]);
 
-  // Linhas exibidas: persistidas + draft (no final, sempre).
-  const displayed: AdditiveCalculationMemoryRow[] = isLocked
-    ? persistedFilled
-    : [...persistedFilled, draft];
+  /** Persiste no projeto: filtra vazias e envia. */
+  const commit = useCallback((next: AdditiveCalculationMemoryRow[]) => {
+    onChange(next.filter(isMemoryRowFilled));
+  }, [onChange]);
 
   /** Refs por célula para navegação. */
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -128,85 +168,44 @@ export default function AdditiveCalculationMemory({
     });
   };
 
-  /** Próxima linha "a focar" depois de promover draft (preenchida) — guardamos para focar após render. */
-  const pendingFocusRef = useRef<{ rowId: string; field: EditField } | null>(null);
-  useEffect(() => {
-    if (pendingFocusRef.current) {
-      const { rowId, field } = pendingFocusRef.current;
-      pendingFocusRef.current = null;
-      focusCell(rowId, field);
-    }
-  });
-
-  /** Persiste alterações em uma linha já preenchida. */
-  const updatePersisted = (id: string, patch: Partial<AdditiveCalculationMemoryRow>) => {
-    const next = persistedFilled.map(r => (r.id === id ? recalcMemoryRow({ ...r, ...patch }) : r));
-    // Mantém somente preenchidas (se a edição esvaziar a linha, ela some).
-    onChange(validMemoryRows(next));
-  };
-
-  /** Edita o draft local. Se ficar preenchido, promove para persistidas e cria novo draft. */
-  const updateDraft = (patch: Partial<AdditiveCalculationMemoryRow>, focusField?: EditField) => {
-    const candidate = recalcMemoryRow({ ...draft, ...patch });
-    if (isMemoryRowFilled(candidate)) {
-      // Promove o draft para persistido. Cria novo draft com tipo herdado da linha promovida.
-      const nextPersisted = [...persistedFilled, candidate];
-      const newDraft = makeMemoryRow(candidate.type);
-      setDraft(newDraft);
-      onChange(nextPersisted);
-      // Após render, foca o mesmo campo na nova linha vazia.
-      if (focusField) pendingFocusRef.current = { rowId: newDraft.id, field: focusField };
-    } else {
-      // Continua sendo draft (apenas tipo trocado, ou esvaziado).
-      setDraft(candidate);
-    }
-  };
-
+  /**
+   * onChange das células: APENAS atualiza estado local (rows). Não cria linhas novas.
+   */
   const onCellChange = (
-    row: AdditiveCalculationMemoryRow,
+    rowId: string,
     field: EditField,
     rawValue: string,
   ) => {
-    const isDraft = row.id === draft.id && !persistedFilled.some(r => r.id === row.id);
-    let patch: Partial<AdditiveCalculationMemoryRow>;
-    if (field === 'type') patch = { type: rawValue as 'acrescida' | 'suprimida' };
-    else if (field === 'comment') patch = { comment: rawValue };
-    else if (field === 'formula') patch = { formula: rawValue };
-    else patch = { [field]: numOrUndef(rawValue) } as Partial<AdditiveCalculationMemoryRow>;
-
-    if (isDraft) updateDraft(patch, field);
-    else updatePersisted(row.id, patch);
+    setRows(prev => prev.map(r => {
+      if (r.id !== rowId) return r;
+      let patch: Partial<AdditiveCalculationMemoryRow>;
+      if (field === 'type') patch = { type: rawValue as 'acrescida' | 'suprimida' };
+      else if (field === 'comment') patch = { comment: rawValue };
+      else if (field === 'formula') patch = { formula: rawValue };
+      else patch = { [field]: numOrUndef(rawValue) } as Partial<AdditiveCalculationMemoryRow>;
+      return recalcMemoryRow({ ...r, ...patch });
+    }));
   };
 
-  /** Adiciona linha preenchível (botão manual). É inserida ANTES do draft. */
-  const addManual = (type: 'acrescida' | 'suprimida') => {
-    // Linha "preenchível" mas vazia precisa virar persistida — usamos comentário em branco mas tipo definido.
-    // Para respeitar regra (somente promover quando preenchida), focamos o usuário no comentário do draft com tipo trocado.
-    setDraft(prev => makeMemoryRow(type));
-    requestAnimationFrame(() => {
-      // foca no comentário do draft atualizado
-      const el = cellRefs.current.get(`${draft.id}:comment`);
-      if (el) (el as HTMLInputElement).focus();
+  /**
+   * Reconciliação: garante linha vazia única no fim.
+   * Chamada após eventos de confirmação (blur, enter, tab, dup, del, +).
+   * Persiste no projeto e devolve as linhas finais (para focar próxima linha se necessário).
+   */
+  const reconcile = useCallback((preferredType?: 'acrescida' | 'suprimida') => {
+    let finalRows: AdditiveCalculationMemoryRow[] = [];
+    setRows(prev => {
+      finalRows = ensureSingleTrailingDraftRow(prev, preferredType);
+      return finalRows;
     });
-    // Nota: se quiser inserir uma linha "vazia" persistida, basta usar onChange abaixo:
-    const empty = recalcMemoryRow({ ...makeMemoryRow(type), comment: '' });
-    // Não persistimos linha vazia — comportamento solicitado.
-    void empty;
-  };
+    // Persistência fora do setter para não duplicar.
+    requestAnimationFrame(() => commit(finalRows));
+    return finalRows;
+  }, [commit]);
 
-  const dupPersisted = (id: string) => {
-    const idx = persistedFilled.findIndex(r => r.id === id);
-    if (idx < 0) return;
-    const orig = persistedFilled[idx];
-    const copy = recalcMemoryRow({ ...orig, id: makeMemoryRow().id });
-    const next = [...persistedFilled.slice(0, idx + 1), copy, ...persistedFilled.slice(idx + 1)];
-    onChange(next);
-  };
-  const delPersisted = (id: string) => onChange(persistedFilled.filter(r => r.id !== id));
-
-  const setColLabel = (k: 'a' | 'b' | 'c' | 'd', value: string) => {
-    if (!onChangeColumns) return;
-    onChangeColumns({ ...(c.calculationMemoryColumns ?? {}), [k]: value });
+  const handleBlur = () => {
+    if (isLocked) return;
+    reconcile();
   };
 
   /** Navegação por teclado entre células. */
@@ -218,7 +217,8 @@ export default function AdditiveCalculationMemory({
     const isEnter = e.key === 'Enter';
     const isTab = e.key === 'Tab';
     if (!isEnter && !isTab) return;
-    // Para Enter: sempre interceptamos. Para Tab: deixamos default a menos que seja último campo da última linha.
+    if (isLocked) return;
+
     const back = e.shiftKey;
     let nextRow = rowIndex;
     let nextField = fieldIndex + (back ? -1 : 1);
@@ -229,37 +229,77 @@ export default function AdditiveCalculationMemory({
       nextRow = rowIndex + 1;
       nextField = 0;
     }
-    if (nextRow < 0) return;
-    if (nextRow >= displayed.length) {
-      // Fim: só age se for Enter, e se houver draft (sem isLocked).
-      if (!isEnter || isLocked) return;
-      e.preventDefault();
-      // Foca primeira coluna editável do draft (que já existe no fim).
-      const draftId = displayed[displayed.length - 1].id;
-      focusCell(draftId, EDIT_FIELDS[0]);
+
+    // Reconcilia (cria linha vazia se necessário) ANTES de focar.
+    const finalRows = reconcile();
+
+    if (nextRow < 0) {
+      if (isEnter) e.preventDefault();
       return;
     }
+
     if (isEnter) e.preventDefault();
-    const targetRow = displayed[nextRow];
-    focusCell(targetRow.id, EDIT_FIELDS[nextField]);
+    // Se ultrapassou, foca primeira coluna da última (vazia) linha.
+    const safeRow = Math.min(nextRow, finalRows.length - 1);
+    const target = finalRows[safeRow];
+    if (target) focusCell(target.id, EDIT_FIELDS[nextField]);
   };
 
-  // Totais visuais ignoram o draft.
-  const totalAcrescida = persistedFilled
-    .filter(r => r.type !== 'suprimida')
+  /** Botão "+ Acrescida" / "+ Suprimida": força linha vazia com o tipo escolhido. */
+  const addManual = (type: 'acrescida' | 'suprimida') => {
+    const finalRows = reconcile(type);
+    // Foca o comentário da última linha (vazia).
+    const last = finalRows[finalRows.length - 1];
+    if (last) focusCell(last.id, 'comment');
+  };
+
+  const dupRow = (id: string) => {
+    setRows(prev => {
+      const idx = prev.findIndex(r => r.id === id);
+      if (idx < 0) return prev;
+      const orig = prev[idx];
+      if (!isMemoryRowFilled(orig)) return prev;
+      const copy = recalcMemoryRow({ ...orig, id: makeMemoryRow().id });
+      const next = [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+      const reconciled = ensureSingleTrailingDraftRow(next);
+      requestAnimationFrame(() => commit(reconciled));
+      return reconciled;
+    });
+  };
+
+  const delRow = (id: string) => {
+    setRows(prev => {
+      const next = prev.filter(r => r.id !== id);
+      const reconciled = ensureSingleTrailingDraftRow(next);
+      requestAnimationFrame(() => commit(reconciled));
+      return reconciled;
+    });
+  };
+
+  const setColLabel = (k: 'a' | 'b' | 'c' | 'd', value: string) => {
+    if (!onChangeColumns) return;
+    onChangeColumns({ ...(c.calculationMemoryColumns ?? {}), [k]: value });
+  };
+
+  // Totais visuais ignoram linhas vazias.
+  const totalAcrescida = rows
+    .filter(r => isMemoryRowFilled(r) && r.type !== 'suprimida')
     .reduce((acc, r) => acc + (Number.isFinite(r.partial) ? r.partial : 0), 0);
-  const totalSuprimida = persistedFilled
-    .filter(r => r.type === 'suprimida')
+  const totalSuprimida = rows
+    .filter(r => isMemoryRowFilled(r) && r.type === 'suprimida')
     .reduce((acc, r) => acc + (Number.isFinite(r.partial) ? r.partial : 0), 0);
 
-  // Foco inicial ao abrir sem nenhuma linha preenchida: foca o comentário do draft.
+  // Linhas exibidas: estado local (sem draft extra, pois `rows` já contém).
+  const displayed = isLocked ? rows.filter(isMemoryRowFilled) : rows;
+
+  // Foco inicial ao abrir sem nenhuma linha preenchida: foca o comentário da linha vazia.
   const didInitialFocusRef = useRef(false);
   useEffect(() => {
     if (didInitialFocusRef.current) return;
     if (isLocked) return;
-    if (persistedFilled.length === 0) {
+    if (displayed.length > 0 && !isMemoryRowFilled(displayed[displayed.length - 1])) {
       didInitialFocusRef.current = true;
-      focusCell(draft.id, 'comment');
+      focusCell(displayed[displayed.length - 1].id, 'comment');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -320,9 +360,9 @@ export default function AdditiveCalculationMemory({
           </thead>
           <tbody>
             {displayed.map((r, rowIndex) => {
-              const isDraftRow = !isLocked && rowIndex === displayed.length - 1 && r.id === draft.id && !persistedFilled.some(p => p.id === r.id);
-              const ev = evalMemoryFormula(r.formula ?? '', { a: r.a, b: r.b, c: r.c, d: r.d });
               const filled = isMemoryRowFilled(r);
+              const isDraftRow = !isLocked && !filled && rowIndex === displayed.length - 1;
+              const ev = evalMemoryFormula(r.formula ?? '', { a: r.a, b: r.b, c: r.c, d: r.d });
               const isInvalid = filled && !ev.ok;
               const isNegative = filled && ev.ok && ev.value < 0;
               const rowBg = isDraftRow
@@ -340,7 +380,8 @@ export default function AdditiveCalculationMemory({
                       ref={setCellRef(r.id, 'type') as any}
                       value={r.type}
                       disabled={isLocked}
-                      onChange={e => onCellChange(r, 'type', e.target.value)}
+                      onChange={e => onCellChange(r.id, 'type', e.target.value)}
+                      onBlur={handleBlur}
                       onKeyDown={e => handleKeyDown(e, rowIndex, 0)}
                       className="h-7 w-full text-[11px] border border-input rounded-md bg-background px-1"
                     >
@@ -353,7 +394,8 @@ export default function AdditiveCalculationMemory({
                       ref={setCellRef(r.id, 'comment') as any}
                       value={r.comment ?? ''}
                       disabled={isLocked}
-                      onChange={e => onCellChange(r, 'comment', e.target.value)}
+                      onChange={e => onCellChange(r.id, 'comment', e.target.value)}
+                      onBlur={handleBlur}
                       onKeyDown={e => handleKeyDown(e, rowIndex, 1)}
                       className="h-7 text-[11px]"
                       placeholder={isDraftRow ? 'Justificativa (digite para iniciar)' : 'Justificativa'}
@@ -364,7 +406,8 @@ export default function AdditiveCalculationMemory({
                       ref={setCellRef(r.id, 'formula') as any}
                       value={r.formula ?? ''}
                       disabled={isLocked}
-                      onChange={e => onCellChange(r, 'formula', e.target.value)}
+                      onChange={e => onCellChange(r.id, 'formula', e.target.value)}
+                      onBlur={handleBlur}
                       onKeyDown={e => handleKeyDown(e, rowIndex, 2)}
                       className={`h-7 text-[11px] font-mono ${isInvalid ? 'border-rose-400' : ''}`}
                       placeholder={placeholder}
@@ -379,7 +422,8 @@ export default function AdditiveCalculationMemory({
                         step="0.0001"
                         value={r[k] ?? ''}
                         disabled={isLocked}
-                        onChange={e => onCellChange(r, k, e.target.value)}
+                        onChange={e => onCellChange(r.id, k, e.target.value)}
+                        onBlur={handleBlur}
                         onKeyDown={e => handleKeyDown(e, rowIndex, 3 + kIdx)}
                         className="h-7 text-[11px] text-right px-1"
                       />
@@ -396,10 +440,10 @@ export default function AdditiveCalculationMemory({
                   <td className="px-1.5 py-1 text-center">
                     {!isLocked && !isDraftRow && (
                       <div className="inline-flex gap-0.5">
-                        <button onClick={() => dupPersisted(r.id)} className="p-1 hover:bg-muted rounded" title="Duplicar">
+                        <button onClick={() => dupRow(r.id)} className="p-1 hover:bg-muted rounded" title="Duplicar">
                           <Copy className="w-3 h-3" />
                         </button>
-                        <button onClick={() => delPersisted(r.id)} className="p-1 hover:bg-muted rounded text-rose-600" title="Excluir">
+                        <button onClick={() => delRow(r.id)} className="p-1 hover:bg-muted rounded text-rose-600" title="Excluir">
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
@@ -409,7 +453,7 @@ export default function AdditiveCalculationMemory({
               );
             })}
           </tbody>
-          {persistedFilled.length > 0 && (
+          {(totalAcrescida !== 0 || totalSuprimida !== 0) && (
             <tfoot>
               <tr className="border-t font-medium">
                 <td colSpan={8} className="px-1.5 py-1 text-right">Total Acrescida:</td>
