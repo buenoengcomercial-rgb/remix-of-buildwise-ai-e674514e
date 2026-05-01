@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card';
-import type { AdditiveComposition } from '@/types/project';
+import type { AdditiveComposition, AdditiveCalculationMemoryRow } from '@/types/project';
 import type { CompGroup } from './types';
 import { COL_COUNT } from './types';
 import AdditiveGroupRow from './AdditiveGroupRow';
@@ -11,17 +11,20 @@ interface Props {
   isLocked: boolean;
   showAnalytic: boolean;
   expanded: Set<string>;
+  expandedMemory: Set<string>;
   collapsed: Set<string>;
   filteredComps: AdditiveComposition[];
   groupTree: CompGroup[];
   orphanRows: AdditiveComposition[];
   hasEapLink: boolean;
   onToggleExpand: (id: string) => void;
+  onToggleMemory: (id: string) => void;
   onToggleCollapsed: (id: string) => void;
   onUpdateComposition: (id: string, patch: Partial<AdditiveComposition>) => void;
   onUpdateQuantity: (id: string, field: 'addedQuantity' | 'suppressedQuantity', v: number) => void;
   onRemoveComposition: (id: string) => void;
   onAddNewService: (phaseId: string, phaseChain: string, parentNumber: string) => void;
+  onChangeMemory: (id: string, rows: AdditiveCalculationMemoryRow[]) => void;
 }
 
 export default function AdditiveTable(props: Props) {
@@ -35,11 +38,14 @@ export default function AdditiveTable(props: Props) {
       globalDiscount={props.globalDiscount}
       isLocked={props.isLocked}
       isOpen={props.expanded.has(c.id)}
+      isMemoryOpen={props.expandedMemory.has(c.id)}
       showAnalytic={props.showAnalytic}
       onToggleExpand={props.onToggleExpand}
+      onToggleMemory={props.onToggleMemory}
       onUpdateComposition={props.onUpdateComposition}
       onUpdateQuantity={props.onUpdateQuantity}
       onRemoveComposition={props.onRemoveComposition}
+      onChangeMemory={props.onChangeMemory}
     />
   );
 
