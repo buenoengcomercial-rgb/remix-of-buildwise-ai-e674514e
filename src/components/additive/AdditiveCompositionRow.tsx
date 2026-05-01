@@ -143,10 +143,11 @@ export default function AdditiveCompositionRow({
           <Input
             type="number" step="0.0001" min={0}
             value={c.suppressedQuantity ?? 0}
-            disabled={isLocked || isNew}
+            disabled={isLocked || isNew || hasMemory}
             onChange={e => onUpdateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
             className="h-7 w-20 text-xs text-right border-rose-200"
+            title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
         {/* H — Qtd Acrescida */}
@@ -154,10 +155,11 @@ export default function AdditiveCompositionRow({
           <Input
             type="number" step="0.0001" min={0}
             value={c.addedQuantity ?? 0}
-            disabled={isLocked}
+            disabled={isLocked || hasMemory}
             onChange={e => onUpdateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
             className="h-7 w-20 text-xs text-right border-emerald-200"
+            title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
         {/* I — Qtd Final */}
