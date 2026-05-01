@@ -336,6 +336,8 @@ export interface Project {
   measurements?: SavedMeasurement[];
   /** Rascunho de filtros da medição em preparação (datas, capítulo, busca). */
   measurementDraft?: MeasurementDraft;
+  /** Estado visual persistido da Medição (capítulos colapsados por aba ativa). */
+  measurementUiState?: MeasurementUiState;
   /** Diários de obra registrados, indexados por data. */
   dailyReports?: DailyReport[];
   /** Aditivos contratuais importados (Sintética + Analítica). Isolado das demais áreas. */
