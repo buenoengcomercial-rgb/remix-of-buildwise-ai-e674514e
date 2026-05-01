@@ -22,6 +22,7 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
   const initialUi = active?.uiState;
   const [showAnalytic, setShowAnalyticState] = useState<boolean>(initialUi?.showAnalytic ?? true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(initialUi?.expandedCompositionIds ?? []));
+  const [expandedMemory, setExpandedMemory] = useState<Set<string>>(new Set(initialUi?.expandedMemoryIds ?? []));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(initialUi?.collapsedGroupIds ?? []));
 
   // Recarrega o estado visual quando muda o aditivo ativo (cada aditivo tem seu próprio estado).
@@ -33,6 +34,7 @@ export function useAdditiveState(project: Project, opts: Options = {}) {
     const ui = active?.uiState;
     setShowAnalyticState(ui?.showAnalytic ?? true);
     setExpanded(new Set(ui?.expandedCompositionIds ?? []));
+    setExpandedMemory(new Set(ui?.expandedMemoryIds ?? []));
     setCollapsed(new Set(ui?.collapsedGroupIds ?? []));
   }, [active?.id, active?.uiState]);
 
