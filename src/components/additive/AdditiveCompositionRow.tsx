@@ -39,6 +39,8 @@ export default function AdditiveCompositionRow({
   const isNew = !!c.isNewService;
   const memTotals = memoryTotals(c);
   const hasMemory = memTotals.hasMemory;
+  const canOpenAnalytic = hasInputs || isNew;
+  const shouldShowAnalyticRows = isOpen && (showAnalytic || isNew) && canOpenAnalytic;
 
   return (
     <Fragment>
@@ -47,8 +49,8 @@ export default function AdditiveCompositionRow({
           <button
             onClick={() => onToggleExpand(c.id)}
             className="p-1 rounded hover:bg-muted"
-            disabled={c.inputs.length === 0}
-            title={c.inputs.length === 0 ? 'Sem analítico' : 'Expandir'}
+            disabled={!canOpenAnalytic}
+            title={!canOpenAnalytic ? 'Sem analítico' : 'Expandir analítica'}
           >
             {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           </button>
@@ -98,6 +100,16 @@ export default function AdditiveCompositionRow({
               <Badge variant="outline" className="text-[9px] text-violet-700 border-violet-400 bg-violet-50">
                 Calculado pela memória
               </Badge>
+            )}
+            {isNew && (
+              <button
+                onClick={() => onToggleExpand(c.id)}
+                className={`text-[10px] inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border ${isOpen ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                title="Abrir insumos analíticos"
+                type="button"
+              >
+                {hasInputs ? 'Analítica' : '+ Insumos'}
+              </button>
             )}
             <button
               onClick={() => onToggleMemory(c.id)}
@@ -203,7 +215,7 @@ export default function AdditiveCompositionRow({
           {fmtPct(r.percentVar)}
         </td>
       </tr>
-      {isOpen && showAnalytic && c.inputs.length > 0 && (
+      {shouldShowAnalyticRows && (
         <tr className="bg-muted/20 border-b">
           <td />
           <td colSpan={COL_COUNT - 1} className="px-3 py-2">
