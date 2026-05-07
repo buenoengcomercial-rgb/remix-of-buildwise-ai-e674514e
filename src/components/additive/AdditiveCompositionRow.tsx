@@ -27,7 +27,7 @@ interface Props {
 }
 
 function AdditiveCompositionRowImpl({
-  c, bdi, globalDiscount, isLocked, isOpen, isMemoryOpen, showAnalytic,
+  c, bdi, globalDiscount, isLocked, isOpen, isMemoryOpen, showAnalytic, rowIndex = 0,
   onToggleExpand, onToggleMemory, onUpdateComposition, onUpdateQuantity,
   onRemoveComposition, onChangeMemory,
 }: Props) {
