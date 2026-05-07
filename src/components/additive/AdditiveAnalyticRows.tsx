@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import type { AdditiveComposition, AdditiveInput } from '@/types/project';
 import { sumAnalyticTotalNoBDI, money2, truncar2 } from '@/lib/additiveImport';
 import { fmtBRL } from './types';
+import { handleGridKeyDown } from '@/lib/gridKeyboardNavigation';
 
 interface Props {
   c: AdditiveComposition;
@@ -37,11 +38,14 @@ const parseDecimalInput = (v: string): number => {
 
 /** Input numérico — local até blur/Enter. */
 function NumCell({
-  value, onCommit, className,
+  value, onCommit, className, gridId, rowIndex, colIndex,
 }: {
   value: number;
   onCommit: (n: number) => void;
   className?: string;
+  gridId?: string;
+  rowIndex?: number;
+  colIndex?: number;
 }) {
   const fmt = (n: number) => (n ? String(n).replace('.', ',') : '');
   const [local, setLocal] = useState<string>(() => fmt(value));
@@ -59,28 +63,36 @@ function NumCell({
       type="text"
       inputMode="decimal"
       value={local}
-      onFocus={() => setFocused(true)}
+      data-grid-id={gridId}
+      data-row-index={rowIndex}
+      data-col-index={colIndex}
+      onFocus={e => { setFocused(true); e.currentTarget.select(); }}
       onChange={e => {
         const v = e.target.value;
         if (/^-?[0-9]*[.,]?[0-9]*$/.test(v)) setLocal(v);
       }}
       onBlur={() => { setFocused(false); commit(); }}
       onKeyDown={e => {
+        handleGridKeyDown(e);
+        if (e.defaultPrevented) return;
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
       }}
-      className={className}
+      className={`no-spinner ${className ?? ''}`}
     />
   );
 }
 
 /** Input texto — local até blur/Enter. */
 function TextCell({
-  value, onCommit, className, mono,
+  value, onCommit, className, mono, gridId, rowIndex, colIndex,
 }: {
   value: string;
   onCommit: (v: string) => void;
   className?: string;
   mono?: boolean;
+  gridId?: string;
+  rowIndex?: number;
+  colIndex?: number;
 }) {
   const [local, setLocal] = useState(value ?? '');
   const [focused, setFocused] = useState(false);
@@ -90,10 +102,15 @@ function TextCell({
   return (
     <Input
       value={local}
-      onFocus={() => setFocused(true)}
+      data-grid-id={gridId}
+      data-row-index={rowIndex}
+      data-col-index={colIndex}
+      onFocus={e => { setFocused(true); e.currentTarget.select(); }}
       onChange={e => setLocal(e.target.value)}
       onBlur={() => { setFocused(false); if (local !== value) onCommit(local); }}
       onKeyDown={e => {
+        handleGridKeyDown(e);
+        if (e.defaultPrevented) return;
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
       }}
       className={className}
@@ -182,29 +199,30 @@ function AdditiveAnalyticRowsImpl({ c, bdi, globalDiscount, isLocked, cb, onUpda
               </td>
             </tr>
           )}
-          {c.inputs.map(i => {
+          {c.inputs.map((i, rowIdx) => {
             const unitDisc = money2(i.unitPrice * discFactor);
             const totalDisc = money2(i.coefficient * unitDisc);
+            const gridId = `additive-analytic-${c.id}`;
             return (
               <tr key={i.id} className="border-t border-border/50">
                 <td className="px-1.5 py-1 font-mono align-middle">
                   {editable ? (
-                    <TextCell value={i.code} onCommit={v => patchInput(i.id, { code: v })} className="h-6 w-full text-[11px] font-mono px-1" />
+                    <TextCell value={i.code} onCommit={v => patchInput(i.id, { code: v })} className="h-6 w-full text-[11px] font-mono px-1" gridId={gridId} rowIndex={rowIdx} colIndex={0} />
                   ) : i.code}
                 </td>
                 <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <TextCell value={i.bank} onCommit={v => patchInput(i.id, { bank: v })} className="h-6 w-full text-[11px] px-1" />
+                    <TextCell value={i.bank} onCommit={v => patchInput(i.id, { bank: v })} className="h-6 w-full text-[11px] px-1" gridId={gridId} rowIndex={rowIdx} colIndex={1} />
                   ) : i.bank}
                 </td>
                 <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <TextCell value={i.description} onCommit={v => patchInput(i.id, { description: v })} className="h-6 w-full text-[11px] px-1" />
+                    <TextCell value={i.description} onCommit={v => patchInput(i.id, { description: v })} className="h-6 w-full text-[11px] px-1" gridId={gridId} rowIndex={rowIdx} colIndex={2} />
                   ) : i.description}
                 </td>
                 <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <TextCell value={i.unit} onCommit={v => patchInput(i.id, { unit: v })} className="h-6 w-full text-[11px] px-1" />
+                    <TextCell value={i.unit} onCommit={v => patchInput(i.id, { unit: v })} className="h-6 w-full text-[11px] px-1" gridId={gridId} rowIndex={rowIdx} colIndex={3} />
                   ) : i.unit}
                 </td>
                 <td className="px-1.5 py-1 text-right align-middle">
@@ -213,6 +231,7 @@ function AdditiveAnalyticRowsImpl({ c, bdi, globalDiscount, isLocked, cb, onUpda
                       value={i.coefficient}
                       onCommit={n => patchInput(i.id, { coefficient: n })}
                       className="h-6 w-full text-[11px] text-right px-1"
+                      gridId={gridId} rowIndex={rowIdx} colIndex={4}
                     />
                   ) : i.coefficient.toLocaleString('pt-BR')}
                 </td>
@@ -222,6 +241,7 @@ function AdditiveAnalyticRowsImpl({ c, bdi, globalDiscount, isLocked, cb, onUpda
                       value={i.unitPrice}
                       onCommit={n => patchInput(i.id, { unitPrice: n })}
                       className="h-6 w-full text-[11px] text-right px-1"
+                      gridId={gridId} rowIndex={rowIdx} colIndex={5}
                     />
                   ) : fmtBRL(i.unitPrice)}
                 </td>

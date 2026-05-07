@@ -8,6 +8,9 @@ import { memoryTotals } from '@/lib/calculationMemory';
 import { fmtBRL, fmtNum, fmtQty2, fmtPct, COL_COUNT, G_BG, BORDER_L } from './types';
 import AdditiveAnalyticRows from './AdditiveAnalyticRows';
 import AdditiveCalculationMemory from './AdditiveCalculationMemory';
+import { handleGridKeyDown } from '@/lib/gridKeyboardNavigation';
+
+const MAIN_GRID = 'additive-main-table';
 
 /** Parse pt-BR/EN decimal string -> number. Empty => null. */
 const parseDec = (s: string): number | null => {
@@ -19,13 +22,16 @@ const parseDec = (s: string): number | null => {
 
 /** Célula numérica com estado local. Mostra vazio quando valor=0 e allowEmptyZero. */
 function QtyCell({
-  value, disabled, onCommit, className, allowEmptyZero,
+  value, disabled, onCommit, className, allowEmptyZero, gridId, rowIndex, colIndex,
 }: {
   value: number;
   disabled?: boolean;
   onCommit: (n: number) => void;
   className?: string;
   allowEmptyZero?: boolean;
+  gridId?: string;
+  rowIndex?: number;
+  colIndex?: number;
 }) {
   const fmtView = (n: number) =>
     n === 0 && allowEmptyZero ? '' : fmtQty2(n);
@@ -38,6 +44,9 @@ function QtyCell({
       inputMode="decimal"
       value={local}
       disabled={disabled}
+      data-grid-id={gridId}
+      data-row-index={rowIndex}
+      data-col-index={colIndex}
       onFocus={e => { setFocused(true); e.currentTarget.select(); }}
       onChange={e => {
         const v = e.target.value;
@@ -51,6 +60,8 @@ function QtyCell({
         if (final !== value) onCommit(final);
       }}
       onKeyDown={e => {
+        handleGridKeyDown(e);
+        if (e.defaultPrevented) return;
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
       }}
       className={`no-spinner ${className ?? ''}`}
@@ -60,13 +71,16 @@ function QtyCell({
 
 /** Célula numérica (R$) com estado local — sem formatação especial. */
 function MoneyCell({
-  value, disabled, onCommit, className, title,
+  value, disabled, onCommit, className, title, gridId, rowIndex, colIndex,
 }: {
   value: number;
   disabled?: boolean;
   onCommit: (n: number) => void;
   className?: string;
   title?: string;
+  gridId?: string;
+  rowIndex?: number;
+  colIndex?: number;
 }) {
   const fmtView = (n: number) => (n ? String(n).replace('.', ',') : '');
   const [local, setLocal] = useState<string>(() => fmtView(value));
@@ -79,6 +93,9 @@ function MoneyCell({
       value={local}
       disabled={disabled}
       title={title}
+      data-grid-id={gridId}
+      data-row-index={rowIndex}
+      data-col-index={colIndex}
       onFocus={e => { setFocused(true); e.currentTarget.select(); }}
       onChange={e => {
         const v = e.target.value;
@@ -91,6 +108,8 @@ function MoneyCell({
         if (final !== value) onCommit(final);
       }}
       onKeyDown={e => {
+        handleGridKeyDown(e);
+        if (e.defaultPrevented) return;
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
       }}
       className={`no-spinner ${className ?? ''}`}
@@ -151,6 +170,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <Input
               value={c.code}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={0}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { code: e.target.value })}
               className="h-7 w-full text-[11px] font-mono"
               placeholder="Código"
@@ -161,6 +184,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <Input
               value={c.bank}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={1}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { bank: e.target.value })}
               className="h-7 w-full text-xs"
               placeholder="Banco"
@@ -171,6 +198,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <textarea
               value={c.description}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={2}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { description: e.target.value })}
               className="w-full text-xs rounded-md border border-input bg-background px-2 py-1.5 leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[40px]"
               rows={2}
@@ -230,6 +261,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <Input
               value={c.unit}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={3}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { unit: e.target.value })}
               className="h-7 w-full text-xs"
               placeholder="Un"
@@ -243,6 +278,7 @@ function AdditiveCompositionRowImpl({
             disabled={isLocked || isNew}
             onCommit={n => onUpdateComposition(c.id, { originalQuantity: n })}
             className="h-7 w-full text-xs text-right px-1"
+            gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={4}
           />
         </td>
         <td className={`px-1 py-1 text-right ${G_BG.suppressed} text-rose-700`}>
@@ -252,6 +288,7 @@ function AdditiveCompositionRowImpl({
             allowEmptyZero={isNew}
             onCommit={n => { onUpdateComposition(c.id, { suppressedQuantity: n }); onUpdateQuantity(c.id, 'suppressedQuantity', n); }}
             className="h-7 w-full text-xs text-right px-1 border-rose-200 text-rose-700"
+            gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={5}
           />
         </td>
         <td className={`px-1 py-1 text-right ${G_BG.added} text-emerald-700`}>
@@ -261,6 +298,7 @@ function AdditiveCompositionRowImpl({
             allowEmptyZero={isNew}
             onCommit={n => { onUpdateComposition(c.id, { addedQuantity: n }); onUpdateQuantity(c.id, 'addedQuantity', n); }}
             className="h-7 w-full text-xs text-right px-1 border-emerald-200 text-emerald-700"
+            gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={6}
           />
         </td>
         <td className={`px-1 py-1 text-right font-medium ${G_BG.qty}`}>{fmtQty2(r.qtdFinal)}</td>
@@ -272,6 +310,7 @@ function AdditiveCompositionRowImpl({
               onCommit={n => onUpdateComposition(c.id, { unitPriceNoBDIInformed: n })}
               className="h-7 w-full text-xs text-right px-1"
               title={globalDiscount > 0 ? `Informe a referência s/ BDI. Desconto licit. ${globalDiscount}% será aplicado.` : 'Valor s/ BDI'}
+              gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={7}
             />
           ) : (
             <span title={isNew && globalDiscount > 0 ? `Já com desconto de ${globalDiscount}% (referência: ${fmtBRL(r.referenceUnitNoBDI)})` : undefined}>

@@ -248,12 +248,12 @@ function AdditiveCalculationMemoryImpl({
     // Reconcilia (cria linha vazia se necessário) ANTES de focar.
     const finalRows = reconcile();
 
-    if (nextRow < 0) {
-      if (e.key === 'Enter') e.preventDefault();
-      return;
-    }
-
+    // Sempre bloqueia o comportamento padrão das setas/Enter/Tab dentro da grade
+    // — impede scroll da página e saída do escopo da memória.
     e.preventDefault();
+    e.stopPropagation();
+
+    if (nextRow < 0) return;
     const safeRow = Math.min(nextRow, finalRows.length - 1);
     const tgt = finalRows[safeRow];
     if (tgt) focusCell(tgt.id, EDIT_FIELDS[nextField]);
