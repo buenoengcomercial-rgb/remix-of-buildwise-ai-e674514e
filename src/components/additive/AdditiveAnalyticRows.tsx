@@ -264,3 +264,5 @@ function AdditiveAnalyticRowsImpl({ c, bdi, globalDiscount, isLocked, cb, onUpda
     </div>
   );
 }
+
+export default memo(AdditiveAnalyticRowsImpl);
