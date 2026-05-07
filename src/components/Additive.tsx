@@ -23,6 +23,7 @@ import AdditiveTotalsBlock from '@/components/additive/AdditiveTotalsBlock';
 import AdditiveImportDialog from '@/components/additive/AdditiveImportDialog';
 import AdditiveIssuesDialog from '@/components/additive/AdditiveIssuesDialog';
 import AdditiveReviewDialog from '@/components/additive/AdditiveReviewDialog';
+import AdditiveSyntheticConflictDialog from '@/components/additive/AdditiveSyntheticConflictDialog';
 
 interface Props {
   project: Project;
