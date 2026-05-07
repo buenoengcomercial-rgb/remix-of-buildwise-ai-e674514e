@@ -170,6 +170,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <Input
               value={c.code}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={0}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { code: e.target.value })}
               className="h-7 w-full text-[11px] font-mono"
               placeholder="Código"
@@ -180,6 +184,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <Input
               value={c.bank}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={1}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { bank: e.target.value })}
               className="h-7 w-full text-xs"
               placeholder="Banco"
@@ -190,6 +198,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <textarea
               value={c.description}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={2}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { description: e.target.value })}
               className="w-full text-xs rounded-md border border-input bg-background px-2 py-1.5 leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[40px]"
               rows={2}
@@ -249,6 +261,10 @@ function AdditiveCompositionRowImpl({
           {isNew && !isLocked ? (
             <Input
               value={c.unit}
+              data-grid-id={MAIN_GRID}
+              data-row-index={rowIndex}
+              data-col-index={3}
+              onKeyDown={handleGridKeyDown}
               onChange={e => onUpdateComposition(c.id, { unit: e.target.value })}
               className="h-7 w-full text-xs"
               placeholder="Un"
@@ -262,6 +278,7 @@ function AdditiveCompositionRowImpl({
             disabled={isLocked || isNew}
             onCommit={n => onUpdateComposition(c.id, { originalQuantity: n })}
             className="h-7 w-full text-xs text-right px-1"
+            gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={4}
           />
         </td>
         <td className={`px-1 py-1 text-right ${G_BG.suppressed} text-rose-700`}>
@@ -271,6 +288,7 @@ function AdditiveCompositionRowImpl({
             allowEmptyZero={isNew}
             onCommit={n => { onUpdateComposition(c.id, { suppressedQuantity: n }); onUpdateQuantity(c.id, 'suppressedQuantity', n); }}
             className="h-7 w-full text-xs text-right px-1 border-rose-200 text-rose-700"
+            gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={5}
           />
         </td>
         <td className={`px-1 py-1 text-right ${G_BG.added} text-emerald-700`}>
@@ -280,6 +298,7 @@ function AdditiveCompositionRowImpl({
             allowEmptyZero={isNew}
             onCommit={n => { onUpdateComposition(c.id, { addedQuantity: n }); onUpdateQuantity(c.id, 'addedQuantity', n); }}
             className="h-7 w-full text-xs text-right px-1 border-emerald-200 text-emerald-700"
+            gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={6}
           />
         </td>
         <td className={`px-1 py-1 text-right font-medium ${G_BG.qty}`}>{fmtQty2(r.qtdFinal)}</td>
@@ -291,6 +310,7 @@ function AdditiveCompositionRowImpl({
               onCommit={n => onUpdateComposition(c.id, { unitPriceNoBDIInformed: n })}
               className="h-7 w-full text-xs text-right px-1"
               title={globalDiscount > 0 ? `Informe a referência s/ BDI. Desconto licit. ${globalDiscount}% será aplicado.` : 'Valor s/ BDI'}
+              gridId={MAIN_GRID} rowIndex={rowIndex} colIndex={7}
             />
           ) : (
             <span title={isNew && globalDiscount > 0 ? `Já com desconto de ${globalDiscount}% (referência: ${fmtBRL(r.referenceUnitNoBDI)})` : undefined}>
