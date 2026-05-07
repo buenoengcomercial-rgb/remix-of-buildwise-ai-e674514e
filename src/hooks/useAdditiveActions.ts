@@ -1,5 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import {
+  hasAdditiveUserWork,
+  isAdditiveReplacementBlocked,
+  mergeAdditiveWithSynthetic,
+} from '@/lib/additiveUserWork';
 import type {
   Project, Additive as AdditiveModel, AdditiveComposition,
   AdditiveStatus, AdditiveApprovalSnapshot,
