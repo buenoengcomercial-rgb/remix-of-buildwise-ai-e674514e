@@ -198,15 +198,15 @@ function AdditiveCompositionRowImpl({
         <td className={`px-2 py-2 text-right text-muted-foreground ${G_BG.val}`}>{fmtBRL(r.totalFonte)}</td>
         <td className={`px-2 py-2 text-right ${G_BG.val}`}>{fmtBRL(r.valorContratadoCalc)}</td>
         {/* Impacto */}
-        <td className={`px-2 py-2 text-right text-rose-700 ${G_BG.impact} ${BORDER_L}`}>
+        <td className={`px-2 py-2 text-right text-rose-700 font-medium ${G_BG.suppressed} ${BORDER_L}`}>
           {r.valorSuprimido > 0 ? fmtBRL(-r.valorSuprimido) : fmtBRL(0)}
         </td>
-        <td className={`px-2 py-2 text-right text-emerald-700 ${G_BG.impact}`}>{fmtBRL(r.valorAcrescido)}</td>
+        <td className={`px-2 py-2 text-right text-emerald-700 font-medium ${G_BG.added}`}>{fmtBRL(r.valorAcrescido)}</td>
         <td className={`px-2 py-2 text-right font-medium ${G_BG.impact}`}>{fmtBRL(r.valorFinal)}</td>
-        <td className={`px-2 py-2 text-right font-medium ${G_BG.impact} ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : ''}`}>
+        <td className={`px-2 py-2 text-right font-medium ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : 'text-foreground'}`}>
           {fmtBRL(r.diferenca)}
         </td>
-        <td className={`px-2 py-2 text-right ${G_BG.impact} ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : ''}`}>
+        <td className={`px-2 py-2 text-right ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : 'text-foreground'}`}>
           {fmtPct(r.percentVar)}
         </td>
       </tr>
