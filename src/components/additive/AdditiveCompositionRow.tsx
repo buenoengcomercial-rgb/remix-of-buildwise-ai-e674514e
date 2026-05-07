@@ -17,6 +17,7 @@ interface Props {
   isOpen: boolean;
   isMemoryOpen: boolean;
   showAnalytic: boolean;
+  rowIndex?: number;
   onToggleExpand: (id: string) => void;
   onToggleMemory: (id: string) => void;
   onUpdateComposition: (id: string, patch: Partial<AdditiveComposition>) => void;
