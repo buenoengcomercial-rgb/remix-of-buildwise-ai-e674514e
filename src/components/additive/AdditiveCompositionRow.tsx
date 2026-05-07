@@ -146,8 +146,8 @@ function AdditiveCompositionRowImpl({
           </button>
         </td>
         {/* Identificação */}
-        <td className={`px-2 py-2 ${G_BG.id}`}>{c.itemNumber || c.item}</td>
-        <td className={`px-2 py-2 font-mono text-[11px] break-words whitespace-normal ${G_BG.id}`}>
+        <td className={`px-1 py-1 ${G_BG.id}`}>{c.itemNumber || c.item}</td>
+        <td className={`px-1 py-1 font-mono text-[11px] break-words whitespace-normal ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.code}
@@ -157,7 +157,7 @@ function AdditiveCompositionRowImpl({
             />
           ) : c.code}
         </td>
-        <td className={`px-2 py-2 break-words whitespace-normal ${G_BG.id}`}>
+        <td className={`px-1 py-1 break-words whitespace-normal ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.bank}
@@ -167,7 +167,7 @@ function AdditiveCompositionRowImpl({
             />
           ) : c.bank}
         </td>
-        <td className={`px-2 py-2 ${G_BG.id}`}>
+        <td className={`px-1 py-1 ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <textarea
               value={c.description}
@@ -226,7 +226,7 @@ function AdditiveCompositionRowImpl({
             )}
           </div>
         </td>
-        <td className={`px-2 py-2 ${G_BG.id}`}>
+        <td className={`px-1 py-1 ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.unit}
