@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,6 @@ interface Props {
   bdi: number;
   globalDiscount: number;
   isLocked?: boolean;
-  /** Resultado de computeCompositionWithBDI(c, bdi) — passado para evitar recálculo. */
   cb: { totalAnalyticWithBDI: number; diff: number };
   onUpdateComposition?: (id: string, patch: Partial<AdditiveComposition>) => void;
 }
@@ -25,6 +25,58 @@ const newInput = (): AdditiveInput => ({
   unitPrice: 0,
   total: 0,
 });
+
+/** Aceita '', '2', '2,5', '2.5'. Retorna número (0 se inválido/vazio). */
+const parseDecimalInput = (v: string): number => {
+  if (v == null) return 0;
+  const s = String(v).trim().replace(',', '.');
+  if (s === '' || s === '-' || s === '.') return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Input numérico com estado local (string) — não trava ao apagar. */
+function NumCell({
+  value, onCommit, className, step,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  className?: string;
+  step?: string;
+}) {
+  const [local, setLocal] = useState<string>(value ? String(value).replace('.', ',') : '');
+  useEffect(() => {
+    // Sincroniza quando o valor externo muda e não está focado
+    setLocal(prev => {
+      const parsed = parseDecimalInput(prev);
+      if (parsed === value) return prev;
+      return value ? String(value).replace('.', ',') : '';
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={local}
+      onChange={e => {
+        const v = e.target.value;
+        // permite vazio, dígitos, vírgula/ponto e um sinal opcional
+        if (/^-?[0-9]*[.,]?[0-9]*$/.test(v)) {
+          setLocal(v);
+          onCommit(parseDecimalInput(v));
+        }
+      }}
+      onBlur={() => {
+        const n = parseDecimalInput(local);
+        setLocal(n ? String(n).replace('.', ',') : '');
+        onCommit(n);
+      }}
+      className={className}
+      step={step}
+    />
+  );
+}
 
 export default function AdditiveAnalyticRows({ c, bdi, globalDiscount, isLocked, cb, onUpdateComposition }: Props) {
   const isNew = !!c.isNewService;
@@ -67,7 +119,19 @@ export default function AdditiveAnalyticRows({ c, bdi, globalDiscount, isLocked,
 
   return (
     <div className="space-y-2">
-      <table className="w-full text-[11px]">
+      <table className="w-full text-[11px] table-fixed border-collapse">
+        <colgroup>
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '90px' }} />
+          <col />
+          <col style={{ width: '70px' }} />
+          <col style={{ width: '90px' }} />
+          <col style={{ width: '120px' }} />
+          {showDiscount && <col style={{ width: '130px' }} />}
+          <col style={{ width: '120px' }} />
+          {showDiscount && <col style={{ width: '130px' }} />}
+          {editable && <col style={{ width: '60px' }} />}
+        </colgroup>
         <thead>
           <tr className="text-muted-foreground">
             <th className="text-left px-1.5 py-1 font-medium">Código</th>
@@ -77,13 +141,13 @@ export default function AdditiveAnalyticRows({ c, bdi, globalDiscount, isLocked,
             <th className="text-right px-1.5 py-1 font-medium">Coef.</th>
             <th className="text-right px-1.5 py-1 font-medium">V. Unit s/ BDI</th>
             {showDiscount && (
-              <th className="text-right px-1.5 py-1 font-medium text-sky-700">V. Unit s/ BDI c/ Desc.</th>
+              <th className="text-right px-1.5 py-1 font-medium text-sky-700">V. Unit c/ Desc.</th>
             )}
             <th className="text-right px-1.5 py-1 font-medium">Total s/ BDI</th>
             {showDiscount && (
-              <th className="text-right px-1.5 py-1 font-medium text-sky-700">Total s/ BDI c/ Desc.</th>
+              <th className="text-right px-1.5 py-1 font-medium text-sky-700">Total c/ Desc.</th>
             )}
-            {editable && <th className="px-1.5 py-1" />}
+            {editable && <th className="px-1.5 py-1 text-right">Ações</th>}
           </tr>
         </thead>
         <tbody>
@@ -99,55 +163,53 @@ export default function AdditiveAnalyticRows({ c, bdi, globalDiscount, isLocked,
             const totalDisc = money2(i.coefficient * unitDisc);
             return (
               <tr key={i.id} className="border-t border-border/50">
-                <td className="px-1.5 py-1 font-mono">
+                <td className="px-1.5 py-1 font-mono align-middle">
                   {editable ? (
-                    <Input value={i.code} onChange={e => patchInput(i.id, { code: e.target.value })} className="h-6 w-24 text-[11px] font-mono px-1" />
+                    <Input value={i.code} onChange={e => patchInput(i.id, { code: e.target.value })} className="h-6 w-full text-[11px] font-mono px-1" />
                   ) : i.code}
                 </td>
-                <td className="px-1.5 py-1">
+                <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <Input value={i.bank} onChange={e => patchInput(i.id, { bank: e.target.value })} className="h-6 w-20 text-[11px] px-1" />
+                    <Input value={i.bank} onChange={e => patchInput(i.id, { bank: e.target.value })} className="h-6 w-full text-[11px] px-1" />
                   ) : i.bank}
                 </td>
-                <td className="px-1.5 py-1">
+                <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <Input value={i.description} onChange={e => patchInput(i.id, { description: e.target.value })} className="h-6 text-[11px] px-1 min-w-[200px]" />
+                    <Input value={i.description} onChange={e => patchInput(i.id, { description: e.target.value })} className="h-6 w-full text-[11px] px-1" />
                   ) : i.description}
                 </td>
-                <td className="px-1.5 py-1">
+                <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <Input value={i.unit} onChange={e => patchInput(i.id, { unit: e.target.value })} className="h-6 w-14 text-[11px] px-1" />
+                    <Input value={i.unit} onChange={e => patchInput(i.id, { unit: e.target.value })} className="h-6 w-full text-[11px] px-1" />
                   ) : i.unit}
                 </td>
-                <td className="px-1.5 py-1 text-right">
+                <td className="px-1.5 py-1 text-right align-middle">
                   {editable ? (
-                    <Input
-                      type="number" step="0.0001" min={0}
-                      value={i.coefficient || ''}
-                      onChange={e => patchInput(i.id, { coefficient: Number(e.target.value) || 0 })}
-                      className="h-6 w-20 text-[11px] text-right px-1"
+                    <NumCell
+                      value={i.coefficient}
+                      onCommit={n => patchInput(i.id, { coefficient: n })}
+                      className="h-6 w-full text-[11px] text-right px-1"
                     />
                   ) : i.coefficient.toLocaleString('pt-BR')}
                 </td>
-                <td className="px-1.5 py-1 text-right">
+                <td className="px-1.5 py-1 text-right align-middle">
                   {editable ? (
-                    <Input
-                      type="number" step="0.01" min={0}
-                      value={i.unitPrice || ''}
-                      onChange={e => patchInput(i.id, { unitPrice: Number(e.target.value) || 0 })}
-                      className="h-6 w-24 text-[11px] text-right px-1"
+                    <NumCell
+                      value={i.unitPrice}
+                      onCommit={n => patchInput(i.id, { unitPrice: n })}
+                      className="h-6 w-full text-[11px] text-right px-1"
                     />
                   ) : fmtBRL(i.unitPrice)}
                 </td>
                 {showDiscount && (
-                  <td className="px-1.5 py-1 text-right text-sky-700">{fmtBRL(unitDisc)}</td>
+                  <td className="px-1.5 py-1 text-right text-sky-700 align-middle">{fmtBRL(unitDisc)}</td>
                 )}
-                <td className="px-1.5 py-1 text-right">{fmtBRL(i.total)}</td>
+                <td className="px-1.5 py-1 text-right align-middle">{fmtBRL(i.total)}</td>
                 {showDiscount && (
-                  <td className="px-1.5 py-1 text-right text-sky-700">{fmtBRL(totalDisc)}</td>
+                  <td className="px-1.5 py-1 text-right text-sky-700 align-middle">{fmtBRL(totalDisc)}</td>
                 )}
                 {editable && (
-                  <td className="px-1.5 py-1 text-right whitespace-nowrap">
+                  <td className="px-1.5 py-1 text-right whitespace-nowrap align-middle">
                     <button
                       onClick={() => duplicateInput(i.id)}
                       className="p-1 rounded hover:bg-muted text-muted-foreground"
@@ -178,10 +240,10 @@ export default function AdditiveAnalyticRows({ c, bdi, globalDiscount, isLocked,
           </tr>
           {showDiscount && (
             <tr className="font-medium text-sky-700">
-              <td colSpan={6} className="px-1.5 py-1 text-right">Soma analítica s/ BDI c/ desconto ({globalDiscount}%):</td>
-              <td />
+              <td colSpan={6} className="px-1.5 py-1 text-right">Soma c/ desconto ({globalDiscount}%):</td>
               <td />
               <td className="px-1.5 py-1 text-right">{fmtBRL(sumNoBDIDisc)}</td>
+              <td />
               {editable && <td />}
             </tr>
           )}
