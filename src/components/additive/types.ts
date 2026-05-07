@@ -37,3 +37,18 @@ export const fmtPct = (v: number) =>
   `${(v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
 export const COL_COUNT = 19;
+
+// Cores por grupo de colunas (mesmo padrão visual da Medição)
+export const G_BG = {
+  id: 'bg-muted/40',         // Identificação
+  qty: 'bg-info/10',         // Quantidades
+  val: 'bg-info/5',          // Valores base
+  impact: 'bg-success/10',   // Impacto do aditivo
+};
+export const G_HEAD = {
+  id: 'bg-muted text-foreground',
+  qty: 'bg-info/20 text-foreground',
+  val: 'bg-info/15 text-foreground',
+  impact: 'bg-success/20 text-foreground',
+};
+export const BORDER_L = 'border-l-2 border-border';
