@@ -35,45 +35,69 @@ const parseDecimalInput = (v: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** Input numérico com estado local (string) — não trava ao apagar. */
+/** Input numérico — local até blur/Enter. */
 function NumCell({
-  value, onCommit, className, step,
+  value, onCommit, className,
 }: {
   value: number;
   onCommit: (n: number) => void;
   className?: string;
-  step?: string;
 }) {
-  const [local, setLocal] = useState<string>(value ? String(value).replace('.', ',') : '');
+  const fmt = (n: number) => (n ? String(n).replace('.', ',') : '');
+  const [local, setLocal] = useState<string>(() => fmt(value));
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
-    // Sincroniza quando o valor externo muda e não está focado
-    setLocal(prev => {
-      const parsed = parseDecimalInput(prev);
-      if (parsed === value) return prev;
-      return value ? String(value).replace('.', ',') : '';
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+    if (!focused) setLocal(fmt(value));
+  }, [value, focused]);
+  const commit = () => {
+    const n = parseDecimalInput(local);
+    setLocal(fmt(n));
+    if (n !== value) onCommit(n);
+  };
   return (
     <Input
       type="text"
       inputMode="decimal"
       value={local}
+      onFocus={() => setFocused(true)}
       onChange={e => {
         const v = e.target.value;
-        // permite vazio, dígitos, vírgula/ponto e um sinal opcional
-        if (/^-?[0-9]*[.,]?[0-9]*$/.test(v)) {
-          setLocal(v);
-          onCommit(parseDecimalInput(v));
-        }
+        if (/^-?[0-9]*[.,]?[0-9]*$/.test(v)) setLocal(v);
       }}
-      onBlur={() => {
-        const n = parseDecimalInput(local);
-        setLocal(n ? String(n).replace('.', ',') : '');
-        onCommit(n);
+      onBlur={() => { setFocused(false); commit(); }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
       }}
       className={className}
-      step={step}
+    />
+  );
+}
+
+/** Input texto — local até blur/Enter. */
+function TextCell({
+  value, onCommit, className, mono,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  className?: string;
+  mono?: boolean;
+}) {
+  const [local, setLocal] = useState(value ?? '');
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setLocal(value ?? '');
+  }, [value, focused]);
+  return (
+    <Input
+      value={local}
+      onFocus={() => setFocused(true)}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={() => { setFocused(false); if (local !== value) onCommit(local); }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+      }}
+      className={className}
+      style={mono ? { fontFamily: 'monospace' } : undefined}
     />
   );
 }
@@ -165,22 +189,22 @@ function AdditiveAnalyticRowsImpl({ c, bdi, globalDiscount, isLocked, cb, onUpda
               <tr key={i.id} className="border-t border-border/50">
                 <td className="px-1.5 py-1 font-mono align-middle">
                   {editable ? (
-                    <Input value={i.code} onChange={e => patchInput(i.id, { code: e.target.value })} className="h-6 w-full text-[11px] font-mono px-1" />
+                    <TextCell value={i.code} onCommit={v => patchInput(i.id, { code: v })} className="h-6 w-full text-[11px] font-mono px-1" />
                   ) : i.code}
                 </td>
                 <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <Input value={i.bank} onChange={e => patchInput(i.id, { bank: e.target.value })} className="h-6 w-full text-[11px] px-1" />
+                    <TextCell value={i.bank} onCommit={v => patchInput(i.id, { bank: v })} className="h-6 w-full text-[11px] px-1" />
                   ) : i.bank}
                 </td>
                 <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <Input value={i.description} onChange={e => patchInput(i.id, { description: e.target.value })} className="h-6 w-full text-[11px] px-1" />
+                    <TextCell value={i.description} onCommit={v => patchInput(i.id, { description: v })} className="h-6 w-full text-[11px] px-1" />
                   ) : i.description}
                 </td>
                 <td className="px-1.5 py-1 align-middle">
                   {editable ? (
-                    <Input value={i.unit} onChange={e => patchInput(i.id, { unit: e.target.value })} className="h-6 w-full text-[11px] px-1" />
+                    <TextCell value={i.unit} onCommit={v => patchInput(i.id, { unit: v })} className="h-6 w-full text-[11px] px-1" />
                   ) : i.unit}
                 </td>
                 <td className="px-1.5 py-1 text-right align-middle">
