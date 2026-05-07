@@ -40,9 +40,9 @@ export const COL_COUNT = 19;
 
 // Cores por coluna (padrão leve, focado em impacto)
 export const G_BG = {
-  id: '',                       // Identificação: neutro
-  qty: 'bg-slate-50/60',        // Quantidades base
-  val: 'bg-slate-50/60',        // Valores base
+  id: '',                       // Identificação: neutro (herda zebra)
+  qty: '',                      // Quantidades base (herda zebra)
+  val: '',                      // Valores base (herda zebra)
   impact: '',                   // Diferença/% Var: neutro
   suppressed: 'bg-rose-50',     // Suprimido
   added: 'bg-emerald-50',       // Acrescido
