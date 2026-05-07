@@ -162,7 +162,8 @@ function AdditiveCalculationMemoryImpl({
     requestAnimationFrame(() => {
       const el = cellRefs.current.get(`${rowId}:${field}`);
       if (el) {
-        (el as HTMLInputElement).focus();
+        try { (el as HTMLInputElement).focus({ preventScroll: true }); }
+        catch { (el as HTMLInputElement).focus(); }
         if ('select' in el) try { (el as HTMLInputElement).select(); } catch { /* noop */ }
       }
     });
