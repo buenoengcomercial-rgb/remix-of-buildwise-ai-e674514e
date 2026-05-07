@@ -33,6 +33,13 @@ export const fmtBRL = (v: number) =>
 export const fmtNum = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
 
+/** Formatação de quantidades com 2 casas decimais (pt-BR). */
+export const fmtQty2 = (v: number) =>
+  (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 export const fmtPct = (v: number) =>
   `${(v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
