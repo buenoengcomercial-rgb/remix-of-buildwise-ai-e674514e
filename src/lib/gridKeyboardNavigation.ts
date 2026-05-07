@@ -89,7 +89,7 @@ function findInCol(cells: CellInfo[], idx: number, row: number, col: number, dir
 
 function focusCell(el: HTMLElement) {
   try {
-    el.focus({ preventScroll: false });
+    el.focus({ preventScroll: true });
   } catch { el.focus(); }
   if ('select' in el) {
     try { (el as HTMLInputElement).select(); } catch { /* noop */ }
@@ -113,6 +113,11 @@ export function handleGridKeyDown(e: React.KeyboardEvent<HTMLElement>) {
   if (k === 'ArrowRight' && isTextLike(el) && !caretAtEnd(el)) return;
   if (k === 'ArrowLeft' && isTextLike(el) && !caretAtStart(el)) return;
 
+  // A partir daqui, o evento pertence à grade. Sempre bloqueia o default
+  // (impede scroll da página) e a propagação, mesmo quando não houver destino.
+  e.preventDefault();
+  e.stopPropagation();
+
   const cells = getCells(gridId);
   if (cells.length === 0) return;
   const idx = cells.findIndex(c => c.el === el);
@@ -129,13 +134,9 @@ export function handleGridKeyDown(e: React.KeyboardEvent<HTMLElement>) {
   }
 
   if (target) {
-    e.preventDefault();
-    e.stopPropagation();
     focusCell(target);
-  } else if (k === 'ArrowUp' || k === 'ArrowDown') {
-    // Sem destino: ainda assim não rola a página dentro do grid.
-    e.preventDefault();
   }
+  // Sem destino: mantém foco atual; default já foi prevenido.
 }
 
 /** Helper para gerar props das células. */
