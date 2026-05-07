@@ -66,28 +66,25 @@ function getCells(gridId: string): CellInfo[] {
   return out;
 }
 
-function findInRow(cells: CellInfo[], row: number, col: number, dir: 1 | -1): HTMLElement | null {
-  const same = cells.filter(c => c.row === row);
+function findInRow(cells: CellInfo[], idx: number, row: number, col: number, dir: 1 | -1): HTMLElement | null {
+  // Mesma linha lógica: cells com mesmo row e col diferente, mais próximo na direção.
+  const same = cells.filter(c => c.row === row && c.el !== cells[idx].el);
   const cand = same
     .filter(c => dir === 1 ? c.col > col : c.col < col)
     .sort((a, b) => dir === 1 ? a.col - b.col : b.col - a.col);
-  return cand[0]?.el ?? null;
+  if (cand[0]) return cand[0].el;
+  // Fallback: próxima célula em ordem DOM
+  const domNext = cells[idx + dir];
+  return domNext?.el ?? null;
 }
 
-function findInCol(cells: CellInfo[], row: number, col: number, dir: 1 | -1): HTMLElement | null {
-  // mesma coluna, próximo row na direção
-  const sameCol = cells.filter(c => c.col === col);
-  const cand = sameCol
-    .filter(c => dir === 1 ? c.row > row : c.row < row)
-    .sort((a, b) => dir === 1 ? a.row - b.row : b.row - a.row);
-  if (cand[0]) return cand[0].el;
-  // fallback: qualquer célula da próxima/anterior linha
-  const anyRow = cells
-    .filter(c => dir === 1 ? c.row > row : c.row < row)
-    .sort((a, b) => dir === 1
-      ? (a.row - b.row) || Math.abs(a.col - col) - Math.abs(b.col - col)
-      : (b.row - a.row) || Math.abs(a.col - col) - Math.abs(b.col - col));
-  return anyRow[0]?.el ?? null;
+function findInCol(cells: CellInfo[], idx: number, row: number, col: number, dir: 1 | -1): HTMLElement | null {
+  // Mesma coluna lógica, próxima/anterior linha em ordem DOM
+  const list = dir === 1 ? cells.slice(idx + 1) : cells.slice(0, idx).reverse();
+  const sameCol = list.find(c => c.col === col && c.row !== row);
+  if (sameCol) return sameCol.el;
+  // Fallback: qualquer próxima célula em DOM
+  return list[0]?.el ?? null;
 }
 
 function focusCell(el: HTMLElement) {
