@@ -55,34 +55,38 @@ function AdditiveCompositionRowImpl({
             {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           </button>
         </td>
-        <td className="px-2 py-2">{c.itemNumber || c.item}</td>
-        <td className="px-2 py-2 font-mono text-[11px]">
+        {/* Identificação */}
+        <td className={`px-2 py-2 ${G_BG.id}`}>{c.itemNumber || c.item}</td>
+        <td className={`px-2 py-2 font-mono text-[11px] ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.code}
               onChange={e => onUpdateComposition(c.id, { code: e.target.value })}
-              className="h-7 w-20 text-[11px] font-mono"
+              className="h-7 w-full text-[11px] font-mono"
+              placeholder="Código"
             />
           ) : c.code}
         </td>
-        <td className="px-2 py-2">
+        <td className={`px-2 py-2 ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.bank}
               onChange={e => onUpdateComposition(c.id, { bank: e.target.value })}
-              className="h-7 w-20 text-xs"
+              className="h-7 w-full text-xs"
+              placeholder="Banco"
             />
           ) : c.bank}
         </td>
-        <td className="px-2 py-2 max-w-[320px]">
+        <td className={`px-2 py-2 ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.description}
               onChange={e => onUpdateComposition(c.id, { description: e.target.value })}
-              className="h-7 text-xs"
+              className="h-8 w-full text-xs"
+              placeholder="Descrição do novo serviço"
             />
           ) : (
-            <div>{c.description}</div>
+            <div className="whitespace-normal break-words leading-snug">{c.description}</div>
           )}
           <div className="flex flex-wrap gap-1 mt-1 items-center">
             {isNew && (
@@ -131,59 +135,57 @@ function AdditiveCompositionRowImpl({
             )}
           </div>
         </td>
-        <td className="px-2 py-2">
+        <td className={`px-2 py-2 ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.unit}
               onChange={e => onUpdateComposition(c.id, { unit: e.target.value })}
-              className="h-7 w-14 text-xs"
+              className="h-7 w-full text-xs"
+              placeholder="Un"
             />
           ) : c.unit}
         </td>
-        {/* F — Qtd Contratada */}
-        <td className="px-2 py-2 text-right">
+        {/* Quantidades */}
+        <td className={`px-2 py-2 text-right ${G_BG.qty} ${BORDER_L}`}>
           <Input
             type="number" step="0.0001" min={0}
             value={c.originalQuantity ?? 0}
             disabled={isLocked || isNew}
             onChange={e => onUpdateComposition(c.id, { originalQuantity: Number(e.target.value) || 0 })}
-            className="h-7 w-20 text-xs text-right"
+            className="h-7 w-full text-xs text-right"
           />
         </td>
-        {/* G — Qtd Suprimida */}
-        <td className="px-2 py-2 text-right">
+        <td className={`px-2 py-2 text-right ${G_BG.qty}`}>
           <Input
             type="number" step="0.0001" min={0}
             value={c.suppressedQuantity ?? 0}
             disabled={isLocked || isNew || hasMemory}
             onChange={e => onUpdateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
-            className="h-7 w-20 text-xs text-right border-rose-200"
+            className="h-7 w-full text-xs text-right border-rose-200"
             title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
-        {/* H — Qtd Acrescida */}
-        <td className="px-2 py-2 text-right">
+        <td className={`px-2 py-2 text-right ${G_BG.qty}`}>
           <Input
             type="number" step="0.0001" min={0}
             value={c.addedQuantity ?? 0}
             disabled={isLocked || hasMemory}
             onChange={e => onUpdateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
-            className="h-7 w-20 text-xs text-right border-emerald-200"
+            className="h-7 w-full text-xs text-right border-emerald-200"
             title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
-        {/* I — Qtd Final */}
-        <td className="px-2 py-2 text-right font-medium">{fmtNum(r.qtdFinal)}</td>
-        {/* J — Valor Unit (s/ BDI). Para novos serviços, exibe valor JÁ COM desconto. */}
-        <td className="px-2 py-2 text-right">
+        <td className={`px-2 py-2 text-right font-medium ${G_BG.qty}`}>{fmtNum(r.qtdFinal)}</td>
+        {/* Valores */}
+        <td className={`px-2 py-2 text-right ${G_BG.val} ${BORDER_L}`}>
           {isNew && !isLocked && c.inputs.length === 0 ? (
             <Input
               type="number" step="0.01" min={0}
               value={c.unitPriceNoBDIInformed ?? 0}
               onChange={e => onUpdateComposition(c.id, { unitPriceNoBDIInformed: Number(e.target.value) || 0 })}
-              className="h-7 w-24 text-xs text-right"
+              className="h-7 w-full text-xs text-right"
               title={globalDiscount > 0 ? `Informe a referência s/ BDI. Desconto licit. ${globalDiscount}% será aplicado.` : 'Valor s/ BDI'}
             />
           ) : (
@@ -192,26 +194,19 @@ function AdditiveCompositionRowImpl({
             </span>
           )}
         </td>
-        {/* K — Valor Unit c/ BDI */}
-        <td className="px-2 py-2 text-right">{fmtBRL(r.unitPriceWithBDI)}</td>
-        {/* L — Total Fonte */}
-        <td className="px-2 py-2 text-right text-muted-foreground">{fmtBRL(r.totalFonte)}</td>
-        {/* M — Valor Contratado Calc. */}
-        <td className="px-2 py-2 text-right">{fmtBRL(r.valorContratadoCalc)}</td>
-        {/* N — Valor Suprimido */}
-        <td className="px-2 py-2 text-right text-rose-700">
+        <td className={`px-2 py-2 text-right ${G_BG.val}`}>{fmtBRL(r.unitPriceWithBDI)}</td>
+        <td className={`px-2 py-2 text-right text-muted-foreground ${G_BG.val}`}>{fmtBRL(r.totalFonte)}</td>
+        <td className={`px-2 py-2 text-right ${G_BG.val}`}>{fmtBRL(r.valorContratadoCalc)}</td>
+        {/* Impacto */}
+        <td className={`px-2 py-2 text-right text-rose-700 ${G_BG.impact} ${BORDER_L}`}>
           {r.valorSuprimido > 0 ? fmtBRL(-r.valorSuprimido) : fmtBRL(0)}
         </td>
-        {/* O — Valor Acrescido */}
-        <td className="px-2 py-2 text-right text-emerald-700">{fmtBRL(r.valorAcrescido)}</td>
-        {/* P — Valor Final */}
-        <td className="px-2 py-2 text-right font-medium">{fmtBRL(r.valorFinal)}</td>
-        {/* Q — Diferença */}
-        <td className={`px-2 py-2 text-right font-medium ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : ''}`}>
+        <td className={`px-2 py-2 text-right text-emerald-700 ${G_BG.impact}`}>{fmtBRL(r.valorAcrescido)}</td>
+        <td className={`px-2 py-2 text-right font-medium ${G_BG.impact}`}>{fmtBRL(r.valorFinal)}</td>
+        <td className={`px-2 py-2 text-right font-medium ${G_BG.impact} ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : ''}`}>
           {fmtBRL(r.diferenca)}
         </td>
-        {/* R — % Var. */}
-        <td className={`px-2 py-2 text-right ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : ''}`}>
+        <td className={`px-2 py-2 text-right ${G_BG.impact} ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : ''}`}>
           {fmtPct(r.percentVar)}
         </td>
       </tr>
