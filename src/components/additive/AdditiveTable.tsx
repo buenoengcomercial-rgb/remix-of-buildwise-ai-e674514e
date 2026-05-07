@@ -93,24 +93,24 @@ export default function AdditiveTable(props: Props) {
             </tr>
             <tr className="bg-muted/60 border-b">
               <th className="w-8" />
-              <th className="px-2 py-2 text-left font-semibold">Item</th>
-              <th className="px-2 py-2 text-left font-semibold">Código</th>
-              <th className="px-2 py-2 text-left font-semibold">Banco</th>
-              <th className="px-2 py-2 text-left font-semibold">Descrição</th>
-              <th className="px-2 py-2 text-left font-semibold">Und</th>
-              <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Qtd Contratada</th>
-              <th className="px-2 py-2 text-right font-semibold text-rose-700 bg-rose-50">Qtd Suprimida</th>
-              <th className="px-2 py-2 text-right font-semibold text-emerald-700 bg-emerald-50">Qtd Acrescida</th>
-              <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
-              <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Valor Unit</th>
-              <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
-              <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
-              <th className="px-2 py-2 text-right font-semibold">Valor Contratado</th>
-              <th className={`px-2 py-2 text-right font-semibold text-rose-700 bg-rose-50 ${BORDER_L}`}>Valor Suprimido</th>
-              <th className="px-2 py-2 text-right font-semibold text-emerald-700 bg-emerald-50">Valor Acrescido</th>
-              <th className="px-2 py-2 text-right font-semibold">Valor Final</th>
-              <th className="px-2 py-2 text-right font-semibold">Diferença</th>
-              <th className="px-2 py-2 text-right font-semibold">% Var.</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Item</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Código</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Banco</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Descrição</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Und</th>
+              <th className={`px-1 py-1.5 text-right font-semibold ${BORDER_L}`}>Qtd Contratada</th>
+              <th className="px-1 py-1.5 text-right font-semibold text-rose-700 bg-rose-50">Qtd Suprimida</th>
+              <th className="px-1 py-1.5 text-right font-semibold text-emerald-700 bg-emerald-50">Qtd Acrescida</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Qtd Final</th>
+              <th className={`px-1 py-1.5 text-right font-semibold ${BORDER_L}`}>Valor Unit</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Valor Unit c/ BDI</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Total Fonte</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Valor Contratado</th>
+              <th className={`px-1 py-1.5 text-right font-semibold text-rose-700 bg-rose-50 ${BORDER_L}`}>Valor Suprimido</th>
+              <th className="px-1 py-1.5 text-right font-semibold text-emerald-700 bg-emerald-50">Valor Acrescido</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Valor Final</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Diferença</th>
+              <th className="px-1 py-1.5 text-right font-semibold">% Var.</th>
             </tr>
           </thead>
           <tbody>
