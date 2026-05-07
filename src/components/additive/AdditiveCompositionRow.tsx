@@ -1,13 +1,102 @@
-import { Fragment, memo } from 'react';
+import { Fragment, memo, useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronDown, Trash2, Calculator } from 'lucide-react';
 import type { AdditiveComposition, AdditiveCalculationMemoryRow } from '@/types/project';
 import { computeAdditiveRow, computeCompositionWithBDI } from '@/lib/additiveImport';
 import { memoryTotals } from '@/lib/calculationMemory';
-import { fmtBRL, fmtNum, fmtPct, COL_COUNT, G_BG, BORDER_L } from './types';
+import { fmtBRL, fmtNum, fmtQty2, fmtPct, COL_COUNT, G_BG, BORDER_L } from './types';
 import AdditiveAnalyticRows from './AdditiveAnalyticRows';
 import AdditiveCalculationMemory from './AdditiveCalculationMemory';
+
+/** Parse pt-BR/EN decimal string -> number. Empty => null. */
+const parseDec = (s: string): number | null => {
+  const t = String(s ?? '').trim().replace(/\./g, '').replace(',', '.');
+  if (t === '' || t === '-' || t === '.') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+/** Célula numérica com estado local. Mostra vazio quando valor=0 e allowEmptyZero. */
+function QtyCell({
+  value, disabled, onCommit, className, allowEmptyZero,
+}: {
+  value: number;
+  disabled?: boolean;
+  onCommit: (n: number) => void;
+  className?: string;
+  allowEmptyZero?: boolean;
+}) {
+  const fmtView = (n: number) =>
+    n === 0 && allowEmptyZero ? '' : fmtQty2(n);
+  const [local, setLocal] = useState<string>(() => fmtView(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setLocal(fmtView(value)); }, [value, focused, allowEmptyZero]);
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={local}
+      disabled={disabled}
+      onFocus={e => { setFocused(true); e.currentTarget.select(); }}
+      onChange={e => {
+        const v = e.target.value;
+        if (/^-?[0-9.,]*$/.test(v)) setLocal(v);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const n = parseDec(local);
+        const final = n == null ? 0 : n;
+        setLocal(fmtView(final));
+        if (final !== value) onCommit(final);
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+      }}
+      className={`no-spinner ${className ?? ''}`}
+    />
+  );
+}
+
+/** Célula numérica (R$) com estado local — sem formatação especial. */
+function MoneyCell({
+  value, disabled, onCommit, className, title,
+}: {
+  value: number;
+  disabled?: boolean;
+  onCommit: (n: number) => void;
+  className?: string;
+  title?: string;
+}) {
+  const fmtView = (n: number) => (n ? String(n).replace('.', ',') : '');
+  const [local, setLocal] = useState<string>(() => fmtView(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setLocal(fmtView(value)); }, [value, focused]);
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={local}
+      disabled={disabled}
+      title={title}
+      onFocus={e => { setFocused(true); e.currentTarget.select(); }}
+      onChange={e => {
+        const v = e.target.value;
+        if (/^-?[0-9.,]*$/.test(v)) setLocal(v);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const n = parseDec(local);
+        const final = n == null ? 0 : n;
+        if (final !== value) onCommit(final);
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+      }}
+      className={`no-spinner ${className ?? ''}`}
+    />
+  );
+}
 
 interface Props {
   c: AdditiveComposition;
