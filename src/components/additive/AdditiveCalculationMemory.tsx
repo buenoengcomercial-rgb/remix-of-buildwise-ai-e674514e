@@ -439,7 +439,8 @@ function AdditiveCalculationMemoryImpl({
                         onChange={e => onCellChange(r.id, k, e.target.value)}
                         onBlur={handleBlur}
                         onKeyDown={e => handleKeyDown(e, rowIndex, 3 + kIdx)}
-                        className="h-7 text-[11px] text-right px-1"
+                        onFocus={e => e.currentTarget.select()}
+                        className="h-7 text-[11px] text-right px-1 no-spinner"
                       />
                     </td>
                   ))}
