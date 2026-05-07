@@ -472,3 +472,5 @@ function AdditiveCalculationMemoryImpl({
     </div>
   );
 }
+
+export default memo(AdditiveCalculationMemoryImpl);
