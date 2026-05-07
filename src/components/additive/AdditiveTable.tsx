@@ -53,27 +53,27 @@ export default function AdditiveTable(props: Props) {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse" style={{ minWidth: 2000, tableLayout: 'fixed' }}>
+        <table className="w-full text-xs border-collapse" style={{ minWidth: 1500, tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: 28 }} />
-            <col style={{ width: 60 }} />
-            <col style={{ width: 95 }} />
-            <col style={{ width: 100 }} />
-            <col style={{ width: 480 }} />
+            <col style={{ width: 24 }} />
             <col style={{ width: 55 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 80 }} />
-            <col style={{ width: 105 }} />
-            <col style={{ width: 105 }} />
-            <col style={{ width: 100 }} />
-            <col style={{ width: 115 }} />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 115 }} />
-            <col style={{ width: 105 }} />
-            <col style={{ width: 70 }} />
+            <col style={{ width: 75 }} />
+            <col style={{ width: 75 }} />
+            <col style={{ width: 320 }} />
+            <col style={{ width: 45 }} />
+            <col style={{ width: 78 }} />
+            <col style={{ width: 78 }} />
+            <col style={{ width: 78 }} />
+            <col style={{ width: 60 }} />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 92 }} />
+            <col style={{ width: 92 }} />
+            <col style={{ width: 96 }} />
+            <col style={{ width: 96 }} />
+            <col style={{ width: 96 }} />
+            <col style={{ width: 96 }} />
+            <col style={{ width: 92 }} />
+            <col style={{ width: 62 }} />
           </colgroup>
           <thead className="sticky top-0 z-10">
             <tr>
@@ -93,24 +93,24 @@ export default function AdditiveTable(props: Props) {
             </tr>
             <tr className="bg-muted/60 border-b">
               <th className="w-8" />
-              <th className="px-2 py-2 text-left font-semibold">Item</th>
-              <th className="px-2 py-2 text-left font-semibold">Código</th>
-              <th className="px-2 py-2 text-left font-semibold">Banco</th>
-              <th className="px-2 py-2 text-left font-semibold">Descrição</th>
-              <th className="px-2 py-2 text-left font-semibold">Und</th>
-              <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Qtd Contratada</th>
-              <th className="px-2 py-2 text-right font-semibold text-rose-700 bg-rose-50">Qtd Suprimida</th>
-              <th className="px-2 py-2 text-right font-semibold text-emerald-700 bg-emerald-50">Qtd Acrescida</th>
-              <th className="px-2 py-2 text-right font-semibold">Qtd Final</th>
-              <th className={`px-2 py-2 text-right font-semibold ${BORDER_L}`}>Valor Unit</th>
-              <th className="px-2 py-2 text-right font-semibold">Valor Unit c/ BDI</th>
-              <th className="px-2 py-2 text-right font-semibold">Total Fonte</th>
-              <th className="px-2 py-2 text-right font-semibold">Valor Contratado</th>
-              <th className={`px-2 py-2 text-right font-semibold text-rose-700 bg-rose-50 ${BORDER_L}`}>Valor Suprimido</th>
-              <th className="px-2 py-2 text-right font-semibold text-emerald-700 bg-emerald-50">Valor Acrescido</th>
-              <th className="px-2 py-2 text-right font-semibold">Valor Final</th>
-              <th className="px-2 py-2 text-right font-semibold">Diferença</th>
-              <th className="px-2 py-2 text-right font-semibold">% Var.</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Item</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Código</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Banco</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Descrição</th>
+              <th className="px-1 py-1.5 text-left font-semibold">Und</th>
+              <th className={`px-1 py-1.5 text-right font-semibold ${BORDER_L}`}>Qtd Contratada</th>
+              <th className="px-1 py-1.5 text-right font-semibold text-rose-700 bg-rose-50">Qtd Suprimida</th>
+              <th className="px-1 py-1.5 text-right font-semibold text-emerald-700 bg-emerald-50">Qtd Acrescida</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Qtd Final</th>
+              <th className={`px-1 py-1.5 text-right font-semibold ${BORDER_L}`}>Valor Unit</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Valor Unit c/ BDI</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Total Fonte</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Valor Contratado</th>
+              <th className={`px-1 py-1.5 text-right font-semibold text-rose-700 bg-rose-50 ${BORDER_L}`}>Valor Suprimido</th>
+              <th className="px-1 py-1.5 text-right font-semibold text-emerald-700 bg-emerald-50">Valor Acrescido</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Valor Final</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Diferença</th>
+              <th className="px-1 py-1.5 text-right font-semibold">% Var.</th>
             </tr>
           </thead>
           <tbody>

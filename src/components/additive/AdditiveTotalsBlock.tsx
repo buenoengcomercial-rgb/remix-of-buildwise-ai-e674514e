@@ -109,7 +109,7 @@ export default function AdditiveTotalsBlock({ active, totals, isLocked, onChange
                 if (!Number.isFinite(v) || v < 0) return;
                 onChangeLimit(v);
               }}
-              className="h-8 w-24 text-xs"
+              className="h-8 w-24 text-xs no-spinner"
             />
           </div>
           <div>

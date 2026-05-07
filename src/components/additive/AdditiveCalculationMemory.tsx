@@ -208,41 +208,55 @@ function AdditiveCalculationMemoryImpl({
     reconcile();
   };
 
-  /** Navegação por teclado entre células. */
+  /** Navegação por teclado entre células (Enter/Tab + setas tipo planilha). */
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLElement>,
     rowIndex: number,
     fieldIndex: number,
   ) => {
-    const isEnter = e.key === 'Enter';
-    const isTab = e.key === 'Tab';
-    if (!isEnter && !isTab) return;
     if (isLocked) return;
+    const target = e.target as HTMLInputElement | HTMLSelectElement;
+    const isInput = target.tagName === 'INPUT';
+    const isText = isInput && (target as HTMLInputElement).type !== 'number';
+    const caretAtStart = isInput ? (target as HTMLInputElement).selectionStart === 0 : true;
+    const caretAtEnd = isInput
+      ? (target as HTMLInputElement).selectionEnd === (target as HTMLInputElement).value.length
+      : true;
 
-    const back = e.shiftKey;
+    let dir: 'next' | 'prev' | 'up' | 'down' | null = null;
+    if (e.key === 'Enter' || e.key === 'Tab') dir = e.shiftKey ? 'prev' : 'next';
+    else if (e.key === 'ArrowRight' && (!isText || caretAtEnd)) dir = 'next';
+    else if (e.key === 'ArrowLeft' && (!isText || caretAtStart)) dir = 'prev';
+    else if (e.key === 'ArrowDown') dir = 'down';
+    else if (e.key === 'ArrowUp') dir = 'up';
+    if (!dir) return;
+
     let nextRow = rowIndex;
-    let nextField = fieldIndex + (back ? -1 : 1);
-    if (nextField < 0) {
-      nextRow = rowIndex - 1;
-      nextField = EDIT_FIELDS.length - 1;
-    } else if (nextField >= EDIT_FIELDS.length) {
+    let nextField = fieldIndex;
+    if (dir === 'next') {
+      nextField = fieldIndex + 1;
+      if (nextField >= EDIT_FIELDS.length) { nextField = 0; nextRow = rowIndex + 1; }
+    } else if (dir === 'prev') {
+      nextField = fieldIndex - 1;
+      if (nextField < 0) { nextField = EDIT_FIELDS.length - 1; nextRow = rowIndex - 1; }
+    } else if (dir === 'down') {
       nextRow = rowIndex + 1;
-      nextField = 0;
+    } else if (dir === 'up') {
+      nextRow = rowIndex - 1;
     }
 
     // Reconcilia (cria linha vazia se necessário) ANTES de focar.
     const finalRows = reconcile();
 
     if (nextRow < 0) {
-      if (isEnter) e.preventDefault();
+      if (e.key === 'Enter') e.preventDefault();
       return;
     }
 
-    if (isEnter) e.preventDefault();
-    // Se ultrapassou, foca primeira coluna da última (vazia) linha.
+    e.preventDefault();
     const safeRow = Math.min(nextRow, finalRows.length - 1);
-    const target = finalRows[safeRow];
-    if (target) focusCell(target.id, EDIT_FIELDS[nextField]);
+    const tgt = finalRows[safeRow];
+    if (tgt) focusCell(tgt.id, EDIT_FIELDS[nextField]);
   };
 
   /** Botão "+ Acrescida" / "+ Suprimida": força linha vazia com o tipo escolhido. */
@@ -425,7 +439,8 @@ function AdditiveCalculationMemoryImpl({
                         onChange={e => onCellChange(r.id, k, e.target.value)}
                         onBlur={handleBlur}
                         onKeyDown={e => handleKeyDown(e, rowIndex, 3 + kIdx)}
-                        className="h-7 text-[11px] text-right px-1"
+                        onFocus={e => e.currentTarget.select()}
+                        className="h-7 text-[11px] text-right px-1 no-spinner"
                       />
                     </td>
                   ))}

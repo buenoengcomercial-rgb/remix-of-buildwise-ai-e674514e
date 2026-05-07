@@ -88,7 +88,7 @@ export default function AdditiveHeader({
               value={bdi}
               disabled={isLocked}
               onChange={e => onChangeBdi(e.target.value)}
-              className="h-7 w-20 text-xs"
+              className="h-7 w-20 text-xs no-spinner"
             />
           </div>
         )}
@@ -105,7 +105,7 @@ export default function AdditiveHeader({
               value={globalDiscount}
               disabled={isLocked}
               onChange={e => onChangeGlobalDiscount(e.target.value)}
-              className="h-7 w-20 text-xs"
+              className="h-7 w-20 text-xs no-spinner"
             />
           </div>
         )}
