@@ -57,7 +57,7 @@ function AdditiveCompositionRowImpl({
         </td>
         {/* Identificação */}
         <td className={`px-2 py-2 ${G_BG.id}`}>{c.itemNumber || c.item}</td>
-        <td className={`px-2 py-2 font-mono text-[11px] ${G_BG.id}`}>
+        <td className={`px-2 py-2 font-mono text-[11px] break-words whitespace-normal ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.code}
@@ -67,7 +67,7 @@ function AdditiveCompositionRowImpl({
             />
           ) : c.code}
         </td>
-        <td className={`px-2 py-2 ${G_BG.id}`}>
+        <td className={`px-2 py-2 break-words whitespace-normal ${G_BG.id}`}>
           {isNew && !isLocked ? (
             <Input
               value={c.bank}
@@ -79,10 +79,11 @@ function AdditiveCompositionRowImpl({
         </td>
         <td className={`px-2 py-2 ${G_BG.id}`}>
           {isNew && !isLocked ? (
-            <Input
+            <textarea
               value={c.description}
               onChange={e => onUpdateComposition(c.id, { description: e.target.value })}
-              className="h-8 w-full text-xs"
+              className="w-full text-xs rounded-md border border-input bg-background px-2 py-1.5 leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[40px]"
+              rows={2}
               placeholder="Descrição do novo serviço"
             />
           ) : (
