@@ -38,17 +38,19 @@ export const fmtPct = (v: number) =>
 
 export const COL_COUNT = 19;
 
-// Cores por grupo de colunas (mesmo padrão visual da Medição)
+// Cores por coluna (padrão leve, focado em impacto)
 export const G_BG = {
-  id: 'bg-muted/40',         // Identificação
-  qty: 'bg-info/10',         // Quantidades
-  val: 'bg-info/5',          // Valores base
-  impact: 'bg-success/10',   // Impacto do aditivo
+  id: '',                       // Identificação: neutro
+  qty: 'bg-slate-50/60',        // Quantidades base
+  val: 'bg-slate-50/60',        // Valores base
+  impact: '',                   // Diferença/% Var: neutro
+  suppressed: 'bg-rose-50',     // Suprimido
+  added: 'bg-emerald-50',       // Acrescido
 };
 export const G_HEAD = {
-  id: 'bg-muted text-foreground',
-  qty: 'bg-info/20 text-foreground',
-  val: 'bg-info/15 text-foreground',
-  impact: 'bg-success/20 text-foreground',
+  id: 'bg-muted/70 text-foreground',
+  qty: 'bg-slate-100 text-slate-700',
+  val: 'bg-sky-50 text-sky-900',
+  impact: 'bg-emerald-50 text-emerald-900',
 };
-export const BORDER_L = 'border-l-2 border-border';
+export const BORDER_L = 'border-l border-border/70';

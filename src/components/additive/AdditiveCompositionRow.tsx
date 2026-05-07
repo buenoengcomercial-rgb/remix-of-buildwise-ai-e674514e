@@ -155,25 +155,25 @@ function AdditiveCompositionRowImpl({
             className="h-7 w-full text-xs text-right"
           />
         </td>
-        <td className={`px-2 py-2 text-right ${G_BG.qty}`}>
+        <td className={`px-2 py-2 text-right ${G_BG.suppressed} text-rose-700`}>
           <Input
             type="number" step="0.0001" min={0}
             value={c.suppressedQuantity ?? 0}
             disabled={isLocked || isNew || hasMemory}
             onChange={e => onUpdateComposition(c.id, { suppressedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'suppressedQuantity', Number(e.target.value) || 0)}
-            className="h-7 w-full text-xs text-right border-rose-200"
+            className="h-7 w-full text-xs text-right border-rose-200 text-rose-700"
             title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
-        <td className={`px-2 py-2 text-right ${G_BG.qty}`}>
+        <td className={`px-2 py-2 text-right ${G_BG.added} text-emerald-700`}>
           <Input
             type="number" step="0.0001" min={0}
             value={c.addedQuantity ?? 0}
             disabled={isLocked || hasMemory}
             onChange={e => onUpdateComposition(c.id, { addedQuantity: Number(e.target.value) || 0 })}
             onBlur={e => onUpdateQuantity(c.id, 'addedQuantity', Number(e.target.value) || 0)}
-            className="h-7 w-full text-xs text-right border-emerald-200"
+            className="h-7 w-full text-xs text-right border-emerald-200 text-emerald-700"
             title={hasMemory ? 'Calculado pela memória de cálculo' : undefined}
           />
         </td>
@@ -198,15 +198,15 @@ function AdditiveCompositionRowImpl({
         <td className={`px-2 py-2 text-right text-muted-foreground ${G_BG.val}`}>{fmtBRL(r.totalFonte)}</td>
         <td className={`px-2 py-2 text-right ${G_BG.val}`}>{fmtBRL(r.valorContratadoCalc)}</td>
         {/* Impacto */}
-        <td className={`px-2 py-2 text-right text-rose-700 ${G_BG.impact} ${BORDER_L}`}>
+        <td className={`px-2 py-2 text-right text-rose-700 font-medium ${G_BG.suppressed} ${BORDER_L}`}>
           {r.valorSuprimido > 0 ? fmtBRL(-r.valorSuprimido) : fmtBRL(0)}
         </td>
-        <td className={`px-2 py-2 text-right text-emerald-700 ${G_BG.impact}`}>{fmtBRL(r.valorAcrescido)}</td>
+        <td className={`px-2 py-2 text-right text-emerald-700 font-medium ${G_BG.added}`}>{fmtBRL(r.valorAcrescido)}</td>
         <td className={`px-2 py-2 text-right font-medium ${G_BG.impact}`}>{fmtBRL(r.valorFinal)}</td>
-        <td className={`px-2 py-2 text-right font-medium ${G_BG.impact} ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : ''}`}>
+        <td className={`px-2 py-2 text-right font-medium ${r.diferenca < 0 ? 'text-rose-700' : r.diferenca > 0 ? 'text-emerald-700' : 'text-foreground'}`}>
           {fmtBRL(r.diferenca)}
         </td>
-        <td className={`px-2 py-2 text-right ${G_BG.impact} ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : ''}`}>
+        <td className={`px-2 py-2 text-right ${r.percentVar < 0 ? 'text-rose-700' : r.percentVar > 0 ? 'text-emerald-700' : 'text-foreground'}`}>
           {fmtPct(r.percentVar)}
         </td>
       </tr>
