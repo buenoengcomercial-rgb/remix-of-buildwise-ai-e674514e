@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useOrganization } from '@/hooks/useOrganization';
 import {
-  listOrgMembers, inviteMemberByEmail, updateMemberRole, updateMemberStatus, removeMember,
+  listOrgMembers, inviteMemberByEmail, createMemberWithPassword, updateMemberRole, updateMemberStatus, removeMember,
   OrgMember, OrgRole, MemberStatus, ROLE_LABELS, STATUS_LABELS, canManageMembers,
 } from '@/lib/organizations';
 import { Button } from '@/components/ui/button';
